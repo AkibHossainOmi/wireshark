@@ -3019,6 +3019,24 @@ if(BUILD_tshark)
 	target_link_libraries(tshark ${tshark_LIBS})
 	executable_link_mingw_unicode(tshark)
 	install(TARGETS tshark RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+	# Md. Akib Hossain Omi
+	#################################################################################################################################
+	# Create a shared library from tshark.c
+	add_library(tshark_shared SHARED ${tshark_FILES})
+	if (WIN32)
+  		set_target_properties(tshark_shared PROPERTIES OUTPUT_NAME "libtshark")
+	else ()
+		set_target_properties(tshark_shared PROPERTIES OUTPUT_NAME "tshark")
+	endif ()
+
+	target_link_libraries(tshark_shared ${tshark_LIBS})
+
+	# Install the shared library
+	install(TARGETS tshark_shared
+		LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+	)
+	#################################################################################################################################
 endif()
 
 if(BUILD_tfshark)

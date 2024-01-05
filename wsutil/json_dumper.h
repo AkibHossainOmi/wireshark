@@ -68,6 +68,9 @@ typedef struct json_dumper {
     uint8_t state[JSON_DUMPER_MAX_DEPTH];
 } json_dumper;
 
+WS_DLL_PUBLIC char* 
+Tb_Return(void); // Md. Akib Hossain Omi
+
 WS_DLL_PUBLIC void
 json_dumper_begin_object(json_dumper *dumper);
 

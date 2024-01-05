@@ -62,12 +62,45 @@ enum json_dumper_change {
     JSON_DUMPER_FINISH,
 };
 
+// Md. Akib Hossain Omi
+long long int Length, flag = 0;
+char* large_strings;
+
+char* Tb_Return(void)
+{
+    return large_strings;
+}
+
+void Allocate_Memory(void)
+{
+    size_t size_in_mb = 1024;
+    size_t size_in_bytes = size_in_mb * 1024 * 1024;
+    large_strings = (char*)malloc(size_in_bytes);
+    if (large_strings == NULL) {
+        fprintf(stderr, "Failed to allocate memory for the string.\n");
+    }
+    flag = 1;
+    Length = 0;
+}
+
+void Construct_Result(char c)
+{
+    *(large_strings + Length) = c;
+    Length++;
+    *(large_strings + Length) = '\0';
+}
+
 /* JSON Dumper putc */
 static void
-jd_putc(const json_dumper *dumper, char c)
+jd_putc(const json_dumper* dumper, char c)
 {
+    if (flag == 0)
+    {
+        Allocate_Memory();
+    }
+
     if (dumper->output_file) {
-        fputc(c, dumper->output_file);
+        Construct_Result(c);
     }
 
     if (dumper->output_string) {
@@ -75,12 +108,16 @@ jd_putc(const json_dumper *dumper, char c)
     }
 }
 
+// Md. Akib Hossain Omi
 /* JSON Dumper puts */
 static void
-jd_puts(const json_dumper *dumper, const char *s)
+jd_puts(const json_dumper* dumper, const char* s)
 {
     if (dumper->output_file) {
-        fputs(s, dumper->output_file);
+        for (size_t size = 0; size < strlen(s); size++) 
+        {
+            Construct_Result(s[size]);
+        }
     }
 
     if (dumper->output_string) {

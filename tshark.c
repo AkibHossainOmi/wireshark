@@ -21,6 +21,7 @@
 #include <limits.h>
 
 #include <wsutil/ws_getopt.h>
+#include <wsutil/tshark.h> // Md. Akib Hossain Omi
 
 #include <errno.h>
 
@@ -924,9 +925,20 @@ capture_opts_get_interface_list(int *err, char **err_str)
 }
 #endif
 
-int
-main(int argc, char *argv[])
+volatile int         exit_status; // Md. Akib Hossain Omi
+void freememory(char* str) // Md. Akib Hossain Omi
 {
+    free(str);
+}
+
+// Md. Akib Hossain Omi
+char*
+Tb_Main(char filename[1000])
+{
+    int argc = 6;
+    char* argv[1000] = { "C:\\Development\\wsbuild64\\run\\RelWithDebInfo\\tshark.exe",
+        "-Tjson","-r", filename, "-Y", "gsm_map && sctp" }; // Md. Akib Hossain Omi
+        
     char                *err_msg;
     static const struct report_message_routines tshark_report_routines = {
         failure_message,
@@ -968,7 +980,7 @@ main(int argc, char *argv[])
     gboolean             exp_pdu_status;
     volatile process_file_status_t status;
     volatile gboolean    draw_taps = FALSE;
-    volatile int         exit_status = EXIT_SUCCESS;
+    exit_status = EXIT_SUCCESS;
 #ifdef HAVE_LIBPCAP
     int                  caps_queries = 0;
     GList               *if_list;
@@ -2753,6 +2765,17 @@ clean_exit:
     free_progdirs();
     dfilter_free(dfcode);
     g_free(dfilter);
+    return Tb_Return(); // Md. Akib Hossain Omi
+}
+
+int
+main(int argc, char* argv[])
+{
+    // Md. Akib Hossain Omi
+    char filename[1000];
+    strcpy(filename, argv[1]);
+    char* result = Tb_Main(filename);
+    free(result);
     return exit_status;
 }
 
