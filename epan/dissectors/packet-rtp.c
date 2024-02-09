@@ -199,7 +199,7 @@ static dissector_table_t rtp_dyn_pt_dissector_table;
 static dissector_table_t rtp_hdr_ext_dissector_table;
 static dissector_table_t rtp_hdr_ext_rfc5285_dissector_table;
 
-/* Used for storing data to be retreived by the SDP dissector*/
+/* Used for storing data to be retrieved by the SDP dissector*/
 static int proto_sdp;
 
 /* RTP header fields             */
@@ -214,6 +214,7 @@ static int hf_rtp_payload_type;
 static int hf_rtp_seq_nr;
 static int hf_rtp_ext_seq_nr;
 static int hf_rtp_timestamp;
+static int hf_rtp_ext_timestamp;
 static int hf_rtp_ssrc;
 static int hf_rtp_csrc_items;
 static int hf_rtp_csrc_item;
@@ -1186,6 +1187,7 @@ srtp_add_address(packet_info *pinfo, const port_type ptype, address *addr, int p
     conversation_t* p_conv, *sdp_conv;
     struct _rtp_conversation_info *p_conv_data;
     wmem_array_t *rtp_conv_info_list = NULL;
+    wmem_map_t *ssrc_number_space = NULL;
 
     /*
      * If this isn't the first time this packet has been processed,
@@ -1214,10 +1216,20 @@ srtp_add_address(packet_info *pinfo, const port_type ptype, address *addr, int p
     if (p_conv) {
         /*
          * Check if the conversation has data associated with it.
+         * Sometimes there are multiple setup messages for the same
+         * conversation, and it's worth copying over some of our
+         * internal data to the new conversation. The extended sequence
+         * number and timestamp cycle information is per-SSRC, and it
+         * doesn't hurt (and can definitely help) to ensure that the
+         * new conversation uses the same extended cycles as the old one.
+         * XXX: It's not actually clear that we really need to create
+         * extra conversations for each setup frame, because we save the
+         * relevant information to per-packet data for the subsequent passes.
          */
         p_conv_data = (struct _rtp_conversation_info *)conversation_get_proto_data(p_conv, proto_rtp);
         if (p_conv_data) {
             rtp_conv_info_list = p_conv_data->rtp_sdp_setup_info_list;
+            ssrc_number_space = p_conv_data->ssrc_number_space;
         }
     }
 
@@ -1267,7 +1279,7 @@ srtp_add_address(packet_info *pinfo, const port_type ptype, address *addr, int p
         /* Create conversation data */
         p_conv_data = wmem_new0(wmem_file_scope(), struct _rtp_conversation_info);
 
-        p_conv_data->ssrc_number_space = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
+        p_conv_data->ssrc_number_space = ssrc_number_space ? ssrc_number_space : wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
         p_conv_data->rtp_conv_info = wmem_new(wmem_file_scope(), rtp_private_conv_info);
         p_conv_data->rtp_conv_info->multisegment_pdus = wmem_tree_new(wmem_file_scope());
         DINDENT();
@@ -2425,6 +2437,10 @@ dissect_rtp( tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_
 
         /* Timestamp 32 bits (4 octets) */
         proto_tree_add_uint( rtp_tree, hf_rtp_timestamp, tvb, offset, 4, timestamp );
+        if(p_packet_data != NULL) {
+            item = proto_tree_add_uint64(rtp_tree, hf_rtp_ext_timestamp, tvb, offset, 4, p_packet_data->extended_timestamp);
+            proto_item_set_generated(item);
+        }
         offset += 4;
 
         /* Synchronization source identifier 32 bits (4 octets) */
@@ -3217,6 +3233,18 @@ proto_register_rtp(void)
                 "Timestamp",
                 "rtp.timestamp",
                 FT_UINT32,
+                BASE_DEC,
+                NULL,
+                0x0,
+                NULL, HFILL
+            }
+        },
+        {
+            &hf_rtp_ext_timestamp,
+            {
+                "Extended timestamp",
+                "rtp.timestamp_ext",
+                FT_UINT64,
                 BASE_DEC,
                 NULL,
                 0x0,

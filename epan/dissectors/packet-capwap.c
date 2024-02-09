@@ -3102,7 +3102,7 @@ dissect_capwap_header(tvbuff_t *tvb, proto_tree *capwap_control_tree, guint offs
     /* Reserved 3 Bits */
     proto_tree_add_item(capwap_header_tree, hf_capwap_header_reserved, tvb, offset+plen+1, 1, ENC_BIG_ENDIAN);
     plen += 2;
-    /* Optionnal Headers */
+    /* Optional Headers */
     if (flags & 0x10 /* Radio MAC address */) {
         maclength=tvb_get_guint8(tvb, offset+plen);
         proto_tree_add_item(capwap_header_tree, hf_capwap_header_mac_length, tvb, offset+plen, 1, ENC_BIG_ENDIAN);
@@ -5071,7 +5071,7 @@ proto_register_capwap_control(void)
         },
         { &hf_capwap_fortinet_wtp_allow_allow,
             { "Allowed", "capwap.control.fortinet.wtp_allow.allowed",
-              FT_BOOLEAN, 8, TFS(&tfs_yes_no), 0x0,
+              FT_BOOLEAN, BASE_NONE, TFS(&tfs_yes_no), 0x0,
               NULL, HFILL }
         },
         { &hf_capwap_fortinet_wbh_sta_rid,

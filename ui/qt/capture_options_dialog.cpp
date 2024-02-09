@@ -97,7 +97,7 @@ static interface_t *find_device_by_if_name(const QString &interface_name)
     guint i;
     for (i = 0; i < global_capture_opts.all_ifaces->len; i++) {
         device = &g_array_index(global_capture_opts.all_ifaces, interface_t, i);
-        if (!interface_name.compare(device->display_name) && !device->hidden && device->type != IF_PIPE) {
+        if (!interface_name.compare(device->display_name) && !device->hidden && device->if_info.type != IF_PIPE) {
             return device;
         }
     }
@@ -223,6 +223,7 @@ CaptureOptionsDialog::CaptureOptionsDialog(QWidget *parent) :
     ui->filenameLineEdit->setPlaceholderText(tr("Leave blank to use a temporary file"));
 
     ui->rbCompressionNone->setChecked(true);
+    ui->rbTimeNum->setChecked(true);
 
     ui->tempDirLineEdit->setPlaceholderText(g_get_tmp_dir());
     ui->tempDirLineEdit->setText(global_capture_opts.temp_dir);
@@ -942,7 +943,7 @@ void CaptureOptionsDialog::updateStatistics(void)
             }
             device = &g_array_index(global_capture_opts.all_ifaces, interface_t, if_idx);
             QString device_name = ti->text(col_interface_);
-            if (device_name.compare(device->display_name) || device->hidden || device->type == IF_PIPE) {
+            if (device_name.compare(device->display_name) || device->hidden || device->if_info.type == IF_PIPE) {
                 continue;
             }
             QList<int> points = ti->data(col_traffic_, Qt::UserRole).value<QList<int> >();
@@ -1264,6 +1265,14 @@ bool CaptureOptionsDialog::saveOptionsToPreferences()
         global_capture_opts.compress_type = qstring_strdup("gzip");
     }  else {
         global_capture_opts.compress_type = NULL;
+    }
+
+    if (ui->rbTimeNum->isChecked() )  {
+        global_capture_opts.has_nametimenum = true;
+    } else if (ui->rbNumTime->isChecked() )  {
+        global_capture_opts.has_nametimenum = false;
+    }  else {
+        global_capture_opts.has_nametimenum = false;
     }
 
     prefs_main_write();

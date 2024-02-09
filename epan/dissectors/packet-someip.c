@@ -1,7 +1,7 @@
 /* packet-someip.c
  * SOME/IP dissector.
  * By Dr. Lars Voelker <lars.voelker@technica-engineering.de> / <lars.voelker@bmw.de>
- * Copyright 2012-2023 Dr. Lars Voelker
+ * Copyright 2012-2024 Dr. Lars Voelker
  * Copyright 2019      Ana Pantar
  * Copyright 2019      Guenter Ebermann
  *
@@ -787,11 +787,16 @@ copy_generic_one_id_string_cb(void *n, const void *o, size_t size _U_) {
 }
 
 static bool
-update_generic_one_identifier_16bit(void *r, char **err) {
+update_serviceid(void *r, char **err) {
     generic_one_id_string_t *rec = (generic_one_id_string_t *)r;
 
+    if (rec->id == 0xffff) {
+        *err = ws_strdup_printf("Service-ID 0xffff is reserved and cannot be used (ID: %i  Name: %s)", rec->id, rec->name);
+        return FALSE;
+    }
+
     if (rec->id > 0xffff) {
-        *err = ws_strdup_printf("We currently only support 16 bit identifiers (ID: %i  Name: %s)", rec->id, rec->name);
+        *err = ws_strdup_printf("Service-IDs have to be 16bit (ID: %i  Name: %s)", rec->id, rec->name);
         return FALSE;
     }
 
@@ -839,15 +844,47 @@ copy_generic_two_id_string_cb(void *n, const void *o, size_t size _U_) {
 }
 
 static bool
+update_two_identifier_16bit_check_both(void *r, char **err) {
+    generic_two_id_string_t *rec = (generic_two_id_string_t *)r;
+
+    if (rec->id == 0xffff) {
+        *err = ws_strdup_printf("Service-ID 0xffff is reserved and cannot be used (ID: %i  Name: %s)", rec->id, rec->name);
+        return FALSE;
+    }
+
+    if (rec->id > 0xffff) {
+        *err = ws_strdup_printf("Service-IDs have to be 16bit (ID: %i  Name: %s)", rec->id, rec->name);
+        return FALSE;
+    }
+
+    if (rec->id2 == 0xffff) {
+        *err = ws_strdup_printf("0xffff is reserved and cannot be used (ID: %i  ID2: %i  Name: %s)", rec->id, rec->id2, rec->name);
+        return FALSE;
+    }
+
+    if (rec->id2 > 0xffff) {
+        *err = ws_strdup_printf("We currently only support 16 bit identifiers (ID: %i  ID2: %i  Name: %s)", rec->id, rec->id2, rec->name);
+        return FALSE;
+    }
+
+    if (rec->name == NULL || rec->name[0] == 0) {
+        *err = g_strdup("Name cannot be empty");
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static bool
 update_generic_two_identifier_16bit(void *r, char **err) {
     generic_two_id_string_t *rec = (generic_two_id_string_t *)r;
 
-    if ( rec->id > 0xffff ) {
+    if (rec->id > 0xffff) {
         *err = ws_strdup_printf("We currently only support 16 bit identifiers (ID: %i  Name: %s)", rec->id, rec->name);
         return FALSE;
     }
 
-    if ( rec->id2 > 0xffff ) {
+    if (rec->id2 > 0xffff) {
         *err = ws_strdup_printf("We currently only support 16 bit identifiers (ID: %i  ID2: %i  Name: %s)", rec->id, rec->id2, rec->name);
         return FALSE;
     }
@@ -888,7 +925,7 @@ post_update_generic_two_id_string_template_cb(generic_two_id_string_t *data, gui
     }
 }
 
-char*
+char *
 someip_lookup_service_name(guint16 serviceid) {
     guint32 tmp = (guint32)serviceid;
 
@@ -899,7 +936,7 @@ someip_lookup_service_name(guint16 serviceid) {
     return (char *)g_hash_table_lookup(data_someip_services, &tmp);
 }
 
-static char*
+static char *
 someip_lookup_method_name(guint16 serviceid, guint16 methodid) {
     guint32 tmp = (serviceid << 16) + methodid;
 
@@ -910,7 +947,7 @@ someip_lookup_method_name(guint16 serviceid, guint16 methodid) {
     return (char *)g_hash_table_lookup(data_someip_methods, &tmp);
 }
 
-char*
+char *
 someip_lookup_eventgroup_name(guint16 serviceid, guint16 eventgroupid) {
     guint32 tmp = (serviceid << 16) + eventgroupid;
 
@@ -921,7 +958,7 @@ someip_lookup_eventgroup_name(guint16 serviceid, guint16 eventgroupid) {
     return (char *)g_hash_table_lookup(data_someip_eventgroups, &tmp);
 }
 
-static char*
+static char *
 someip_lookup_client_name(guint16 serviceid, guint16 clientid) {
     guint32 tmp = (serviceid << 16) + clientid;
 
@@ -3512,17 +3549,6 @@ dissect_someip_payload(tvbuff_t* tvb, packet_info* pinfo, proto_item *ti, guint1
 
     proto_tree *tree = NULL;
 
-    /* TAP */
-    if (have_tap_listener(tap_someip_messages)) {
-        someip_messages_tap_t *data = wmem_alloc(pinfo->pool, sizeof(someip_messages_tap_t));
-        data->service_id = serviceid;
-        data->method_id = methodid;
-        data->interface_version = version;
-        data->message_type = msgtype;
-
-        tap_queue_packet(tap_someip_messages, pinfo, data);
-    }
-
     length = tvb_captured_length_remaining(tvb, 0);
     tree = proto_item_add_subtree(ti, ett_someip_payload);
     paramlist = get_parameter_config(serviceid, methodid, version, msgtype);
@@ -3733,7 +3759,18 @@ dissect_someip_message(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
         subtvb = tvb_new_subset_length(tvb, SOMEIP_HDR_LEN, someip_payload_length);
     }
 
-    if (subtvb!=NULL) {
+    if (subtvb != NULL) {
+        /* TAP */
+        if (have_tap_listener(tap_someip_messages)) {
+            someip_messages_tap_t *stats_data = wmem_alloc(pinfo->pool, sizeof(someip_messages_tap_t));
+            stats_data->service_id = (guint16)someip_serviceid;
+            stats_data->method_id = (guint16)someip_methodid;
+            stats_data->interface_version = (guint8)version;
+            stats_data->message_type = (guint8)(~SOMEIP_MSGTYPE_TP_MASK) & msgtype;
+
+            tap_queue_packet(tap_someip_messages, pinfo, stats_data);
+        }
+
         tvb_length = tvb_captured_length_remaining(subtvb, 0);
         if (tvb_length > 0) {
             tmp = dissector_try_uint_new(someip_dissector_table, someip_messageid, subtvb, pinfo, tree, FALSE, &someip_data);
@@ -3968,16 +4005,16 @@ proto_register_someip(void) {
             FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_someip_tp_fragment_overlap,
             {"SOME/IP-TP segment overlap", "someip.tp.fragment.overlap",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_someip_tp_fragment_overlap_conflicts,
             {"SOME/IP-TP segment overlapping with conflicting data", "someip.tp.fragment.overlap.conflicts",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_someip_tp_fragment_multiple_tails,
             {"SOME/IP-TP Message has multiple tail fragments", "someip.tp.fragment.multiple_tails",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_someip_tp_fragment_too_long_fragment,
             {"SOME/IP-TP segment too long", "someip.tp.fragment.too_long_fragment",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_someip_tp_fragment_error,
             {"SOME/IP-TP Message defragmentation error", "someip.tp.fragment.error",
             FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
@@ -4254,7 +4291,7 @@ proto_register_someip(void) {
         UAT_AFFECTS_DISSECTION,                            /* but not fields        */
         NULL,                                              /* help                  */
         copy_generic_one_id_string_cb,                     /* copy callback         */
-        update_generic_one_identifier_16bit,               /* update callback       */
+        update_serviceid,                                  /* update callback       */
         free_generic_one_id_string_cb,                     /* free callback         */
         post_update_someip_service_cb,                     /* post update callback  */
         reset_someip_service_cb,                           /* reset callback        */
@@ -4273,7 +4310,7 @@ proto_register_someip(void) {
         UAT_AFFECTS_DISSECTION,                             /* but not fields        */
         NULL,                                               /* help                  */
         copy_generic_two_id_string_cb,                      /* copy callback         */
-        update_generic_two_identifier_16bit,                /* update callback       */
+        update_two_identifier_16bit_check_both,             /* update callback       */
         free_generic_two_id_string_cb,                      /* free callback         */
         post_update_someip_method_cb,                       /* post update callback  */
         reset_someip_method_cb,                             /* reset callback        */
@@ -4292,7 +4329,7 @@ proto_register_someip(void) {
         UAT_AFFECTS_DISSECTION,                            /* but not fields        */
         NULL,                                              /* help                  */
         copy_generic_two_id_string_cb,                     /* copy callback         */
-        update_generic_two_identifier_16bit,               /* update callback       */
+        update_two_identifier_16bit_check_both,            /* update callback       */
         free_generic_two_id_string_cb,                     /* free callback         */
         post_update_someip_eventgroup_cb,                  /* post update callback  */
         reset_someip_eventgroup_cb,                        /* reset callback        */

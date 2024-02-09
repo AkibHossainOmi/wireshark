@@ -3743,7 +3743,7 @@ typedef struct
 #define UPGRADE_ACTION_REPORT         (0)    /* report current status  */
 #define UPGRADE_ACTION_NO_CHANGE      (1)    /* no upgrade is required */
 #define UPGRADE_ACTION_LEGACY         (2)    /* legacy upgrade, stop service and upgrade*/
-#define UPGRADE_ACTION_BACKGROUND     (3)    /* background download, keep serivece then upgrade */
+#define UPGRADE_ACTION_BACKGROUND     (3)    /* background download, keep service then upgrade */
 #define UPGRADE_ACTION_SAVE_BACKUP    (4)    /* download image, overwrite backup image*/
 #define UPGRADE_ACTION_SWITCH_VERSION (5)    /* switch to a previously downloaded image */
 #define UPGRADE_ACTION_ABORT          (6)    /* abort current download operation */
@@ -6629,7 +6629,7 @@ void proto_register_wassp(void)
 		{
 			&hf_wassp_tlv_eid_rustate,
 			{
-				"RU State", "wassp.tlv.eid.rustate", FT_BOOLEAN, FT_UINT8, TFS(&wassp_eid_rustate_types),
+				"RU State", "wassp.tlv.eid.rustate", FT_BOOLEAN, BASE_NONE, TFS(&wassp_eid_rustate_types),
 				0x0, "Remote Unit State", HFILL
 			}
 		},

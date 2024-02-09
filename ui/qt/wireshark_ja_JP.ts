@@ -80,6 +80,14 @@
         <translation>ライセンス</translation>
     </message>
     <message>
+        <source>About Logray</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Logray</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The directory does not exist</source>
         <translation>ディレクトリがありません</translation>
     </message>
@@ -1166,6 +1174,12 @@
 
 </translation>
     </message>
+    <message>
+        <source>Created by Logray %1
+
+</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>CaptureFilterCombo</name>
@@ -1410,6 +1424,30 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     <message>
         <source>gzip</source>
         <translation>gzip</translation>
+    </message>
+    <message>
+        <source>File infix pattern</source>
+        <translation>ファイルinfixパターン</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;In multiple file mode, the date and time and file index number are inserted between filename template and any suffix. Select their order.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;複数ファイルモードにおいては、日付、時間とファイルインデックス番号がファイル名テンプレートとサフィックスの間に挿入されます。順番を選択してください。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>YYYYmmDDHHMMSS_NNNNN</source>
+        <translation>YYYYmmDDHHMMSS_NNNNN</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Date and time before the file index number. This causes files to sort in creation time order, and keeps files from the same batch closely ordered.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;ファイルインデックス番号の前に日付と時刻を示します。これによりファイルは作成時fの順序でソートされ、同じバッチのファイルが近くに配置されます。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+    </message>
+    <message>
+        <source>NNNNN_YYYYmmDDHHMMSS</source>
+        <translation>NNNNN_YYYYmmDDHHMMSS</translation>
+    </message>
+    <message>
+        <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;File index number before the date and time. This is the historic Wireshark ordering.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
+        <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;日付と時刻の前にファイルインデックスを示します。これは歴史的なWiresharkの順序です。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
         <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;After capturing has switched to the next file and the given number of files has exceeded, the oldest file will be removed.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
@@ -2051,6 +2089,14 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     <message>
         <source>Copy packet bytes as a hex dump.</source>
         <translation>16進数ダンプとしてパケットバイト列をコピー</translation>
+    </message>
+    <message>
+        <source>…as Printable Text</source>
+        <translation>印刷可能なテキストとして…</translation>
+    </message>
+    <message>
+        <source>Copy only the printable text in the packet.</source>
+        <translation>パケット内の印刷可能なテキストだけをコピー</translation>
     </message>
     <message>
         <source>…as MIME Data</source>
@@ -3452,6 +3498,22 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
         </translation>
     </message>
     <message>
+        <source>Event %1. </source>
+        <translation>イベント %1 </translation>
+    </message>
+    <message numerus="yes">
+        <source>%Ln &lt;span style=&quot;color: %1; background-color:%2&quot;&gt;reads&lt;/span&gt;, </source>
+        <translation>
+            <numerusform>%Ln &lt;span style=&quot;color: %1; background-color:%2&quot;&gt;読み取り&lt;/span&gt;, </numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%Ln &lt;span style=&quot;color: %1; background-color:%2&quot;&gt;writes&lt;/span&gt;, </source>
+        <translation>
+            <numerusform>%Ln &lt;span style=&quot;color: %1; background-color:%2&quot;&gt;書き込み&lt;/span&gt;, </numerusform>
+        </translation>
+    </message>
+    <message>
         <source> Click to select.</source>
         <translation>クリックして選択します</translation>
     </message>
@@ -3482,6 +3544,18 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     <message>
         <source>%1 stream not found on the selected packet.</source>
         <translation>選択したパケットに %1 ストリームは見つかりませんでした</translation>
+    </message>
+    <message>
+        <source>Read activity(%6)</source>
+        <translation>読み取りアクティビティ(%6)</translation>
+    </message>
+    <message>
+        <source>Write activity(%6)</source>
+        <translation>書き込みアクティビティ(%6)</translation>
+    </message>
+    <message>
+        <source>Entire I/O activity (%1)</source>
+        <translation>全体のI/Oアクティビティ(%1)</translation>
     </message>
     <message>
         <source>Entire conversation (%1)</source>
@@ -6013,7 +6087,7 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     <name>LteMacStatisticsDialog</name>
     <message>
         <source>LTE/NR Mac Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>LTE/NR Mac 統計</translation>
     </message>
     <message>
         <source>Include SR frames in filter</source>
@@ -6322,11 +6396,11 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     </message>
     <message>
         <source>%1 RLC Graph (UE=%2 chan=%3%4 %5 - %6)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 RLC グラフ (UE=%2 chan=%3%4 %5 - %6)</translation>
     </message>
     <message>
         <source>3GPP RLC Graph - no channel selected</source>
-        <translation type="unfinished"></translation>
+        <translation>3GPP RLC グラフ - チャンネルが選択されていません</translation>
     </message>
     <message>
         <source>Save As…</source>
@@ -6381,7 +6455,7 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     <name>LteRlcStatisticsDialog</name>
     <message>
         <source>3GPP RLC Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>3GPP RLC 統計</translation>
     </message>
     <message>
         <source>Include SR frames in filter</source>
@@ -6467,6 +6541,10 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
         <translation>プロファイル: %1</translation>
     </message>
     <message>
+        <source> %1 Displayed: %2 (%3%)</source>
+        <translation> %1 表示: %2 (%3%)</translation>
+    </message>
+    <message>
         <source>Manage Profiles…</source>
         <translation>プロファイルの管理...</translation>
     </message>
@@ -6538,11 +6616,6 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     <message>
         <source>Selected Packet: %1 %2 </source>
         <translation>選択されたパケット: %1 %2 </translation>
-    </message>
-    <message>
-        <source>Packets: %1 %4 Displayed: %2 (%3%)</source>
-        <oldsource>Packets: %1 %4 Displayed: %2 %4 Marked: %3</oldsource>
-        <translation>パケット数: %1 %4 表示: %2 (%3%)</translation>
     </message>
     <message>
         <source> %1 Selected: %2 (%3%)</source>
@@ -7404,15 +7477,15 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     </message>
     <message>
         <source>Scope</source>
-        <translation type="unfinished"></translation>
+        <translation>スコープ</translation>
     </message>
     <message>
         <source>Description</source>
-        <translation type="unfinished">記述</translation>
+        <translation>記述</translation>
     </message>
     <message>
         <source>Homepage</source>
-        <translation type="unfinished"></translation>
+        <translation>ホームページ</translation>
     </message>
 </context>
 <context>
@@ -8308,11 +8381,11 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     </message>
     <message>
         <source>LTE</source>
-        <translation type="unfinished"></translation>
+        <translation>LTE</translation>
     </message>
     <message>
         <source>NR</source>
-        <translation type="unfinished"></translation>
+        <translation>NR</translation>
     </message>
     <message>
         <source>C-RNTI</source>
@@ -8336,7 +8409,7 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     </message>
     <message>
         <source>RAT</source>
-        <translation type="unfinished"></translation>
+        <translation>RAT</translation>
     </message>
     <message>
         <source>UL Frames</source>
@@ -8567,7 +8640,7 @@ For example, use 1 hour to have a new file created every hour on the hour.</sour
     <name>QObject::QObject::QObject</name>
     <message>
         <source>CCCH</source>
-        <translation type="unfinished">CCCH</translation>
+        <translation>CCCH</translation>
     </message>
 </context>
 <context>
@@ -12641,8 +12714,16 @@ a:hover {
         <translation>あなたはWiresharkを使ってインターネットを互いにつなぐ膠をキャプチャしています</translation>
     </message>
     <message>
+        <source>You are sniffing the glue that holds your system together using Logray </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>You are running Wireshark </source>
         <translation>Wiresharkを起動中</translation>
+    </message>
+    <message>
+        <source>You are running Logray </source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source> You receive automatic updates.</source>
@@ -12925,8 +13006,9 @@ a:hover {
         <translation>目次(&amp;C)</translation>
     </message>
     <message>
-        <source>Wireshark Filter</source>
-        <translation>Wiresharkフィルタ</translation>
+        <source>Display Filters</source>
+        <oldsource>Wireshark Filter</oldsource>
+        <translation type="unfinished">Wiresharkフィルタ</translation>
     </message>
     <message>
         <source>TShark</source>
@@ -13965,7 +14047,7 @@ a:hover {
     </message>
     <message>
         <source>&amp;3GPP Uu</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;3GPP Uu</translation>
     </message>
     <message>
         <source>&amp;Wireless</source>
@@ -14069,11 +14151,11 @@ a:hover {
     </message>
     <message>
         <source>E2AP</source>
-        <translation type="unfinished"></translation>
+        <translation>E2AP</translation>
     </message>
     <message>
         <source>E2AP Messages</source>
-        <translation type="unfinished"></translation>
+        <translation>E2AP メッセージ</translation>
     </message>
     <message>
         <source>Decode &amp;As…</source>
@@ -14735,37 +14817,39 @@ a:hover {
     </message>
     <message>
         <source>Install plugin</source>
-        <translation type="unfinished"></translation>
+        <translation>プラグインのインストール</translation>
     </message>
     <message>
         <source>Binary plugin (*%1 *%1.[0-9]*)</source>
-        <translation type="unfinished"></translation>
+        <translation>バイナリープラグイン (*%1 *%1.[0-9]*)</translation>
     </message>
     <message>
         <source>Error removing the old plugin from the personal plugin folder. You may need to close Wireshark first and then manually remove the file &quot;%1&quot;.</source>
-        <translation type="unfinished"></translation>
+        <translation>個人プラグインフォルダーから古いプラグインを削除する際のエラー。 最初にWiresharkを閉じて手動で &quot;%1&quot; ファイルを削除する必要があるかもしれません。</translation>
     </message>
     <message>
         <source>Plugins can execute arbitrary code as the current user. Make sure you trust it before installing.
 
 Continue installing the file &quot;%1&quot; to the personal plugin folder?</source>
-        <translation type="unfinished"></translation>
+        <translation>プラグインは現在のユーザとして任意のコードを実行できます。インストール前に信頼できるか確認ください。
+
+引き続き、個人プラグインフォルダにファイル&quot;%1&quot; をインストールしますか？</translation>
     </message>
     <message>
         <source>Failed to create the directory: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>ディレクトリを作成できませんでした: %1</translation>
     </message>
     <message>
         <source>The file already exists. Do you want to overwrite it?</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルがすでに存在します。上書きしますか？</translation>
     </message>
     <message>
         <source>Failed to copy the file to the destination: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>ファイルを宛先へコピーできませんでした: %1</translation>
     </message>
     <message>
         <source>Plugin &apos;%1&apos; installed successfully. You must restart the program to be able to use it.</source>
-        <translation type="unfinished"></translation>
+        <translation>プラグイン&apos;%1&apos; のインストールは成功しました。 プログラムを再起動して利用できるようにする必要があります。</translation>
     </message>
     <message>
         <source>Show or hide the toolbar</source>
@@ -14973,7 +15057,7 @@ Continue installing the file &quot;%1&quot; to the personal plugin folder?</sour
     </message>
     <message>
         <source>Install Plugin</source>
-        <translation type="unfinished"></translation>
+        <translation>プラグインのインストール</translation>
     </message>
     <message>
         <source>Wiki Page for %1</source>

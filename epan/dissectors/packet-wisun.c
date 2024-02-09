@@ -1709,7 +1709,7 @@ static int dissect_wisun_eapol_relay(tvbuff_t *tvb, packet_info *pinfo, proto_tr
     } else {
         up = (tvb_get_guint8(tvb, offset+6) & 0x80) == 0;  // Key Info ACK==0
     }
-    proto_item* diritem = proto_tree_add_boolean(subtree, hf_wisun_eapol_relay_direction, tvb, offset, 0, (guint32) up);
+    proto_item* diritem = proto_tree_add_boolean(subtree, hf_wisun_eapol_relay_direction, tvb, offset, 0, (guint64) up);
     proto_item_set_generated(diritem);
 
     int r = call_dissector(eapol_handle, tvb_new_subset_remaining(tvb, offset), pinfo, tree);
@@ -2323,7 +2323,7 @@ void proto_register_wisun(void)
         },
 
         { &hf_wisun_netnameie_name,
-          { "Network Name", "wisun.netnameie.name", FT_STRING, ENC_ASCII, NULL, 0x0,
+          { "Network Name", "wisun.netnameie.name", FT_STRING, BASE_NONE, NULL, 0x0,
             NULL, HFILL }
         },
 
@@ -2634,19 +2634,19 @@ void proto_register_wisun(void)
         },
         { &hf_wisun_netricity_scr_segment_overlap,
           { "Message segment overlap", "wisun.netricity.scr.segment.overlap",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         { &hf_wisun_netricity_scr_segment_overlap_conflicts,
           { "Message segment overlapping with conflicting data", "wisun.netricity.scr.segment.overlap.conflicts",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         { &hf_wisun_netricity_scr_segment_multiple_tails,
           { "Message has multiple tail segments", "wisun.netricity.scr.segment.multiple_tails",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         { &hf_wisun_netricity_scr_segment_too_long_segment,
           { "Message segment too long", "wisun.netricity.scr.segment.too_long_segment",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         { &hf_wisun_netricity_scr_segment_error,
           { "Message segment reassembly error", "wisun.netricity.scr.segment.error",

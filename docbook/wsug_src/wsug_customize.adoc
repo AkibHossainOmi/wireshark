@@ -807,9 +807,10 @@ btn:[Copy from]:: Copy the list of user specified display filter buttons from an
 
 The columns in the entries are as follows.
 
-Selecting _Show in toolbar_ causes the column to be shown in the toolbar besides the display filter text entry.
+Selecting _Show in toolbar_ causes the button to be shown in the toolbar besides the display filter text entry.
 
 The _Button Label_ is the text shown on the button in the toolbar.
+The use of a double slash causes the button to create a dropdown list to allow grouping of multiple buttons, e.g. TCP//Syn and TCP//Res.
 
 The _Filter Expression_ is the <<ChWorkBuildDisplayFilterSection,display filter expression>> entered into the display filter text entry when the button is clicked.
 
@@ -1099,13 +1100,19 @@ or (ip.src == $2 and ip.dst == $1 and tcp.srcport == $4 and tcp.dstport == $3)
 would allow to use a display filter like
 
 ----
-$tcp_conv(10.1.1.2, 10.1.1.3, 1200, 1400)
+$tcp_conv(10.1.1.2,10.1.1.3,1200,1400)
 ----
 
 or alternatively
 
 ----
 ${tcp_conv:10.1.1.2;10.1.1.3;1200;1400}
+----
+
+or
+
+----
+${tcp_conv;10.1.1.2;10.1.1.3;1200;1400}
 ----
 
 instead of typing the whole filter. Both notations are equivalent. Once defined, a macro can

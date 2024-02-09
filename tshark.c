@@ -1915,6 +1915,11 @@ Tb_Main(char filename[1000])
     }
 
     /* If we specified output fields, but not the output field type... */
+    /* XXX: If we specfied both output fields with -e *and* protocol filters
+     * with -j/-J, only the former are used. Should we warn or abort?
+     * This also doesn't distinguish PDML from PSML, but shouldn't allow the
+     * latter.
+     */
     if ((WRITE_FIELDS != output_action && WRITE_XML != output_action && WRITE_JSON != output_action && WRITE_EK != output_action) && 0 != output_fields_num_fields(output_fields)) {
         cmdarg_err("Output fields were specified with \"-e\", "
                 "but \"-Tek, -Tfields, -Tjson or -Tpdml\" was not specified.");
@@ -2552,20 +2557,33 @@ Tb_Main(char filename[1000])
 
             /* Get the list of link-layer types for the capture devices. */
             exit_status = EXIT_SUCCESS;
+            GList *if_cap_queries = NULL;
+            if_cap_query_t *if_cap_query;
+            GHashTable *capability_hash;
             for (i = 0; i < global_capture_opts.ifaces->len; i++) {
                 interface_options *interface_opts;
-                if_capabilities_t *caps;
-                char *auth_str = NULL;
-
                 interface_opts = &g_array_index(global_capture_opts.ifaces, interface_options, i);
+                if_cap_query = g_new(if_cap_query_t, 1);
+                if_cap_query->name = interface_opts->name;
+                if_cap_query->monitor_mode = interface_opts->monitor_mode;
+                if_cap_query->auth_username = NULL;
+                if_cap_query->auth_password = NULL;
 #ifdef HAVE_PCAP_REMOTE
                 if (interface_opts->auth_type == CAPTURE_AUTH_PWD) {
-                    auth_str = ws_strdup_printf("%s:%s", interface_opts->auth_username, interface_opts->auth_password);
+                    if_cap_query->auth_username = interface_opts->auth_username;
+                    if_cap_query->auth_password = interface_opts->auth_password;
                 }
 #endif
-                caps = capture_get_if_capabilities(interface_opts->name, interface_opts->monitor_mode,
-                        auth_str, &err_str, &err_str_secondary, NULL);
-                g_free(auth_str);
+                if_cap_queries = g_list_prepend(if_cap_queries, if_cap_query);
+            }
+            if_cap_queries = g_list_reverse(if_cap_queries);
+            capability_hash = capture_get_if_list_capabilities(if_cap_queries, &err_str, &err_str_secondary, NULL);
+            g_list_free_full(if_cap_queries, g_free);
+            for (i = 0; i < global_capture_opts.ifaces->len; i++) {
+                interface_options *interface_opts;
+                interface_opts = &g_array_index(global_capture_opts.ifaces, interface_options, i);
+                if_capabilities_t *caps;
+                caps = g_hash_table_lookup(capability_hash, interface_opts->name);
                 if (caps == NULL) {
                     cmdarg_err("%s%s%s", err_str, err_str_secondary ? "\n" : "", err_str_secondary ? err_str_secondary : "");
                     g_free(err_str);
@@ -2575,11 +2593,11 @@ Tb_Main(char filename[1000])
                 }
                 exit_status = capture_opts_print_if_capabilities(caps, interface_opts,
                         caps_queries);
-                free_if_capabilities(caps);
                 if (exit_status != EXIT_SUCCESS) {
                     break;
                 }
             }
+            g_hash_table_destroy(capability_hash);
             goto clean_exit;
         }
 
@@ -2897,10 +2915,15 @@ capture(void)
 static void
 capture_input_error(capture_session *cap_session _U_, char *error_msg, char *secondary_error_msg)
 {
-    cmdarg_err("%s", error_msg);
-    if (secondary_error_msg != NULL && *secondary_error_msg != '\0') {
-        /* We have both primary and secondary messages. */
-        cmdarg_err_cont("%s", secondary_error_msg);
+    /* The primary message might be an empty string, e.g. when the error was
+     * from extcap. (The extcap stderr is gathered when the session closes
+     * and printed in capture_input_closed below.) */
+    if (*error_msg != '\0') {
+        cmdarg_err("%s", error_msg);
+        if (secondary_error_msg != NULL && *secondary_error_msg != '\0') {
+            /* We have both primary and secondary messages. */
+            cmdarg_err_cont("%s", secondary_error_msg);
+        }
     }
 }
 
@@ -3064,11 +3087,13 @@ capture_input_new_packets(capture_session *cap_session, int to_read)
              (tap_flags & TL_REQUIRES_PROTO_TREE) || postdissectors_want_hfids() ||
              have_custom_cols(&cf->cinfo) || dissect_color);
 
-        /* The protocol tree will be "visible", i.e., printed, only if we're
-           printing packet details, which is true if we're printing stuff
+        /* The protocol tree will be "visible", i.e., nothing faked, only if
+           we're printing packet details, which is true if we're printing stuff
            ("print_packet_info" is true) and we're in verbose mode
-           ("packet_details" is true). */
-        edt = epan_dissect_new(cf->epan, create_proto_tree, print_packet_info && print_details);
+           ("packet_details" is true). But if we specified certain fields with
+           "-e", we'll prime those directly later. */
+        bool visible = print_packet_info && print_details && output_fields_num_fields(output_fields) == 0;
+        edt = epan_dissect_new(cf->epan, create_proto_tree, visible);
 
         wtap_rec_init(&rec);
         ws_buffer_init(&buf, 1514);
@@ -3271,6 +3296,24 @@ process_packet_first_pass(capture_file *cf, epan_dissect_t *edt,
        from the dissection or running taps on the packet; if we're doing
        any of that, we'll do it in the second pass.) */
     if (edt) {
+        if (gbl_resolv_flags.network_name || gbl_resolv_flags.maxmind_geoip) {
+            /* If we're doing async lookups, send any that are queued and
+             * retrieve results.
+             *
+             * Ideally we'd force any lookups that need to happen on the second pass
+             * to be sent asynchronously on this pass so the results would be ready.
+             * That will happen if they're involved in a filter (because we prime the
+             * tree below), but not currently for taps, if we're printing packet
+             * summaries or details, etc.
+             *
+             * XXX - If we're running a read filter that depends on a resolved
+             * name, we should be doing synchronous lookups in that case. Also
+             * marking the dependent frames below might not work with a display
+             * filter that depends on a resolved name.
+             */
+            host_name_lookup_process();
+        }
+
         column_info *cinfo = NULL;
 
         /* If we're running a read filter, prime the epan_dissect_t with that
@@ -3517,6 +3560,15 @@ process_packet_second_pass(capture_file *cf, epan_dissect_t *edt,
 
         col_custom_prime_edt(edt, &cf->cinfo);
 
+        output_fields_prime_edt(edt, output_fields);
+        /* The PDML spec requires a 'geninfo' pseudo-protocol that needs
+         * information from our 'frame' protocol.
+         */
+        if (output_fields_num_fields(output_fields) != 0 &&
+                output_action == WRITE_XML) {
+            epan_dissect_prime_with_hfid(edt, proto_registrar_get_id_byname("frame"));
+        }
+
         /* We only need the columns if either
            1) some tap or filter needs the columns
            or
@@ -3669,11 +3721,13 @@ process_cap_file_second_pass(capture_file *cf, wtap_dumper *pdh,
 
         ws_debug("tshark: create_proto_tree = %s", create_proto_tree ? "TRUE" : "FALSE");
 
-        /* The protocol tree will be "visible", i.e., printed, only if we're
-           printing packet details, which is true if we're printing stuff
+        /* The protocol tree will be "visible", i.e., nothing faked, only if
+           we're printing packet details, which is true if we're printing stuff
            ("print_packet_info" is true) and we're in verbose mode
-           ("packet_details" is true). */
-        edt = epan_dissect_new(cf->epan, create_proto_tree, print_packet_info && print_details);
+           ("packet_details" is true). But if we specified certain fields with
+           "-e", we'll prime those directly later. */
+        bool visible = print_packet_info && print_details && output_fields_num_fields(output_fields) == 0;
+        edt = epan_dissect_new(cf->epan, create_proto_tree, visible);
     }
 
     /*
@@ -3784,11 +3838,13 @@ process_cap_file_single_pass(capture_file *cf, wtap_dumper *pdh,
 
         ws_debug("tshark: create_proto_tree = %s", create_proto_tree ? "TRUE" : "FALSE");
 
-        /* The protocol tree will be "visible", i.e., printed, only if we're
-           printing packet details, which is true if we're printing stuff
+        /* The protocol tree will be "visible", i.e., nothing faked, only if
+           we're printing packet details, which is true if we're printing stuff
            ("print_packet_info" is true) and we're in verbose mode
-           ("packet_details" is true). */
-        edt = epan_dissect_new(cf->epan, create_proto_tree, print_packet_info && print_details);
+           ("packet_details" is true). But if we specified certain fields with
+           "-e", we'll prime those directly later. */
+        bool visible = print_packet_info && print_details && output_fields_num_fields(output_fields) == 0;
+        edt = epan_dissect_new(cf->epan, create_proto_tree, visible);
     }
 
     /*
@@ -4200,6 +4256,15 @@ process_packet_single_pass(capture_file *cf, epan_dissect_t *edt, gint64 offset,
         prime_epan_dissect_with_postdissector_wanted_hfids(edt);
 
         col_custom_prime_edt(edt, &cf->cinfo);
+
+        output_fields_prime_edt(edt, output_fields);
+        /* The PDML spec requires a 'geninfo' pseudo-protocol that needs
+         * information from our 'frame' protocol.
+         */
+        if (output_fields_num_fields(output_fields) != 0 &&
+                output_action == WRITE_XML) {
+            epan_dissect_prime_with_hfid(edt, proto_registrar_get_id_byname("frame"));
+        }
 
         /* We only need the columns if either
            1) some tap or filter needs the columns

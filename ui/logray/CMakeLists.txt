@@ -33,10 +33,10 @@ set(WIRESHARK_WIDGET_HEADERS
 	../qt/widgets/editor_file_dialog.h
 	../qt/widgets/elided_label.h
 	../qt/widgets/expert_info_view.h
-	../qt/widgets/export_objects_view.h
 	../qt/widgets/field_filter_edit.h
 	../qt/widgets/filter_expression_toolbar.h
 	../qt/widgets/find_line_edit.h
+	../qt/widgets/follow_stream_text.h
 	../qt/widgets/interface_toolbar_lineedit.h
 	../qt/widgets/label_stack.h
 	../qt/widgets/overlay_scroll_bar.h
@@ -102,7 +102,6 @@ set(WIRESHARK_MODEL_HEADERS
 	../qt/models/enabled_protocols_model.h
 	../qt/models/expert_info_model.h
 	../qt/models/expert_info_proxy_model.h
-	../qt/models/export_objects_model.h
 	../qt/models/fileset_entry_model.h
 	../qt/models/filter_list_model.h
 	../qt/models/info_proxy_model.h
@@ -159,9 +158,6 @@ set(WIRESHARK_QT_HEADERS
 	../qt/endpoint_dialog.h
 	../qt/expert_info_dialog.h
 	../qt/export_dissection_dialog.h
-	../qt/export_object_action.h
-	../qt/export_object_dialog.h
-	../qt/export_pdu_dialog.h
 	../qt/extcap_argument_file.h
 	../qt/extcap_argument_multiselect.h
 	../qt/extcap_argument.h
@@ -172,6 +168,7 @@ set(WIRESHARK_QT_HEADERS
 	../qt/filter_dialog.h
 	../qt/filter_expression_frame.h
 	../qt/follow_stream_action.h
+	../qt/follow_stream_dialog.h
 	../qt/font_color_preferences_frame.h
 	../qt/funnel_statistics.h
 	../qt/funnel_string_dialog.h
@@ -192,7 +189,6 @@ set(WIRESHARK_QT_HEADERS
 	../qt/manage_interfaces_dialog.h
 	../qt/module_preferences_scroll_area.h
 	../qt/packet_comment_dialog.h
-	../qt/packet_diagram.h
 	../qt/packet_dialog.h
 	../qt/packet_format_group_box.h
 	../qt/packet_list.h
@@ -265,10 +261,10 @@ set(WIRESHARK_WIDGET_SRCS
 	../qt/widgets/editor_file_dialog.cpp
 	../qt/widgets/elided_label.cpp
 	../qt/widgets/expert_info_view.cpp
-	../qt/widgets/export_objects_view.cpp
 	../qt/widgets/field_filter_edit.cpp
 	../qt/widgets/filter_expression_toolbar.cpp
 	../qt/widgets/find_line_edit.cpp
+	../qt/widgets/follow_stream_text.cpp
 	../qt/widgets/interface_toolbar_lineedit.cpp
 	../qt/widgets/label_stack.cpp
 	../qt/widgets/overlay_scroll_bar.cpp
@@ -331,7 +327,6 @@ set(WIRESHARK_MODEL_SRCS
 	../qt/models/enabled_protocols_model.cpp
 	../qt/models/expert_info_model.cpp
 	../qt/models/expert_info_proxy_model.cpp
-	../qt/models/export_objects_model.cpp
 	../qt/models/fileset_entry_model.cpp
 	../qt/models/filter_list_model.cpp
 	../qt/models/info_proxy_model.cpp
@@ -378,15 +373,13 @@ set(WIRESHARK_QT_SRC
 	../qt/conversation_colorize_action.cpp
 	../qt/conversation_dialog.cpp
 	../qt/conversation_hash_tables_dialog.cpp
+	# XXX Required by packet list
 	../qt/decode_as_dialog.cpp
 	../qt/display_filter_expression_dialog.cpp
 	../qt/dissector_tables_dialog.cpp
 	../qt/enabled_protocols_dialog.cpp
 	../qt/endpoint_dialog.cpp
 	../qt/export_dissection_dialog.cpp
-	../qt/export_object_action.cpp
-	../qt/export_object_dialog.cpp
-	../qt/export_pdu_dialog.cpp
 	../qt/extcap_argument_file.cpp
 	../qt/extcap_argument_multiselect.cpp
 	../qt/extcap_argument.cpp
@@ -395,6 +388,7 @@ set(WIRESHARK_QT_SRC
 	../qt/filter_action.cpp
 	../qt/filter_dialog.cpp
 	../qt/filter_expression_frame.cpp
+	../qt/follow_stream_dialog.cpp
 	../qt/follow_stream_action.cpp
 	../qt/font_color_preferences_frame.cpp
 	../qt/funnel_string_dialog.cpp
@@ -415,7 +409,6 @@ set(WIRESHARK_QT_SRC
 	../qt/manage_interfaces_dialog.cpp
 	../qt/module_preferences_scroll_area.cpp
 	../qt/packet_comment_dialog.cpp
-	../qt/packet_diagram.cpp
 	../qt/packet_dialog.cpp
 	../qt/packet_format_group_box.cpp
 	../qt/packet_list.cpp
@@ -506,12 +499,11 @@ set(WIRESHARK_QT_UI
 	../qt/dissector_tables_dialog.ui
 	../qt/enabled_protocols_dialog.ui
 	../qt/expert_info_dialog.ui
-	../qt/export_object_dialog.ui
-	../qt/export_pdu_dialog.ui
 	../qt/extcap_options_dialog.ui
 	../qt/file_set_dialog.ui
 	../qt/filter_dialog.ui
 	../qt/filter_expression_frame.ui
+	../qt/follow_stream_dialog.ui
 	../qt/font_color_preferences_frame.ui
 	../qt/funnel_string_dialog.ui
 	../qt/funnel_text_dialog.ui
@@ -588,7 +580,25 @@ foreach(_file ${LOGRAY_QT_TS})
 	set(_qresource_qm "${_qresource}.qm")
 	set(i18n_qresource "${i18n_qresource}\n    <file>${_qresource_qm}</file>")
 endforeach()
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/i18n.qrc.in ${CMAKE_CURRENT_BINARY_DIR}/i18n.qrc)
+configure_file(i18n.qrc.in ${CMAKE_CURRENT_BINARY_DIR}/i18n.qrc)
+
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/authors.qrc"
+"<RCC>\n"
+"    <qresource prefix=\"/about\">\n"
+"        <file compress-algo=\"zstd\">authors.csv</file>\n"
+"    </qresource>\n"
+"</RCC>\n"
+)
+
+add_custom_command(
+	OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/authors.csv
+	COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/make-authors-csv.py
+			< ${CMAKE_SOURCE_DIR}/AUTHORS
+			> ${CMAKE_CURRENT_BINARY_DIR}/authors.csv
+	DEPENDS
+		${CMAKE_SOURCE_DIR}/tools/make-authors-csv.py
+		${CMAKE_SOURCE_DIR}/AUTHORS
+)
 
 set(LOGRAY_QT_QRC
 	../../resources/about.qrc
@@ -597,6 +607,8 @@ set(LOGRAY_QT_QRC
 	../../resources/lricon.qrc
 	../../resources/stock_icons.qrc
 	${CMAKE_CURRENT_BINARY_DIR}/i18n.qrc
+	${CMAKE_CURRENT_BINARY_DIR}/authors.qrc
+	${CMAKE_CURRENT_BINARY_DIR}/authors.csv
 )
 
 if(NOT Qt${qtver}Widgets_VERSION VERSION_LESS "5.9")

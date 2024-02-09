@@ -519,7 +519,7 @@ ldapstat_packet(void *pldap, packet_info *pinfo, epan_dissect_t *edt _U_, const 
   if(ldap->is_request){
     return TAP_PACKET_DONT_REDRAW;
   }
-  /* if we havnt seen the request, just ignore it */
+  /* if we haven't seen the request, just ignore it */
   if(!ldap->req_frame){
     return TAP_PACKET_DONT_REDRAW;
   }
@@ -2177,8 +2177,10 @@ dissect_ldap_Filter(bool implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, as
   const int proto_id = GPOINTER_TO_INT(wmem_list_frame_data(wmem_list_tail(actx->pinfo->layers)));
   const unsigned cycle_size = 4;
   unsigned recursion_depth = p_get_proto_depth(actx->pinfo, proto_id);
+
   DISSECTOR_ASSERT(recursion_depth <= MAX_RECURSION_DEPTH);
   p_set_proto_depth(actx->pinfo, proto_id, recursion_depth + cycle_size);
+
   proto_tree *tr;
   proto_item *it;
   attributedesc_string=NULL;
@@ -2204,7 +2206,7 @@ dissect_ldap_Filter(bool implicit_tag _U_, tvbuff_t *tvb _U_, int offset _U_, as
     proto_item_append_text(it, "%s", string_or_null(Filter_string));
 
 
-  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth - cycle_size);
+  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth);
   return offset;
 }
 
@@ -3927,7 +3929,7 @@ static void
   if (detected_sasl_security) {
       ldap_info->auth_type=LDAP_AUTH_SASL;
       ldap_info->first_auth_frame=pinfo->num;
-      ldap_info->auth_mech=wmem_strdup(wmem_file_scope(), "UNKNOWN");
+      ldap_info->auth_mech=wmem_strdup(wmem_file_scope(), "GSS-SPNEGO");
       doing_sasl_security=TRUE;
   }
 
@@ -4375,7 +4377,7 @@ static int dissect_NetLogon_PDU(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
          *  This section may need to be updated if the base Windows APIs
          *  are changed to support ipv6, which currently is not the case.
          *
-         *  The desector assumes the length is based on ipv4 and
+         *  The dissector assumes the length is based on ipv4 and
          *  ignores the length
          */
 
@@ -4383,7 +4385,7 @@ static int dissect_NetLogon_PDU(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 
         offset +=1;
 
-        /* add IP address and desect the sockaddr_in structure */
+        /* add IP address and dissect the sockaddr_in structure */
 
         old_offset = offset + 4;
         item = proto_tree_add_item(tree, hf_mscldap_netlogon_ipaddress, tvb, old_offset, 4, ENC_BIG_ENDIAN);
@@ -4415,7 +4417,7 @@ static int dissect_NetLogon_PDU(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 
   offset = len - 8;
 
-  /* NETLOGON_NT_VERISON Options (MS-ADTS 6.3.1.1) */
+  /* NETLOGON_NT_VERSION Options (MS-ADTS 6.3.1.1) */
   offset = dissect_mscldap_ntver_flags(tree, tvb, offset);
 
   /* LM Token */
@@ -5678,7 +5680,7 @@ void proto_register_ldap(void) {
 
   ldap_tap=register_tap("ldap");
 
-  ldap_name_dissector_table = register_dissector_table("ldap.name", "LDAP Attribute Type Dissectors", proto_cldap, FT_STRING, STRING_CASE_SENSITIVE);
+  ldap_name_dissector_table = register_dissector_table("ldap.name", "LDAP Attribute Type Dissectors", proto_cldap, FT_STRING, STRING_CASE_INSENSITIVE);
 
   register_srt_table(proto_ldap, NULL, 1, ldapstat_packet, ldapstat_init, NULL);
 }

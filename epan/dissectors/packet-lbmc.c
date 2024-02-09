@@ -13962,11 +13962,11 @@ void proto_register_lbmc(void)
         { &hf_lbmc_extopt_cfgopt_parent,
             { "Parent", "lbmc.extopt.cfgopt.parent", FT_UINT64, BASE_DEC_HEX, NULL, 0x0, NULL, HFILL } },
         { &hf_lbmc_extopt_cfgopt_name,
-            { "Name", "lbmc.extopt.cfgopt.name", FT_STRING, FT_NONE, NULL, 0x0, NULL, HFILL } },
+            { "Name", "lbmc.extopt.cfgopt.name", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_lbmc_extopt_cfgopt_value,
-            { "Value", "lbmc.extopt.cfgopt.value", FT_STRING, FT_NONE, NULL, 0x0, NULL, HFILL } },
+            { "Value", "lbmc.extopt.cfgopt.value", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_lbmc_extopt_msgsel,
-            { "Message Selector", "lbmc.extopt.msgsel", FT_STRING, FT_NONE, NULL, 0x0, NULL, HFILL } },
+            { "Message Selector", "lbmc.extopt.msgsel", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_lbmc_extopt_reassembled_data,
             { "EXTOPT Reassembled Data", "lbmc.extopt.reassembled_data", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_lbmc_extopt_reassembled_data_subtype,
@@ -13976,7 +13976,7 @@ void proto_register_lbmc(void)
         { &hf_lbmc_extopt_reassembled_data_data,
             { "Data", "lbmc.extopt.reassembled_data.data", FT_BYTES, FT_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_lbmc_extopt_reassembled_data_msgsel,
-            { "Message Selector", "lbmc.extopt.reassembled_data.msgsel", FT_STRING, FT_NONE, NULL, 0x0, NULL, HFILL } },
+            { "Message Selector", "lbmc.extopt.reassembled_data.msgsel", FT_STRING, BASE_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_lbm_msg_properties,
             { "Message Properties", "lbmc.lbm_msg_properties", FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_lbm_msg_properties_data,
@@ -14328,7 +14328,7 @@ void proto_register_lbmc(void)
     expert_lbmc = expert_register_protocol(proto_lbmc);
     expert_register_field_array(expert_lbmc, ei, array_length(ei));
 
-    lbmc_heuristic_subdissector_list = register_heur_dissector_list("lbm_msg_payload", proto_lbmc);
+    lbmc_heuristic_subdissector_list = register_heur_dissector_list_with_description("lbm_msg_payload", "LBMC UMQ command response data", proto_lbmc);
 
     prefs_register_protocol(tnw_protocol_handle, NULL);
     lbmc_module = prefs_register_protocol_subtree("29West", proto_lbmc, proto_reg_handoff_lbmc);

@@ -36,6 +36,7 @@
 #include "ui/util.h"
 
 #include "wiretap/wtap_opttypes.h"
+#include "wsutil/filesystem.h"
 #include "wsutil/str_util.h"
 #include <wsutil/wslog.h>
 
@@ -236,7 +237,6 @@ PacketList::PacketList(QWidget *parent) :
     setRootIsDecorated(false);
     setSortingEnabled(prefs.gui_packet_list_sortable);
     setUniformRowHeights(true);
-    setAutoScroll(false);
     setAccessibleName("Packet list");
 
     proto_prefs_menus_.setTitle(tr("Protocol Preferences"));
@@ -298,6 +298,19 @@ PacketList::~PacketList()
     {
         g_ptr_array_free(finfo_array, TRUE);
     }
+}
+
+void PacketList::scrollTo(const QModelIndex &index, QAbstractItemView::ScrollHint hint)
+{
+    /* QAbstractItemView doesn't have a way to indicate "auto scroll, but
+     * only vertically." So just restore the horizontal scroll value whenever
+     * it scrolls.
+     */
+    setUpdatesEnabled(false);
+    int horizVal = horizontalScrollBar()->value();
+    QTreeView::scrollTo(index, hint);
+    horizontalScrollBar()->setValue(horizVal);
+    setUpdatesEnabled(true);
 }
 
 void PacketList::colorsChanged()
@@ -666,8 +679,8 @@ void PacketList::contextMenuEvent(QContextMenuEvent *event)
     ctx_menu->setAttribute(Qt::WA_DeleteOnClose);
     // XXX We might want to reimplement setParent() and fill in the context
     // menu there.
-    ctx_menu->addAction(window()->findChild<QAction *>("actionEditMarkPacket"));
-    ctx_menu->addAction(window()->findChild<QAction *>("actionEditIgnorePacket"));
+    ctx_menu->addAction(window()->findChild<QAction *>("actionEditMarkSelected"));
+    ctx_menu->addAction(window()->findChild<QAction *>("actionEditIgnoreSelected"));
     ctx_menu->addAction(window()->findChild<QAction *>("actionEditSetTimeReference"));
     ctx_menu->addAction(window()->findChild<QAction *>("actionEditTimeShift"));
     ctx_menu->addMenu(window()->findChild<QMenu *>("menuPacketComment"));
@@ -761,15 +774,16 @@ void PacketList::contextMenuEvent(QContextMenuEvent *event)
     copyEntries->setParent(submenu);
     frameData->setParent(submenu);
 
-    ctx_menu->addSeparator();
-    ctx_menu->addMenu(&proto_prefs_menus_);
-    action = ctx_menu->addAction(tr("Decode As…"));
-    action->setProperty("create_new", QVariant(true));
-    connect(action, &QAction::triggered, this, &PacketList::ctxDecodeAsDialog);
-    // "Print" not ported intentionally
-    action = window()->findChild<QAction *>("actionViewShowPacketInNewWindow");
-    ctx_menu->addAction(action);
-
+    if (is_packet_configuration_namespace()) {
+        ctx_menu->addSeparator();
+        ctx_menu->addMenu(&proto_prefs_menus_);
+        action = ctx_menu->addAction(tr("Decode As…"));
+        action->setProperty("create_new", QVariant(true));
+        connect(action, &QAction::triggered, this, &PacketList::ctxDecodeAsDialog);
+        // "Print" not ported intentionally
+        action = window()->findChild<QAction *>("actionViewShowPacketInNewWindow");
+        ctx_menu->addAction(action);
+    }
 
     // Set menu sensitivity for the current column and set action data.
     if (frameData)
@@ -1809,6 +1823,7 @@ void PacketList::sectionResized(int col, int, int new_width)
 void PacketList::sectionMoved(int logicalIndex, int oldVisualIndex, int newVisualIndex)
 {
     GList *new_col_list = NULL;
+    GList *new_recent_col_list = NULL;
     QList<int> saved_sizes;
     int sort_idx;
 
@@ -1833,9 +1848,14 @@ void PacketList::sectionMoved(int logicalIndex, int oldVisualIndex, int newVisua
         saved_sizes << header()->sectionSize(log_idx);
 
         void *pref_data = g_list_nth_data(prefs.col_list, log_idx);
-        if (!pref_data) continue;
+        if (pref_data) {
+            new_col_list = g_list_append(new_col_list, pref_data);
+        }
 
-        new_col_list = g_list_append(new_col_list, pref_data);
+        pref_data = g_list_nth_data(recent.col_width_list, log_idx);
+        if (pref_data) {
+            new_recent_col_list = g_list_append(new_recent_col_list, pref_data);
+        }
     }
 
     // Undo move to ensure that the logical indices map to the visual indices,
@@ -1853,6 +1873,8 @@ void PacketList::sectionMoved(int logicalIndex, int oldVisualIndex, int newVisua
 
     g_list_free(prefs.col_list);
     prefs.col_list = new_col_list;
+    g_list_free(recent.col_width_list);
+    recent.col_width_list = new_recent_col_list;
 
     thaw(true);
 

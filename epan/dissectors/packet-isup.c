@@ -40,6 +40,7 @@
 #include <epan/conversation.h>
 #include <epan/stats_tree.h>
 #include <epan/asn1.h>
+#include <epan/proto_data.h>
 #include <epan/prefs.h>
 #include <epan/sctpppids.h>
 #include <epan/osi-utils.h>
@@ -133,6 +134,8 @@ static gint g_isup_variant = ISUP_ITU_STANDARD_VARIANT;
 #define ANSI_ISUP_MESSAGE_TYPE_CCT_VAL_TEST_RSP 0xEB
 #define ANSI_ISUP_MESSAGE_TYPE_CCT_VAL_TEST     0xEC
 #define ANSI_ISUP_MESSAGE_TYPE_EXIT             0xED
+
+#define MAX_RECURSION_DEPTH 50 // Arbitrarily chosen.
 
 static const value_string isup_message_type_value[] = {
   { MESSAGE_TYPE_INITIAL_ADDR,                "Initial address"},
@@ -9723,6 +9726,7 @@ dissect_japan_chg_inf(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isu
 }
 
 /* ------------------------------------------------------------------ */
+// NOLINTBEGIN(misc-no-recursion)
 static void
 dissect_ansi_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup_tree, guint8 itu_isup_variant, guint32 circuit_id)
 {
@@ -9738,6 +9742,11 @@ dissect_ansi_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree 
                                             params explicitly set to TRUE in case statement */
   tap_calling_number            = NULL;
   offset                        = 0;
+
+  // We call ourselves for MESSAGE_TYPE_PASS_ALONG.
+  unsigned recursion_depth = p_get_proto_depth(pinfo, proto_isup);
+  DISSECTOR_ASSERT(recursion_depth <= MAX_RECURSION_DEPTH);
+  p_set_proto_depth(pinfo, proto_isup, recursion_depth + 1);
 
   /* Extract message type field */
   message_type = tvb_get_guint8(message_tvb, 0);
@@ -9991,8 +10000,12 @@ dissect_ansi_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree 
   tap_rec->called_number  = tap_called_number;
   tap_rec->cause_value    = tap_cause_value;
   tap_queue_packet(isup_tap, pinfo, tap_rec);
-}
 
+  p_set_proto_depth(pinfo, proto_isup, recursion_depth);
+}
+// NOLINTEND(misc-no-recursion)
+
+// NOLINTBEGIN(misc-no-recursion)
 static void
 dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup_tree, guint8 itu_isup_variant, guint32 circuit_id)
 {
@@ -10008,6 +10021,11 @@ dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup
                                              params explicitly set to TRUE in case statement */
   tap_calling_number            = NULL;
   offset                        = 0;
+
+  // We call ourselves for MESSAGE_TYPE_PASS_ALONG.
+  unsigned recursion_depth = p_get_proto_depth(pinfo, proto_isup);
+  DISSECTOR_ASSERT(recursion_depth <= MAX_RECURSION_DEPTH);
+  p_set_proto_depth(pinfo, proto_isup, recursion_depth + 1);
 
   /* Extract message type field */
   message_type = tvb_get_guint8(message_tvb, 0);
@@ -10360,7 +10378,10 @@ dissect_isup_message(tvbuff_t *message_tvb, packet_info *pinfo, proto_tree *isup
   tap_rec->called_number  = tap_called_number;
   tap_rec->cause_value    = tap_cause_value;
   tap_queue_packet(isup_tap, pinfo, tap_rec);
+
+  p_set_proto_depth(pinfo, proto_isup, recursion_depth);
 }
+// NOLINTEND(misc-no-recursion)
 
 /* ------------------------------------------------------------------ */
 static int
@@ -11668,72 +11689,72 @@ proto_register_isup(void)
 
     { &hf_isup_called,
       { "Called Party Number",  "isup.called",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_calling,
       { "Calling Party Number",  "isup.calling",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_redirecting,
       { "Redirecting Number",  "isup.redirecting",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_redirection_number,
       { "Redirection Number",  "isup.redirection_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_subsequent_number,
       { "Subsequent Number",  "isup.subsequent_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_connected_number,
       { "Connected Number",  "isup.connected_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_transit_network_selection,
       { "Transit Network Selection",  "isup.transit_network_selection",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_original_called_number,
       { "Original Called Number",  "isup.original_called_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_location_number,
       { "Location Number",  "isup.location_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_call_transfer_number,
       { "Call Transfer Number",  "isup.call_transfer_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_called_in_number,
       { "Called IN Number",  "isup.called_in_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_generic_number,
       { "Generic Number",  "isup.generic_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_jurisdiction,
       { "Jurisdiction",  "isup.jurisdiction",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_charge_number,
       { "Charge Number",  "isup.charge_number",
-        FT_STRING, ENC_ASCII, NULL, 0x0,
+        FT_STRING, BASE_NONE, NULL, 0x0,
         NULL, HFILL }},
 
     { &hf_isup_apm_msg_fragments,

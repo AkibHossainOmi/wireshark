@@ -80,6 +80,7 @@
 #define RECENT_GUI_SEARCH_MULTIPLE_OCCURS       "gui.search_multiple_occurs"
 #define RECENT_GUI_SEARCH_TYPE                  "gui.search_type"
 #define RECENT_GUI_FOLLOW_SHOW                  "gui.follow_show"
+#define RECENT_GUI_FOLLOW_DELTA                 "gui.follow_delta"
 #define RECENT_GUI_SHOW_BYTES_DECODE            "gui.show_bytes_decode"
 #define RECENT_GUI_SHOW_BYTES_SHOW              "gui.show_bytes_show"
 
@@ -188,6 +189,13 @@ static const value_string bytes_show_values[] = {
     { 0, NULL }
 };
 
+static const value_string follow_delta_values[] = {
+    { FOLLOW_DELTA_NONE,    "NONE" },
+    { FOLLOW_DELTA_TURN,    "TURN" },
+    { FOLLOW_DELTA_ALL,     "ALL" },
+    { 0, NULL }
+};
+
 static const value_string show_bytes_decode_values[] = {
     { DecodeAsNone,            "NONE" },
     { DecodeAsBASE64,          "BASE64" },
@@ -200,18 +208,17 @@ static const value_string show_bytes_decode_values[] = {
 };
 
 static void
-free_col_width_data(gpointer data, gpointer user_data _U_)
+free_col_width_data(gpointer data)
 {
     col_width_data *cfmt = (col_width_data *)data;
     g_free(cfmt->cfield);
     g_free(cfmt);
 }
 
-static void
-free_col_width_info(recent_settings_t *rs)
+void
+recent_free_column_width_info(recent_settings_t *rs)
 {
-    g_list_foreach(rs->col_width_list, free_col_width_data, NULL);
-    g_list_free(rs->col_width_list);
+    g_list_free_full(rs->col_width_list, free_col_width_data);
     rs->col_width_list = NULL;
 }
 
@@ -1118,6 +1125,10 @@ write_profile_recent(void)
             RECENT_GUI_FOLLOW_SHOW, bytes_show_values,
             recent.gui_follow_show);
 
+    write_recent_enum(rf, "Follow stream delta times",
+                      RECENT_GUI_FOLLOW_DELTA, follow_delta_values,
+                      recent.gui_follow_delta);
+
     write_recent_enum(rf, "Show packet bytes decode as",
             RECENT_GUI_SHOW_BYTES_DECODE, show_bytes_decode_values,
             recent.gui_show_bytes_decode);
@@ -1370,6 +1381,8 @@ read_set_recent_pair_static(gchar *key, const gchar *value,
         parse_recent_boolean(value, &recent.gui_allow_hover_selection);
     } else if (strcmp(key, RECENT_GUI_FOLLOW_SHOW) == 0) {
         recent.gui_follow_show = (bytes_show_type)str_to_val(value, bytes_show_values, SHOW_ASCII);
+    } else if (strcmp(key, RECENT_GUI_FOLLOW_DELTA) == 0) {
+        recent.gui_follow_delta = (follow_delta_type)str_to_val(value, follow_delta_values, FOLLOW_DELTA_NONE);
     } else if (strcmp(key, RECENT_GUI_SHOW_BYTES_DECODE) == 0) {
         recent.gui_show_bytes_decode = (bytes_decode_type)str_to_val(value, show_bytes_decode_values, DecodeAsNone);
     } else if (strcmp(key, RECENT_GUI_SHOW_BYTES_SHOW) == 0) {
@@ -1459,7 +1472,7 @@ read_set_recent_pair_static(gchar *key, const gchar *value,
             /* Go past the width.  */
             col_l_elt = col_l_elt->next;
         }
-        free_col_width_info(&recent);
+        recent_free_column_width_info(&recent);
         recent.col_width_list = NULL;
         col_l_elt = g_list_first(col_l);
         while (col_l_elt) {
@@ -1504,6 +1517,8 @@ read_set_recent_pair_static(gchar *key, const gchar *value,
         recent.gui_additional_toolbars = prefs_get_string_list(value);
     } else if (strcmp(key, RECENT_GUI_INTERFACE_TOOLBAR_SHOW) == 0) {
         recent.interface_toolbars = prefs_get_string_list(value);
+    } else {
+        return PREFS_SET_NO_SUCH_PREF;
     }
 
     return PREFS_SET_OK;
@@ -1657,6 +1672,7 @@ recent_read_profile_static(char **rf_path_return, int *rf_errno_return)
     recent.gui_bytes_encoding        = BYTES_ENC_FROM_PACKET;
     recent.gui_allow_hover_selection = TRUE;
     recent.gui_follow_show           = SHOW_ASCII;
+    recent.gui_follow_delta          = FOLLOW_DELTA_NONE;
     recent.gui_show_bytes_decode     = DecodeAsNone;
     recent.gui_show_bytes_show       = SHOW_ASCII;
 
@@ -1679,7 +1695,7 @@ recent_read_profile_static(char **rf_path_return, int *rf_errno_return)
     }
 
     if (recent.col_width_list) {
-        free_col_width_info(&recent);
+        recent_free_column_width_info(&recent);
     }
 
     if (recent.gui_fileopen_remembered_dir) {
@@ -1782,6 +1798,43 @@ recent_read_dynamic(char **rf_path_return, int *rf_errno_return)
     }
     g_free(rf_path);
     return TRUE;
+}
+
+void
+recent_insert_column(int col)
+{
+    col_width_data *col_w;
+    int cfmt;
+    const char *cfield = NULL;
+
+    cfmt = get_column_format(col);
+    if (cfmt == COL_CUSTOM) {
+        cfield = get_column_custom_fields(col);
+    }
+
+    col_w = g_new(col_width_data, 1);
+    col_w->cfmt = cfmt;
+    col_w->cfield = g_strdup(cfield);
+    col_w->width = -1;
+    col_w->xalign = COLUMN_XALIGN_DEFAULT;
+    recent.col_width_list = g_list_insert(recent.col_width_list, col_w, col);
+}
+
+void
+recent_remove_column(int col)
+{
+    GList *col_l = g_list_nth(recent.col_width_list, col);
+    col_width_data *col_w;
+
+    if (!col_l) return;
+
+    col_w = (col_width_data*)col_l->data;
+
+    if (col_w) {
+        free_col_width_data(col_w);
+    }
+
+    recent.col_width_list = g_list_delete_link(recent.col_width_list, col_l);
 }
 
 gint
@@ -1925,7 +1978,7 @@ recent_init(void)
 void
 recent_cleanup(void)
 {
-    free_col_width_info(&recent);
+    recent_free_column_width_info(&recent);
     g_free(recent.gui_geometry_main);
     g_free(recent.gui_geometry_main_master_split);
     g_free(recent.gui_geometry_main_extra_split);

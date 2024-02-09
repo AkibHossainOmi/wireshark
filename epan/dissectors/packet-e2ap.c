@@ -1070,6 +1070,7 @@ static int hf_e2ap_ric_ReportRanParameterDef_List_item;  /* RANparameterDef_Item
 static int hf_e2ap_unmapped_ran_function_id;
 static int hf_e2ap_ran_function_name_not_recognised;
 static int hf_e2ap_ran_function_setup_frame;
+/* TODO: for each RAN Function, also link forward to where setup is referenced (if at all?).  Maybe just first usage? */
 
 static int hf_e2ap_dissector_version;
 static int hf_e2ap_frame_version;
@@ -3491,6 +3492,7 @@ dissect_e2ap_RANfunctionOID(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
   e2ap_update_ran_function_mapping(actx->pinfo, tree, parameter_tvb,
                                    tvb_get_string_enc(actx->pinfo->pool, parameter_tvb, 0,
                                    tvb_captured_length(parameter_tvb), ENC_ASCII));
+
 
 
 
@@ -7428,12 +7430,14 @@ dissect_e2ap_RANParameter_Testing_Item(tvbuff_t *tvb _U_, int offset _U_, asn1_c
   const int proto_id = GPOINTER_TO_INT(wmem_list_frame_data(wmem_list_tail(actx->pinfo->layers)));
   const unsigned cycle_size = 5;
   unsigned recursion_depth = p_get_proto_depth(actx->pinfo, proto_id);
+
   DISSECTOR_ASSERT(recursion_depth <= MAX_RECURSION_DEPTH);
   p_set_proto_depth(actx->pinfo, proto_id, recursion_depth + cycle_size);
+
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_e2ap_RANParameter_Testing_Item, RANParameter_Testing_Item_sequence);
 
-  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth - cycle_size);
+  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth);
   return offset;
 }
 
@@ -7821,12 +7825,14 @@ dissect_e2ap_RANParameter_Definition(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
   const int proto_id = GPOINTER_TO_INT(wmem_list_frame_data(wmem_list_tail(actx->pinfo->layers)));
   const unsigned cycle_size = 6;
   unsigned recursion_depth = p_get_proto_depth(actx->pinfo, proto_id);
+
   DISSECTOR_ASSERT(recursion_depth <= MAX_RECURSION_DEPTH);
   p_set_proto_depth(actx->pinfo, proto_id, recursion_depth + cycle_size);
+
   offset = dissect_per_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_e2ap_RANParameter_Definition, RANParameter_Definition_sequence);
 
-  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth - cycle_size);
+  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth);
   return offset;
 }
 
@@ -7979,13 +7985,15 @@ dissect_e2ap_RANParameter_ValueType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
   const int proto_id = GPOINTER_TO_INT(wmem_list_frame_data(wmem_list_tail(actx->pinfo->layers)));
   const unsigned cycle_size = 6;
   unsigned recursion_depth = p_get_proto_depth(actx->pinfo, proto_id);
+
   DISSECTOR_ASSERT(recursion_depth <= MAX_RECURSION_DEPTH);
   p_set_proto_depth(actx->pinfo, proto_id, recursion_depth + cycle_size);
+
   offset = dissect_per_choice(tvb, offset, actx, tree, hf_index,
                                  ett_e2ap_RANParameter_ValueType, RANParameter_ValueType_choice,
                                  NULL);
 
-  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth - cycle_size);
+  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth);
   return offset;
 }
 
@@ -14868,16 +14876,17 @@ proto_reg_handoff_e2ap(void)
     }
   };
 
-  static ran_function_dissector_t ccc_v2 =
+  static ran_function_dissector_t ccc_v1 =
   { "{", /*"ORAN-E2SM-CCC",*/  "1.3.6.1.4.1.53148.1.1.2.4", 1, 0,
+    /* See table 5.1 */
     {  dissect_E2SM_NI_JSON_PDU,
-       /* TODO: are these all possible? */
+
        dissect_E2SM_NI_JSON_PDU,
        dissect_E2SM_NI_JSON_PDU,
        dissect_E2SM_NI_JSON_PDU,
-       dissect_E2SM_NI_JSON_PDU,
-       dissect_E2SM_NI_JSON_PDU,
-       dissect_E2SM_NI_JSON_PDU,
+       NULL,
+       NULL,
+       NULL,
 
        dissect_E2SM_NI_JSON_PDU,
        dissect_E2SM_NI_JSON_PDU,
@@ -14893,7 +14902,7 @@ proto_reg_handoff_e2ap(void)
   register_e2ap_ran_function_dissector(KPM_RANFUNCTIONS, &kpm_v3);
   register_e2ap_ran_function_dissector(RC_RANFUNCTIONS,  &rc_v1);
   register_e2ap_ran_function_dissector(NI_RANFUNCTIONS,  &ni_v1);
-  register_e2ap_ran_function_dissector(CCC_RANFUNCTIONS,  &ccc_v2);
+  register_e2ap_ran_function_dissector(CCC_RANFUNCTIONS,  &ccc_v1);
 
   /* Cache JSON dissector */
   json_handle = find_dissector("json");

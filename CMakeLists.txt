@@ -85,8 +85,8 @@ set(PROJECT_VERSION "${PROJECT_MAJOR_VERSION}.${PROJECT_MINOR_VERSION}.${PROJECT
 
 set(LOG_PROJECT_NAME ${_log_project_name})
 set(LOG_PROJECT_MAJOR_VERSION 0)
-set(LOG_PROJECT_MINOR_VERSION 8)
-set(LOG_PROJECT_PATCH_VERSION 3)
+set(LOG_PROJECT_MINOR_VERSION 9)
+set(LOG_PROJECT_PATCH_VERSION 0)
 set(LOG_PROJECT_VERSION "${LOG_PROJECT_MAJOR_VERSION}.${LOG_PROJECT_MINOR_VERSION}.${LOG_PROJECT_PATCH_VERSION}${PROJECT_VERSION_EXTENSION}")
 
 include( CMakeOptions.txt )
@@ -1231,7 +1231,7 @@ if(BUILD_sshdump OR BUILD_ciscodump OR BUILD_wifidump)
 else()
 	set(ENABLE_LIBSSH OFF)
 endif()
-ws_find_package(LIBSSH ENABLE_LIBSSH HAVE_LIBSSH "0.6")
+ws_find_package(LIBSSH ENABLE_LIBSSH HAVE_LIBSSH "0.8.5")
 
 ws_find_package(PCAP ENABLE_PCAP HAVE_LIBPCAP)
 ws_find_package(AIRPCAP ENABLE_AIRPCAP HAVE_AIRPCAP)
@@ -2936,9 +2936,8 @@ endif()
 if (BUILD_logray AND FALCO_PLUGINS)
 	add_custom_target(copy_falco_plugins)
 	add_custom_command(TARGET copy_falco_plugins
-		# LOGRAY_PLUGIN_DIR is versioned. Place our Falco plugins alongsided it.
-		COMMAND ${CMAKE_COMMAND} -E make_directory ${LOGRAY_PLUGIN_DIR}/../falco
-		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FALCO_PLUGINS} ${LOGRAY_PLUGIN_DIR}/../falco
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${LOGRAY_PLUGIN_DIR}/falco
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FALCO_PLUGINS} ${LOGRAY_PLUGIN_DIR}/falco
 		VERBATIM
 	)
 	add_dependencies(logray copy_falco_plugins)
@@ -3384,7 +3383,6 @@ if(WIN32)
 
 	if(MAKENSIS_EXECUTABLE)
 		add_subdirectory( packaging/nsis EXCLUDE_FROM_ALL )
-		ADD_NSIS_UNINSTALLER_TARGETS()
 		ADD_NSIS_PACKAGE_TARGETS()
 	endif()
 

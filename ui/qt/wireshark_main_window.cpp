@@ -949,13 +949,6 @@ void WiresharkMainWindow::keyPressEvent(QKeyEvent *event) {
 }
 
 void WiresharkMainWindow::closeEvent(QCloseEvent *event) {
-    if (main_ui_->actionCaptureStop->isEnabled()) {
-        // Capture is running, we should stop it before close and ignore the event
-        stopCapture();
-        event->ignore();
-        return;
-    }
-
     saveWindowGeometry();
 
     /* If we're in the middle of stopping a capture, don't do anything;
@@ -1326,6 +1319,8 @@ void WiresharkMainWindow::mergeCaptureFile()
         cf_close(capture_file_.capFile());
 
         /* Try to open the merged capture file. */
+        // XXX - Just free rfcode and call
+        // openCaptureFile(tmpname, read_filter, WTAP_TYPE_AUTO, TRUE);
         CaptureFile::globalCapFile()->window = this;
         if (cf_open(CaptureFile::globalCapFile(), tmpname, WTAP_TYPE_AUTO, TRUE /* temporary file */, &err) != CF_OK) {
             /* We couldn't open it; fail. */
@@ -1358,8 +1353,7 @@ void WiresharkMainWindow::mergeCaptureFile()
             return;
         }
 
-        /* Save the name of the containing directory specified in the path name. */
-        mainApp->setLastOpenDirFromFilename(tmpname);
+        /* This is a tempfile; don't change the last open directory. */
         g_free(tmpname);
         main_ui_->statusBar->showExpert();
         return;
@@ -1381,7 +1375,7 @@ void WiresharkMainWindow::importCaptureFile() {
         return;
     }
 
-    openCaptureFile(import_dlg.capfileName());
+    openCaptureFile(import_dlg.capfileName(), QString(), WTAP_TYPE_AUTO, true);
 }
 
 bool WiresharkMainWindow::saveCaptureFile(capture_file *cf, bool dont_reopen) {
@@ -2029,7 +2023,7 @@ bool WiresharkMainWindow::testCaptureFileClose(QString before_what, FileCloseCon
              */
             QList<QAbstractButton *> buttons = msg_dialog.buttons();
             for (int i = 0; i < buttons.size(); ++i) {
-                QPushButton *button = static_cast<QPushButton *>(buttons.at(i));;
+                QPushButton *button = static_cast<QPushButton *>(buttons.at(i));
                 button->setAutoDefault(false);
             }
 
@@ -2322,10 +2316,10 @@ void WiresharkMainWindow::initFreezeActions()
     QList<QAction *> freeze_actions = QList<QAction *>()
             << main_ui_->actionFileClose
             << main_ui_->actionViewReload
-            << main_ui_->actionEditMarkPacket
+            << main_ui_->actionEditMarkSelected
             << main_ui_->actionEditMarkAllDisplayed
             << main_ui_->actionEditUnmarkAllDisplayed
-            << main_ui_->actionEditIgnorePacket
+            << main_ui_->actionEditIgnoreSelected
             << main_ui_->actionEditIgnoreAllDisplayed
             << main_ui_->actionEditUnignoreAllDisplayed
             << main_ui_->actionEditSetTimeReference

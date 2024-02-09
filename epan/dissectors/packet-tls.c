@@ -92,7 +92,7 @@ static gboolean tls_ignore_mac_failed  = FALSE;
  *********************************************************************/
 
 /* Initialize the protocol and registered fields */
-static gint tls_tap                           = -1;
+static gint tls_follow_tap                    = -1;
 static gint exported_pdu_tap                  = -1;
 static gint proto_tls;
 static gint hf_tls_record;
@@ -807,7 +807,7 @@ dissect_ssl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
           ssl_debug_printf("  need_desegmentation: offset = %d, reported_length_remaining = %d\n",
                            offset, tvb_reported_length_remaining(tvb, offset));
           /* Make data available to ssl_follow_tap_listener */
-          tap_queue_packet(tls_tap, pinfo, p_get_proto_data(wmem_file_scope(), pinfo, proto_tls, curr_layer_num_ssl));
+          tap_queue_packet(tls_follow_tap, pinfo, p_get_proto_data(wmem_file_scope(), pinfo, proto_tls, curr_layer_num_ssl));
           return tvb_captured_length(tvb);
         }
     }
@@ -915,7 +915,7 @@ dissect_ssl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_)
     ssl_debug_flush();
 
     /* Make data available to ssl_follow_tap_listener */
-    tap_queue_packet(tls_tap, pinfo, p_get_proto_data(wmem_file_scope(), pinfo, proto_tls, curr_layer_num_ssl));
+    tap_queue_packet(tls_follow_tap, pinfo, p_get_proto_data(wmem_file_scope(), pinfo, proto_tls, curr_layer_num_ssl));
 
     return ret;
 }
@@ -1579,6 +1579,11 @@ again:
                  */
                 fragment_set_partial_reassembly(&ssl_reassembly_table,
                                                 pinfo, tls_msp_fragment_id(msp), msp);
+                if (pinfo->desegment_offset == 0) {
+                    /* It didn't dissect anything in the reassembled TLS segment, so
+                     * remove the newly added data source. */
+                    remove_last_data_source(pinfo);
+                }
                 /* Update msp->nxtpdu to point to the new next
                  * pdu boundary.
                  */
@@ -2569,9 +2574,9 @@ dissect_tls_handshake(tvbuff_t *tvb, packet_info *pinfo,
                       const guint16 version)
 {
     // Handshake fragment processing:
-    // 1. (First pass:) If a previous handshake message needed reasembly, add
+    // 1. (First pass:) If a previous handshake message needed reassembly, add
     //    (a subset of) the new data for reassembly.
-    // 2. Did this fragment complete reasembly in the previous step?
+    // 2. Did this fragment complete reassembly in the previous step?
     //    - Yes: dissect message and continue.
     //    - No: show details and stop.
     // 3. Not part of a reassembly, so this is a new handshake message. Does it
@@ -2591,7 +2596,7 @@ dissect_tls_handshake(tvbuff_t *tvb, packet_info *pinfo,
     guint          *hs_reassembly_id_p = is_from_server ? &session->server_hs_reassembly_id : &session->client_hs_reassembly_id;
 
     if (!PINFO_FD_VISITED(pinfo)) {
-        // 1. (First pass:) If a previous handshake message needed reasembly.
+        // 1. (First pass:) If a previous handshake message needed reassembly.
         if (*hs_reassembly_id_p) {
             // Continuation, so a previous fragment *must* exist.
             fh = fragment_get(&tls_hs_reassembly_table, pinfo, *hs_reassembly_id_p, NULL);
@@ -2655,7 +2660,7 @@ dissect_tls_handshake(tvbuff_t *tvb, packet_info *pinfo,
         }
     }
 
-    // 2. Did this fragment complete reasembly in the previous step?
+    // 2. Did this fragment complete reassembly in the previous step?
     if (frag_info && frag_info->offset != 0) {
         fh = fragment_get_reassembled_id(&tls_hs_reassembly_table, pinfo, frag_info->reassembly_id);
         if (frag_info->is_last) {
@@ -4162,6 +4167,22 @@ tls_get_alpn(packet_info *pinfo)
     return session->session.alpn_name;
 }
 
+const char *
+tls_get_client_alpn(packet_info *pinfo)
+{
+    conversation_t *conv = find_conversation_pinfo(pinfo, 0);
+    if (!conv) {
+        return NULL;
+    }
+
+    SslDecryptSession *session = (SslDecryptSession *)conversation_get_proto_data(conv, proto_tls);
+    if (session == NULL) {
+        return NULL;
+    }
+
+    return session->session.client_alpn_name;
+}
+
 /* TLS Exporters {{{ */
 /**
  * Computes the TLS 1.3 Exporter value (RFC 8446 Section 7.5).
@@ -4812,7 +4833,7 @@ proto_register_tls(void)
     }
 
     /* heuristic dissectors for any premable e.g. CredSSP before RDP */
-    ssl_heur_subdissector_list = register_heur_dissector_list("tls", proto_tls);
+    ssl_heur_subdissector_list = register_heur_dissector_list_with_description("tls", "TLS data", proto_tls);
 
     ssl_common_register_ssl_alpn_dissector_table("tls.alpn",
         "SSL/TLS Application-Layer Protocol Negotiation (ALPN) Protocol IDs",
@@ -4831,11 +4852,11 @@ proto_register_tls(void)
     register_decode_as(&ssl_da);
 
     /* XXX: this seems unused due to new "Follow TLS" method, remove? */
-    tls_tap = register_tap("tls");
+    tls_follow_tap = register_tap("tls_follow");
     ssl_debug_printf("proto_register_ssl: registered tap %s:%d\n",
-        "tls", tls_tap);
+        "tls_follow", tls_follow_tap);
 
-    register_follow_stream(proto_tls, "tls", tcp_follow_conv_filter, tcp_follow_index_filter, tcp_follow_address_filter,
+    register_follow_stream(proto_tls, "tls_follow", tcp_follow_conv_filter, tcp_follow_index_filter, tcp_follow_address_filter,
                             tcp_port_to_display, ssl_follow_tap_listener, get_tcp_stream_count, NULL);
     secrets_register_type(SECRETS_TYPE_TLS, tls_secrets_block_callback);
 }

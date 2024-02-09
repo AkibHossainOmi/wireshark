@@ -424,7 +424,7 @@ write_fields_proto_tree(output_fields_t* fields, epan_dissect_t *edt, column_inf
 /* Indent to the correct level */
 static void print_indent(int level, FILE *fh)
 {
-    /* Use a buffer pre-filed with spaces */
+    /* Use a buffer pre-filled with spaces */
 #define MAX_INDENT 2048
     static char spaces[MAX_INDENT];
     static gboolean inited = FALSE;
@@ -1719,12 +1719,12 @@ write_carrays_hex_data(guint32 num, FILE *fh, epan_dissect_t *edt)
                     for ( j = 0; j < 8 - rem; j++ )
                         fprintf(fh, "      ");
                 }
-                fprintf(fh, "  // %s\n};\n\n", ascii);
+                fprintf(fh, "  // |%s|\n};\n\n", ascii);
                 break;
             }
 
             if (!((i + 1) % 8)) {
-                fprintf(fh, ", // %s\n", ascii);
+                fprintf(fh, ", // |%s|\n", ascii);
                 memset(ascii, 0, sizeof(ascii));
             } else {
                 fprintf(fh, ", ");
@@ -2272,6 +2272,35 @@ gboolean output_fields_has_cols(output_fields_t* fields)
 {
     ws_assert(fields);
     return fields->includes_col_fields;
+}
+
+static void
+output_field_prime_edt(void *data, void *user_data)
+{
+    gchar *field = (gchar *)data;
+    epan_dissect_t *edt = (epan_dissect_t*)user_data;
+
+    /* Find a hf. Note in tshark we already converted the protocol from
+     * its alias, if any.
+     */
+    header_field_info *hfinfo = proto_registrar_get_byname(field);
+    /* Rewind to the first hf of that name. */
+    while (hfinfo->same_name_prev_id != -1) {
+        hfinfo = proto_registrar_get_nth(hfinfo->same_name_prev_id);
+    }
+
+    /* Prime all hf's with that name. */
+    while (hfinfo) {
+        proto_tree_prime_with_hfid_print(edt->tree, hfinfo->id);
+        hfinfo = hfinfo->same_name_next;
+    }
+}
+
+void output_fields_prime_edt(epan_dissect_t *edt, output_fields_t* fields)
+{
+    if (fields->fields != NULL) {
+        g_ptr_array_foreach(fields->fields, output_field_prime_edt, edt);
+    }
 }
 
 void write_fields_preamble(output_fields_t* fields, FILE *fh)

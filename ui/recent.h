@@ -102,6 +102,12 @@ typedef enum {
 } bytes_show_type;
 
 typedef enum {
+    FOLLOW_DELTA_NONE,
+    FOLLOW_DELTA_TURN,
+    FOLLOW_DELTA_ALL
+} follow_delta_type;
+
+typedef enum {
     DecodeAsNone,
     DecodeAsBASE64,
     DecodeAsCompressed,
@@ -139,6 +145,7 @@ typedef struct recent_settings_tag {
     gboolean    gui_search_multiple_occurs;
     search_type_type gui_search_type;
     bytes_show_type gui_follow_show;
+    follow_delta_type gui_follow_delta;
     bytes_decode_type gui_show_bytes_decode;
     bytes_show_type gui_show_bytes_show;
 
@@ -224,6 +231,28 @@ extern gboolean recent_read_dynamic(char **rf_path_return, int *rf_errno_return)
  * @return PREFS_SET_OK or PREFS_SET_SYNTAX_ERR
  */
 extern int recent_set_arg(char *prefarg);
+
+/** Free the recent settings list of column width information
+ *
+ * @param rs the recent settings (currently a global)
+ */
+extern void recent_free_column_width_info(recent_settings_t *rs);
+
+/** Insert an entry in the recent column width setting for
+ * the given column, which should have been just added to
+ * the column list preference. (This keeps them in sync.)
+ *
+ * @param col column number
+ */
+extern void recent_insert_column(int col);
+
+/** Remove an entry in the recent column width setting for
+ * the given column, which should have been just removed to
+ * the column list preference. (This keeps them in sync.)
+ *
+ * @param col column number
+ */
+extern void recent_remove_column(int col);
 
 /** Get the column width for the given column
  *

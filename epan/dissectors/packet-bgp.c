@@ -168,7 +168,7 @@ static dissector_handle_t bgp_handle;
 #define BGP_CAPABILITY_BGP_ROLE                      9  /* RFC9234 */
 #define BGP_CAPABILITY_GRACEFUL_RESTART             64  /* RFC4724 */
 #define BGP_CAPABILITY_4_OCTET_AS_NUMBER            65  /* RFC6793 */
-#define BGP_CAPABILITY_DYNAMIC_CAPABILITY_CISCO     66  /* Cisco Dynamic capabaility*/
+#define BGP_CAPABILITY_DYNAMIC_CAPABILITY_CISCO     66  /* Cisco Dynamic capability*/
 #define BGP_CAPABILITY_DYNAMIC_CAPABILITY           67  /* draft-ietf-idr-dynamic-cap */
 #define BGP_CAPABILITY_MULTISESSION                 68  /* draft-ietf-idr-bgp-multisession */
 #define BGP_CAPABILITY_ADDITIONAL_PATHS             69  /* [RFC7911] */
@@ -381,12 +381,12 @@ static dissector_handle_t bgp_handle;
 #define BGP_EXT_COM_EVPN_MMAC_STICKY        0x01    /* Bitmask: Set for sticky/static MAC address */
 
 /* RFC 8214 Flags EVPN L2 Attributes */
-#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_B         0x01    /* Backup PE */
-#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_P         0x02    /* Primary PE */
-#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_C         0x04    /* Control word required */
+#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_B         0x0001  /* Backup PE */
+#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_P         0x0002  /* Primary PE */
+#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_C         0x0004  /* Control word required */
 /* draft-yu-bess-evpn-l2-attributes-04 */
-#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_F         0x08    /* Send and receive flow label */
-#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_CI        0x10    /* CWI extended community can be included */
+#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_F         0x0008  /* Send and receive flow label */
+#define BGP_EXT_COM_EVPN_L2ATTR_FLAG_CI        0x0010  /* CWI extended community can be included */
 #define BGP_EXT_COM_EVPN_L2ATTR_FLAG_RESERVED  0xFFE0  /* Reserved */
 
 /* RFC 8317 Flags EVPN E-Tree Attributes */
@@ -394,7 +394,7 @@ static dissector_handle_t bgp_handle;
 #define BGP_EXT_COM_EVPN_ETREE_FLAG_RESERVED  0xFE  /* Reserved */
 
 /* EPVN route AD NLRI ESI type */
-#define BGP_NLRI_EVPN_ESI_VALUE             0x00    /* ESI type 0, 9 bytes interger */
+#define BGP_NLRI_EVPN_ESI_VALUE             0x00    /* ESI type 0, 9 bytes integer */
 #define BGP_NLRI_EVPN_ESI_LACP              0x01    /* ESI type 1, LACP 802.1AX */
 #define BGP_NLRI_EVPN_ESI_MSTP              0x02    /* ESI type 2, MSTP defined ESI */
 #define BGP_NLRI_EVPN_ESI_MAC               0x03    /* ESI type 3, MAC allocated value */
@@ -2037,7 +2037,7 @@ static int proto_bgp;
 
 /* BGP header field initialisation */
 
-/* global BGP header filed */
+/* global BGP header field */
 
 static int hf_bgp_marker;
 static int hf_bgp_length;
@@ -2063,7 +2063,7 @@ static int hf_bgp_vplsbgp_labelblock_base;
 static int hf_bgp_wildcard_route_target;
 static int hf_bgp_type;
 
-/* BGP open message header filed */
+/* BGP open message header field */
 
 static int hf_bgp_open_version;
 static int hf_bgp_open_myas;
@@ -3050,7 +3050,7 @@ static gint ett_bgp_extended_community; /* extended community tree for each comm
 static gint ett_bgp_ext_com_type;  /* Extended Community Type High tree (IANA, Transitive bits) */
 static gint ett_bgp_extended_com_fspec_redir; /* extended communities BGP flow act redirect */
 static gint ett_bgp_ext_com_flags; /* extended communities flags tree */
-static gint ett_bgp_ext_com_l2_flags; /* extended commuties tree for l2 services flags */
+static gint ett_bgp_ext_com_l2_flags; /* extended communities tree for l2 services flags */
 static gint ett_bgp_ext_com_etree_flags;
 static gint ett_bgp_ext_com_evpn_mmac_flags;
 static gint ett_bgp_ext_com_evpn_l2attr_flags;

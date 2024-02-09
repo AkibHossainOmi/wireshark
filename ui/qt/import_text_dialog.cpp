@@ -429,6 +429,8 @@ int ImportTextDialog::exec() {
         import_info_.timestamp_format = NULL;
     }
 
+    mainApp->setLastOpenDirFromFilename(QString(import_info_.import_text_filename));
+
     switch (import_info_.mode) {
       default: /* should never happen */
         setResult(QDialog::Rejected);
@@ -721,7 +723,7 @@ void ImportTextDialog::on_asciiIdentificationCheckBox_toggled(bool checked)
 
 void ImportTextDialog::on_regexTextEdit_textChanged()
 {
-    gchar* regex_gchar_p = qstring_strdup(ti_ui_->regexTextEdit->toPlainText());;
+    gchar* regex_gchar_p = qstring_strdup(ti_ui_->regexTextEdit->toPlainText());
     GError* gerror = NULL;
     /* TODO: Use GLib's c++ interface or enable C++ int to enum casting
      * because the flags are declared as enum, so we can't pass 0 like

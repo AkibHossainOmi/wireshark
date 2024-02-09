@@ -55,6 +55,7 @@
 #include "wsutil/strtoi.h"
 #include "wsutil/str_util.h"
 #include <wsutil/unicode-utils.h>
+#include <wsutil/wsjson.h>
 
 #ifdef HAVE_NGHTTP2
 #define http2_header_repr_type_VALUE_STRING_LIST(XXX)                   \
@@ -2853,15 +2854,78 @@ dissect_body_data(proto_tree *tree, packet_info *pinfo, http2_session_t* h2sessi
         tap_queue_packet(http_eo_tap, pinfo, eo_info);
     }
 
+    tvbuff_t *data_tvb = tvb_new_subset_length(tvb, start, length);
     if (content_type != NULL) {
         /* add it to STREAM level */
         proto_tree* ptree = proto_tree_get_parent_tree(tree);
         dissector_try_string((streaming_mode ? streaming_content_type_dissector_table : media_type_dissector_table),
-            content_type, tvb_new_subset_length(tvb, start, length), pinfo,
+            content_type, data_tvb, pinfo,
             ptree, &metadata_used_for_media_type_handle);
     } else {
-        dissector_try_uint_new(stream_id_content_type_dissector_table, stream_id,
-            tvb_new_subset_length(tvb, start, length), pinfo, proto_tree_get_parent_tree(tree), TRUE, &metadata_used_for_media_type_handle);
+        if (!dissector_try_uint_new(stream_id_content_type_dissector_table, stream_id,
+            data_tvb, pinfo, proto_tree_get_parent_tree(tree), TRUE, &metadata_used_for_media_type_handle))
+        {
+            /* Try heuristics */
+            /* Check for possible boundary string */
+            if (tvb_strneql(data_tvb, 0, "--", 2) == 0) {
+                int next_offset;
+                int boundary_len = tvb_find_line_end(data_tvb, 0, -1, &next_offset, TRUE);
+                if ((boundary_len > 4) && (boundary_len < 70)){
+                    boundary_len = boundary_len - 2; /* ignore ending CRLF*/
+                    /* We have a potential boundary string */
+                    guint8 *boundary = tvb_get_string_enc(wmem_packet_scope(), data_tvb, 2, boundary_len, ENC_ASCII | ENC_NA);
+                    if (tvb_strneql(data_tvb, (length - 4) - boundary_len, boundary, boundary_len) == 0) {
+                        /* We have multipart/mixed */
+                        /* Populate the content type so we can dissect the body later */
+                        body_info->content_type = wmem_strndup(wmem_file_scope(), "multipart/mixed", 15);
+                        body_info->content_type_parameters = wmem_strdup_printf(wmem_file_scope(), "boundary=\"%s\"", boundary);
+                        dissector_handle_t handle = dissector_get_string_handle(media_type_dissector_table, body_info->content_type);
+                        metadata_used_for_media_type_handle.media_str = body_info->content_type_parameters;
+                        if (handle) {
+                            dissector_add_uint("http2.streamid", stream_info->stream_id, handle);
+                        }
+                        dissector_try_uint_new(stream_id_content_type_dissector_table, stream_id,
+                            data_tvb, pinfo, proto_tree_get_parent_tree(tree), TRUE, &metadata_used_for_media_type_handle);
+                    }
+                }
+                return;
+            } /* Not multipart/mixed*/
+            /* check for json, from RFC 4627
+             * A JSON text is a serialized object or array.
+             * JSON-text = object / array
+             * These are the six structural characters:
+             * begin-array     = ws %x5B ws  ; [ left square bracket
+             * begin-object    = ws %x7B ws  ; { left curly bracket
+             * :
+             * Insignificant whitespace is allowed before or after any of the six
+             * structural characters.
+             * ws = *(
+             *  %x20 /              ; Space
+             *  %x09 /              ; Horizontal tab
+             *  %x0A /              ; Line feed or New line
+             *  %x0D                ; Carriage return
+             * )
+             */
+            int offset = 0;
+            offset = tvb_skip_wsp(data_tvb, 0, length);
+            guint8 oct = tvb_get_guint8(data_tvb, offset);
+            if ((oct == 0x5b) || (oct == 0x7b)) {
+                /* Potential json */
+                const guint8* buf = tvb_get_string_enc(pinfo->pool, tvb, 0, length, ENC_ASCII);
+
+                if (json_validate(buf, length) == TRUE) {
+                    body_info->content_type = wmem_strndup(wmem_file_scope(), "application/json", 16);
+                    dissector_handle_t handle = dissector_get_string_handle(media_type_dissector_table, body_info->content_type);
+                    metadata_used_for_media_type_handle.media_str = body_info->content_type_parameters;
+                    if (handle) {
+                        dissector_add_uint("http2.streamid", stream_info->stream_id, handle);
+                    }
+                    dissector_try_uint_new(stream_id_content_type_dissector_table, stream_id,
+                        data_tvb, pinfo, proto_tree_get_parent_tree(tree), TRUE, &metadata_used_for_media_type_handle);
+                }
+                return;
+            }
+        }
     }
 }
 
@@ -2947,6 +3011,78 @@ get_reassembly_id_from_stream(packet_info *pinfo, http2_session_t* session)
     return stream_info->stream_id | (flow_index << 31);
 }
 
+/*
+ * Like process_reassembled_data() in reassemble.[ch], but ignores the layer
+ * number, which is not always stable in HTTP/2, if multiple TLS records are
+ * in the same frame.
+ */
+static tvbuff_t*
+http2_process_reassembled_data(tvbuff_t *tvb, const int offset, packet_info *pinfo,
+	const char *name, fragment_head *fd_head, const fragment_items *fit,
+	gboolean *update_col_infop, proto_tree *tree)
+{
+    tvbuff_t* next_tvb;
+    gboolean update_col_info;
+    proto_item* frag_tree_item;
+
+    if (fd_head != NULL) {
+        /*
+         * OK, we've reassembled this.
+         * Is this something that's been reassembled from more
+         * than one fragment?
+         */
+        if (fd_head->next != NULL) {
+            /*
+             * Yes.
+             * Allocate a new tvbuff, referring to the
+             * reassembled payload, and set
+             * the tvbuff to the list of tvbuffs to which
+             * the tvbuff we were handed refers, so it'll get
+             * cleaned up when that tvbuff is cleaned up.
+             */
+            next_tvb = tvb_new_chain(tvb, fd_head->tvb_data);
+
+            /* Add the defragmented data to the data source list. */
+            add_new_data_source(pinfo, next_tvb, name);
+
+            /* show all fragments */
+            if (fd_head->flags & FD_BLOCKSEQUENCE) {
+                update_col_info = !show_fragment_seq_tree(
+                    fd_head, fit, tree, pinfo, next_tvb, &frag_tree_item);
+            }
+            else {
+                update_col_info = !show_fragment_tree(fd_head,
+                    fit, tree, pinfo, next_tvb, &frag_tree_item);
+            }
+        }
+        else {
+            /*
+             * No.
+             * Return a tvbuff with the payload. next_tvb ist from offset until end
+             */
+            next_tvb = tvb_new_subset_remaining(tvb, offset);
+            pinfo->fragmented = FALSE;	/* one-fragment packet */
+            update_col_info = TRUE;
+        }
+        if (update_col_infop != NULL)
+            *update_col_infop = update_col_info;
+    } else {
+        /*
+         * We don't have the complete reassembled payload, or this
+         * isn't the final frame of that payload.
+         */
+        next_tvb = NULL;
+        /* process_reassembled_data() in reassemble.[ch] adds reassembled_in
+         * here, but the reas_in_layer_num is often unstable in HTTP/2 now so
+         * we rely on the stream end flag (that's why we have this function).
+         *
+         * Perhaps we could DISSECTOR_ASSERT() in this path, we shouldn't
+         * get here.
+         */
+    }
+    return next_tvb;
+}
+
 static tvbuff_t*
 reassemble_http2_data_into_full_frame(tvbuff_t *tvb, packet_info *pinfo, http2_session_t* http2_session, proto_tree *http2_tree, guint offset,
                                       guint8 flags, guint datalen)
@@ -2973,8 +3109,8 @@ reassemble_http2_data_into_full_frame(tvbuff_t *tvb, packet_info *pinfo, http2_s
      * incorrectly match for frames that exist in the same packet as the final DATA frame and incorrectly add
      * reassembly information to those dissection trees */
     if (head && IS_HTTP2_END_STREAM(flags)) {
-        return process_reassembled_data(tvb, offset, pinfo, "Reassembled body", head,
-                                        &http2_body_fragment_items, NULL, http2_tree);
+        return http2_process_reassembled_data(tvb, offset, pinfo, "Reassembled body", head,
+                                              &http2_body_fragment_items, NULL, http2_tree);
     }
 
     /* Add frame where reassembly happened. process_reassembled_data() does this automatically if the reassembled

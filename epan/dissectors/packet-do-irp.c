@@ -1340,7 +1340,7 @@ dissect_do_irp_udp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *da
      * to be able to generate expert info when protocol specs are violated.
      */
 
-    guint32 msg_len = tvb_get_guint32(tvb, 16, ENC_BIG_ENDIAN); /* Length of over-all message, excluding enevlope */
+    guint32 msg_len = tvb_get_guint32(tvb, 16, ENC_BIG_ENDIAN); /* Length of over-all message, excluding envelope */
     guint8 env_flags = tvb_get_guint8(tvb, 2);
 
     /* Envelope is always present */
@@ -1468,19 +1468,19 @@ proto_register_do_irp(void)
         },
         {&hf_msg_fragment_overlap,
             { "Message fragment overlap", "do-irp.fragment.overlap",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         {&hf_msg_fragment_overlap_conflicts,
             { "Message fragment overlapping with conflicting data", "do-irp.fragment.overlap.conflicts",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         {&hf_msg_fragment_multiple_tails,
             { "Message has multiple tail fragments", "do-irp.fragment.multiple_tails",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         {&hf_msg_fragment_too_long_fragment,
             { "Message fragment too long", "do-irp.fragment.too_long_fragment",
-            FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+            FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         {&hf_msg_fragment_error,
             { "Message defragmentation error", "do-irp.fragment.error",

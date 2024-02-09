@@ -1,7 +1,7 @@
 /* packet-xnap.c
  * Routines for dissecting NG-RAN Xn application protocol (XnAP)
  * 3GPP TS 38.423 packet dissection
- * Copyright 2018-2023, Pascal Quantin <pascal@wireshark.org>
+ * Copyright 2018-2024, Pascal Quantin <pascal@wireshark.org>
  *
  * Wireshark - Network traffic analyzer
  * By Gerald Combs <gerald@wireshark.org>
@@ -10,7 +10,7 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
  * Ref:
- * 3GPP TS 38.423 V17.6.0 (2023-09)
+ * 3GPP TS 38.423 V17.7.0 (2023-12)
  */
 
 #include "config.h"
@@ -86,7 +86,7 @@ static int hf_xnap_ReportCharacteristics_Reserved;
 /* Initialize the subtree pointers */
 static gint ett_xnap;
 static gint ett_xnap_RRC_Context;
-static gint ett_nxap_container;
+static gint ett_xnap_container;
 static gint ett_xnap_PLMN_Identity;
 static gint ett_xnap_measurementTimingConfiguration;
 static gint ett_xnap_TransportLayerAddress;
@@ -488,7 +488,7 @@ void proto_register_xnap(void) {
   static gint *ett[] = {
     &ett_xnap,
     &ett_xnap_RRC_Context,
-    &ett_nxap_container,
+    &ett_xnap_container,
     &ett_xnap_PLMN_Identity,
     &ett_xnap_measurementTimingConfiguration,
     &ett_xnap_TransportLayerAddress,

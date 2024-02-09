@@ -19,6 +19,7 @@
 #include <epan/packet.h>
 #include <epan/conversation.h>
 #include "epan/column-utils.h"
+
 #include "opcua_security_layer.h"
 #include "opcua_application_layer.h"
 #include "opcua_simpletypes.h"
@@ -199,8 +200,13 @@ void get_encryption_info(packet_info *pinfo, enum ua_message_mode *mode, uint8_t
     conversation_t *conv = find_conversation_pinfo(pinfo, 0);
     if (conv) {
         uintptr_t data = (uintptr_t)conversation_get_proto_data(conv, proto_opcua);
-        *mode = (enum ua_message_mode)(data & 0xff);
-        *sig_len = (uintptr_t)(data >> 8);
+        if (data == 0) {
+            *mode = g_opcua_default_sig_len ? UA_MessageMode_MaybeEncrypted : UA_MessageMode_None;
+            *sig_len = g_opcua_default_sig_len;
+        } else {
+            *mode = (enum ua_message_mode)(data & 0xff);
+            *sig_len = (uintptr_t)(data >> 8);
+        }
     }
 }
 
@@ -235,7 +241,7 @@ int parseOpenSecureChannel(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, 
     proto_tree_add_item(tree, hf_opcua_transport_scid, tvb, *pOffset, 4, ENC_LITTLE_ENDIAN); *pOffset+=4;
     // Asym Security Header
     parseString_ret_string_and_length(tree, tvb, pinfo, pOffset, hf_opcua_transport_spu, &sec_policy, &sec_policy_len);
-    parseByteString(tree, tvb, pinfo, pOffset, hf_opcua_transport_scert);
+    parseCertificate(tree, tvb, pinfo, pOffset, hf_opcua_transport_scert);
     parseByteString(tree, tvb, pinfo, pOffset, hf_opcua_transport_rcthumb);
 
     if (opcua_string_compare(sec_policy, sec_policy_len, UA_SECURITY_POLICY_NONE_STRING ) == 0) {

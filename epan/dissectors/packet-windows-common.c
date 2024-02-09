@@ -1379,13 +1379,14 @@ static const sid_strings well_known_sids[] = {
 	{"S-1-5-18",       "Local System"},
 	{"S-1-5-19",       "Local Service"},
 	{"S-1-5-20",       "Network Service"},
+
+	{"S-1-5-21-0-0-0-496", "Compounded Authentication"},
+	{"S-1-5-21-0-0-0-497", "Claims Valid"},
+
 	/*
 	 * S-1-5-21-<d1>-<d2>-<d3>-<RID> where "<d1>-<d2>-<d3>" is the NT domain
 	 *          RIDs are defined in 'wkwn_S_1_5_21_rids' */
 	{"S-1-5-21",       "Domain SID"},
-
-	{"S-1-5-21-0-0-0-496", "Compounded Authentication"},
-	{"S-1-5-21-0-0-0-497", "Claims Valid"},
 
 	/* S-1-5-32-<RID>: Builtin local group SIDs  */
 	{"S-1-5-32",       "Local Group"},
@@ -1476,6 +1477,8 @@ match_wkwn_sids(const char* sid) {
      https://support.microsoft.com/en-us/help/243330/well-known-security-identifiers-in-windows-operating-systems
 */
 static const value_string wkwn_S_1_5_21_rids[] = {
+	{496,	"Compounded Authentication"},
+	{497,	"Claims Valid"},
 	{498,   "Enterprise Read-only Domain Controllers"},
 	{500,	"Administrator"},
 	{501,	"Guest"},
@@ -1490,6 +1493,10 @@ static const value_string wkwn_S_1_5_21_rids[] = {
 	{519,	"Enterprise Admins"},
 	{520,	"Group Policy Creator Owners"},
 	{521,	"Read-only Domain Controllers"},
+	{522,	"Cloneable Controllers"},
+	{525,	"Protected Users"},
+	{526,	"Key Admins"},
+	{527,	"Enterprise Key Admins"},
 	{553,	"RAS and IAS Servers"},
 	{571,	"Allowed RODC Password Replication Group"},
 	{572,	"Denied RODC Password Replication Group"},

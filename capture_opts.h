@@ -159,9 +159,6 @@ typedef struct remote_options_tag {
 typedef struct interface_tag {
     gchar          *name;
     gchar          *display_name;
-    gchar          *friendly_name;
-    gchar          *vendor_description;
-    guint           type;
     gchar          *addresses;
     gint            no_addresses;
     gchar          *cfilter;
@@ -403,6 +400,9 @@ interface_opts_from_if_info(capture_options *capture_opts, const if_info_t *if_i
 
 extern void
 collect_ifaces(capture_options *capture_opts);
+
+extern void
+capture_opts_free_link_row(gpointer elem);
 
 extern void
 capture_opts_free_interface_t(interface_t *device);

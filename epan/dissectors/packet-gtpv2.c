@@ -1568,12 +1568,15 @@ gtpv2_sn_equal_unmatched(gconstpointer k1, gconstpointer k2)
     return key1->seq_nr == key2->seq_nr;
 }
 
-static wmem_map_t *gtpv2_stat_msg_idx_hash = NULL;
+static GHashTable *gtpv2_stat_msg_idx_hash = NULL;
 
 static void
 gtpv2_stat_init(struct register_srt* srt _U_, GArray*srt_array)
 {
-    gtpv2_stat_msg_idx_hash = wmem_map_new(wmem_file_scope(), g_direct_hash, g_direct_equal);
+    if (gtpv2_stat_msg_idx_hash != NULL) {
+        g_hash_table_destroy(gtpv2_stat_msg_idx_hash);
+    }
+    gtpv2_stat_msg_idx_hash = g_hash_table_new(g_direct_hash, g_direct_equal);
 
     init_srt_table("GTPv2 Requests", NULL, srt_array, 0, NULL, NULL, NULL);
 }
@@ -1603,13 +1606,13 @@ gtpv2_stat_packet(void *pss, packet_info *pinfo, epan_dissect_t *edt _U_, const 
      * (requests and responses have different message types, and we
      * only use the request value.)
      */
-    idx = GPOINTER_TO_UINT(wmem_map_lookup(gtpv2_stat_msg_idx_hash, GUINT_TO_POINTER(gcrp->msgtype)));
+    idx = GPOINTER_TO_UINT(g_hash_table_lookup(gtpv2_stat_msg_idx_hash, GUINT_TO_POINTER(gcrp->msgtype)));
 
     /* Store the row value incremented by 1 to distinguish 0 from NULL */
     if (idx == 0) {
-        idx = wmem_map_size(gtpv2_stat_msg_idx_hash);
-        wmem_map_insert(gtpv2_stat_msg_idx_hash, GUINT_TO_POINTER(gcrp->msgtype), GUINT_TO_POINTER(idx + 1));
-        init_srt_table_row(gtpv2_srt_table, idx, val_to_str_ext(gcrp->msgtype, &gtpv2_message_type_vals_ext, "Unknown (%d)"));
+        idx = g_hash_table_size(gtpv2_stat_msg_idx_hash);
+        g_hash_table_insert(gtpv2_stat_msg_idx_hash, GUINT_TO_POINTER(gcrp->msgtype), GUINT_TO_POINTER(idx + 1));
+        init_srt_table_row(gtpv2_srt_table, idx, val_to_str_ext_const(gcrp->msgtype, &gtpv2_message_type_vals_ext, "Unknown"));
     } else {
         idx -= 1;
     }
@@ -4719,7 +4722,7 @@ dissect_gtpv2_mm_context_utms_q(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
         proto_tree_add_bitmask_list(tree, tvb, offset, 1, ear_flags, ENC_BIG_ENDIAN);
         offset += 1;
         if (ear_len > 1) {
-            proto_tree_add_expert_format(flag_tree, pinfo, &ei_gtpv2_ie_data_not_dissected, tvb, offset, -1, "The rest of the IE not dissected yet");
+            proto_tree_add_expert_format(tree, pinfo, &ei_gtpv2_ie_data_not_dissected, tvb, offset, -1, "The rest of the IE not dissected yet");
             offset += ear_len - 1;
         }
     } else {
@@ -4730,7 +4733,7 @@ dissect_gtpv2_mm_context_utms_q(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
         return;
     }
     /* ts+1) to (n+4) These octet(s) is/are present only if explicitly specified */
-    proto_tree_add_expert_format(flag_tree, pinfo, &ei_gtpv2_ie_data_not_dissected, tvb, offset, -1, "The rest of the IE not dissected yet");
+    proto_tree_add_expert_format(tree, pinfo, &ei_gtpv2_ie_data_not_dissected, tvb, offset, -1, "The rest of the IE not dissected yet");
 
 }
 
@@ -4939,6 +4942,10 @@ dissect_gtpv2_mm_context_eps_qq(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tre
         proto_tree_add_bitmask_list(tree, tvb, offset, 1, ear_flags, ENC_BIG_ENDIAN);
 
         offset += 1;
+        if (ex_access_res_data_len > 1) {
+            proto_tree_add_expert_format(tree, pinfo, &ei_gtpv2_ie_data_not_dissected, tvb, offset, ex_access_res_data_len - 1, "The rest of the IE not dissected yet");
+            offset += ex_access_res_data_len - 1;
+        }
     }
 
     if (offset == (gint)length) {
@@ -5335,7 +5342,7 @@ static const value_string gtpv2_container_type_vals[] = {
 
 
 static void
-dissect_gtpv2_F_container(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_item *item _U_, guint16 length, guint8 message_type, guint8 instance _U_, session_args_t * args _U_)
+dissect_gtpv2_F_container(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, proto_item *item, guint16 length, guint8 message_type, guint8 instance _U_, session_args_t * args _U_)
 {
     tvbuff_t   *new_tvb;
     proto_tree *sub_tree;
@@ -5350,7 +5357,7 @@ dissect_gtpv2_F_container(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, p
     offset += 1;
     length--;
     if (length == 0) {
-        proto_tree_add_expert(tree, pinfo, &ei_gtpv2_ie_len_invalid, tvb, offset-3, 3);
+        expert_add_info(pinfo, item, &ei_gtpv2_ie_len_invalid);
         return;
     }
     if (   (message_type == GTPV2_FORWARD_RELOCATION_REQ)
@@ -6712,7 +6719,7 @@ dissect_gtpv2_epc_timer(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
         proto_item_append_text(item, "DL Buffering Duration");
         break;
     }
-    /* XXX Todo: use code from packaet-gsm_a_gm.c ?  10.5.7.4a GPRS TIMER 3*/
+    /* XXX Todo: use code from packet-gsm_a_gm.c ?  10.5.7.4a GPRS TIMER 3*/
     proto_tree_add_item(tree, hf_gtpv2_timer_unit, tvb, 0, 1, ENC_BIG_ENDIAN);
     proto_tree_add_item(tree, hf_gtpv2_timer_value, tvb, 0, 1, ENC_BIG_ENDIAN);
 
@@ -8533,8 +8540,8 @@ static const gtpv2_ie_t gtpv2_ies[] = {
     {GTPV2_IE_TGT_GLOGAL_CELL_ID, dissect_gtpv2_tgt_global_cell_id},       /* 58 Target Global Cell ID */
     {GTPV2_IE_TEID_C, dissect_gtpv2_teid_c},                               /* 59 TEID-C */
     {GTPV2_IE_SV_FLAGS, dissect_gtpv2_sv_flags},                           /* 60 Sv Flags */
-    {GTPV2_IE_SAI, dissect_gtpv2_sai},                                     /* 61 Service Area Identifie */
-    {GTPV2_IE_MM_CTX_FOR_CS_TO_PS_SRVCC, dissect_gtpv2_mm_ctx_for_cs_to_ps_srvcc },  /* 62 Service Area Identifie */
+    {GTPV2_IE_SAI, dissect_gtpv2_sai},                                     /* 61 Service Area Identifier */
+    {GTPV2_IE_MM_CTX_FOR_CS_TO_PS_SRVCC, dissect_gtpv2_mm_ctx_for_cs_to_ps_srvcc },  /* 62 Service Area Identifier */
                                                                            /* 61-70 Reserved for Sv interface Extendable / See 3GPP TS 29.280 [15] */
     {GTPV2_APN, dissect_gtpv2_apn},                                        /* 71, Access Point Name (APN) 8.6 */
     {GTPV2_AMBR, dissect_gtpv2_ambr},                                      /* 72, Aggregate Maximum Bit Rate (AMBR) */
@@ -8997,6 +9004,11 @@ dissect_gtpv2_ie_common(tvbuff_t * tvb, packet_info * pinfo, proto_tree * tree, 
             /* Just give the IE dissector the IE */
             ie_tvb = tvb_new_subset_remaining(tvb, offset);
             (*gtpv2_ies[i].decode) (ie_tvb, pinfo , ie_tree, ti, length, message_type, instance, args);
+        }
+
+        /* ch8.120 breaks the format described in ch8.2.1 */
+        if (type == GTPV2_IE_MON_EVENT_INF) {
+            offset++;
         }
 
         offset += length;
@@ -10918,7 +10930,7 @@ void proto_register_gtpv2(void)
         },
         { &hf_gtpv2_mm_context_samb_ri,
           {"SAMB RI", "gtpv2.mm_context_samb_ri",
-           FT_BOOLEAN, 8, NULL, 0x0,
+           FT_BOOLEAN, BASE_NONE, NULL, 0x0,
            NULL, HFILL}
         },
         { &hf_gtpv2_ue_time_zone_dst,

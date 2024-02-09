@@ -6407,7 +6407,7 @@ proto_register_mswsp(void)
 			&hf_mswsp_msg_ConnectIn_ClientIsRemote,
 			{
 				"Remote", "mswsp.ConnectIn.isRemote",
-				FT_BOOLEAN, BASE_HEX, NULL, 0,
+				FT_BOOLEAN, BASE_NONE, NULL, 0,
 				"Client is remote",HFILL
 			}
 		},
@@ -7835,14 +7835,14 @@ proto_register_mswsp(void)
 			&hf_mswsp_msg_cpmgetrowsetnotify_changeditemstate,
 			{
 				"changedItemState", "mswsp.msg.cpmgetrowsetnotify.changeditemState",
-				FT_UINT8, BASE_DEC, NULL, 0, 0, HFILL
+				FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL
 			}
 		},
 		{
 			&hf_mswsp_msg_cpmgetrowsetnotify_rowsetevent,
 			{
 				"rowSetEvent", "mswsp.msg.cpmgetrowsetnotify.rowsetevent",
-				FT_UINT8, BASE_DEC, NULL, 0, 0, HFILL
+				FT_UINT8, BASE_DEC, NULL, 0, NULL, HFILL
 			}
 		},
 		{
