@@ -104,6 +104,12 @@ static int hf_srt_km_klen;
 static int hf_srt_km_salt;
 static int hf_srt_km_wrap;
 
+/* HS Extension: Group */
+static int hf_srt_hs_ext_group_id;
+static int hf_srt_hs_ext_group_type;
+static int hf_srt_hs_ext_group_flags;
+static int hf_srt_hs_ext_group_weight;
+
 static int hf_srt_srths_blocktype;
 static int hf_srt_srths_blocklen;
 static int hf_srt_srths_agent_latency; // TSBPD delay
@@ -112,6 +118,7 @@ static int hf_srt_srtkm_msg;
 static int hf_srt_srtkm_error;
 static int hf_srt_srths_sid;
 static int hf_srt_srths_congestcontrol;
+static int hf_srt_hs_ext_filter;
 
 static gint ett_srt;
 static gint ett_srt_handshake_ext_flags;
@@ -120,6 +127,7 @@ static gint ett_srt_handshake_ext_field_flags;
 static expert_field ei_srt_nak_seqno;
 static expert_field ei_srt_hs_ext_hsreq_len;
 static expert_field ei_srt_hs_ext_type;
+static expert_field ei_srt_hs_ext_group_len;
 
 static dissector_handle_t srt_udp_handle;
 
@@ -193,9 +201,10 @@ enum PacketBoundary
 
 /* Rest of the bits are for message sequence number */
 #define SRT_MSGNO_MSGNO_MASK 0x03ffffff
+#define SRT_MSGNO_REXMIT_FLG 0x04000000
 
 
-/* The message types used by UDT protocol. This is a part of UDT
+/* The message types used by SRT protocol. This is a part of SRT
  * protocol and should never be changed.
  */
 enum UDTMessageType
@@ -220,7 +229,9 @@ enum UDTMessageType
 #define SRT_CMD_KMREQ       3
 #define SRT_CMD_KMRSP       4
 #define SRT_CMD_SID         5
-#define SRT_CMD_CONGESTCTRL 6
+#define SRT_CMD_CONGESTION  6
+#define SRT_CMD_FILTER      7
+#define SRT_CMD_GROUP       8
 
 enum SrtDataStruct
 {
@@ -254,29 +265,39 @@ enum SRT_KM_STATE
 };
 
 static const value_string srt_ctrlmsg_types[] = {
-    {UMSG_HANDSHAKE,  "UMSG_HANDSHAKE"},
-    {UMSG_KEEPALIVE,  "UMSG_KEEPALIVE"},
-    {UMSG_ACK,        "UMSG_ACK"},
-    {UMSG_LOSSREPORT, "UMSG_LOSSREPORT"},
-    {UMSG_CGWARNING,  "UMSG_CGWARNING"},
-    {UMSG_SHUTDOWN,   "UMSG_SHUTDOWN"},
-    {UMSG_ACKACK,     "UMSG_ACKACK"},
-    {UMSG_DROPREQ,    "UMSG_DROPREQ"},
-    {UMSG_PEERERROR,  "UMSG_PEERERROR"},
-    {UMSG_EXT,        "UMSG_EXT"},
+    {UMSG_HANDSHAKE,  "HANDSHAKE"},
+    {UMSG_KEEPALIVE,  "KEEPALIVE"},
+    {UMSG_ACK,        "ACK"},
+    {UMSG_LOSSREPORT, "LOSSREPORT"},
+    {UMSG_CGWARNING,  "CGWARNING"},
+    {UMSG_SHUTDOWN,   "SHUTDOWN"},
+    {UMSG_ACKACK,     "ACKACK"},
+    {UMSG_DROPREQ,    "DROPREQ"},
+    {UMSG_PEERERROR,  "PEERERROR"},
+    {UMSG_EXT,        "EXT"},
 
     {0, NULL},
 };
 
 static const value_string srt_ctrlmsg_exttypes[] = {
-    {SRT_CMD_HSREQ,       "SRT_CMD_HSREQ"},
-    {SRT_CMD_HSRSP,       "SRT_CMD_HSRSP"},
-    {SRT_CMD_KMREQ,       "SRT_CMD_KMREQ"},
-    {SRT_CMD_KMRSP,       "SRT_CMD_KMRSP"},
-    {SRT_CMD_SID,         "SRT_CMD_SID"},
-    {SRT_CMD_CONGESTCTRL, "SRT_CMD_CONGESTCTRL"},
+    {SRT_CMD_HSREQ,       "HSREQ"},
+    {SRT_CMD_HSRSP,       "HSRSP"},
+    {SRT_CMD_KMREQ,       "KMREQ"},
+    {SRT_CMD_KMRSP,       "KMRSP"},
+    {SRT_CMD_SID,         "SID"},
+    {SRT_CMD_CONGESTION,  "CONGESTION"},
+    {SRT_CMD_FILTER,      "FILTER"},
+    {SRT_CMD_GROUP,       "GROUP"},
 
     { 0, NULL },
+};
+
+static const value_string srt_hs_ext_group_type[] = {
+        { 0, "Undefined" },
+        { 1, "Broadcast" },
+        { 2, "Main/Backup" },
+        { 3, "Balancing"},
+        { 0, NULL }
 };
 
 static const value_string srt_hsv4_socket_types[] = {
@@ -520,6 +541,34 @@ static void srt_format_kmx(proto_tree* tree, tvbuff_t* tvb, int baseoff, int blo
     }
 }
 
+static void srt_format_hs_ext_group(proto_tree* tree, tvbuff_t* tvb, packet_info* pinfo, int baseoff, int blocklen)
+{
+    //  0                   1                   2                   3
+    //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+    // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    // |                           Group ID                            |
+    // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    // |     Type    |     Flags     |             Weight              |
+    // +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    if (blocklen < 8)
+    {
+        proto_tree_add_expert_format(tree, pinfo, &ei_srt_hs_ext_hsreq_len,
+            tvb, baseoff, blocklen, "Actual length is %u", blocklen);
+        return;
+    }
+
+    proto_tree_add_item(tree, hf_srt_hs_ext_group_id,     tvb, baseoff,     4, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_srt_hs_ext_group_type,   tvb, baseoff + 4, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_srt_hs_ext_group_flags,  tvb, baseoff + 5, 1, ENC_BIG_ENDIAN);
+    proto_tree_add_item(tree, hf_srt_hs_ext_group_weight, tvb, baseoff + 6, 2, ENC_BIG_ENDIAN);
+
+    if (blocklen > 8)
+    {
+        proto_tree_add_expert_format(tree, pinfo, &ei_srt_hs_ext_hsreq_len,
+            tvb, baseoff, blocklen, "Actual length is %u", blocklen);
+    }
+}
+
 // Wireshark dissector doesn't have a possibility to format enum-collected flags.
 static void dissect_srt_hs_ext_field(proto_tree* tree,
         tvbuff_t* tvb, int baseoff)
@@ -635,26 +684,26 @@ dissect_srt_control_packet(tvbuff_t *tvb, packet_info* pinfo,
     switch (type)
     {
     case UMSG_EXT:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Control/ext: %s  socket: 0x%x",
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Control/ext: %s socket: %d",
                         val_to_str(exttype, srt_ctrlmsg_exttypes,
-                                   "Unknown SRT Control Type (0x%x)"),
+                                   "Unknown EXT Control Type (%d)"),
                         tvb_get_ntohl(tvb, 12));
         break;
     case UMSG_ACK:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Control: UMSG_ACK %d ackseq: %d  socket: 0x%x",
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Control: ACK %d seqno: %u socket: %d",
                         tvb_get_ntohl(tvb, 4),
                         tvb_get_ntohl(tvb, 16),
                         tvb_get_ntohl(tvb, 12));
         break;
     case UMSG_ACKACK:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Control: UMSG_ACKACK %d socket: 0x%x",
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Control: ACKACK %d socket: %d",
                         tvb_get_ntohl(tvb, 4),
                         tvb_get_ntohl(tvb, 12));
         break;
     default:
-        col_add_fstr(pinfo->cinfo, COL_INFO, "Control: %s  socket: 0x%x",
+        col_add_fstr(pinfo->cinfo, COL_INFO, "Control: %s socket: %d",
                         val_to_str(type, srt_ctrlmsg_types,
-                                   "Unknown UDT Control Type (%x)"),
+                                   "Unknown Control Type (%d)"),
                         tvb_get_ntohl(tvb, 12));
         break;
     }
@@ -818,8 +867,16 @@ dissect_srt_control_packet(tvbuff_t *tvb, packet_info* pinfo,
                         format_text_reorder_32(tree, tvb, pinfo, hf_srt_srths_sid, begin, 4 * blocklen);
                         break;
 
-                    case SRT_CMD_CONGESTCTRL:
+                    case SRT_CMD_CONGESTION:
                         format_text_reorder_32(tree, tvb, pinfo, hf_srt_srths_congestcontrol, begin, 4 * blocklen);
+                        break;
+
+                    case SRT_CMD_FILTER:
+                        format_text_reorder_32(tree, tvb, pinfo, hf_srt_hs_ext_filter, begin, 4 * blocklen);
+                        break;
+
+                    case SRT_CMD_GROUP:
+                        srt_format_hs_ext_group(tree, tvb, pinfo, begin, blocklen * 4);
                         break;
 
                     default:
@@ -1005,10 +1062,11 @@ dissect_srt_udp(tvbuff_t *tvb, packet_info* pinfo, proto_tree *parent_tree,
         tvbuff_t *next_tvb;
 
         col_add_fstr(pinfo->cinfo, COL_INFO,
-                     "DATA: seqno: %u  msgno: %u  socket: 0x%x",
+                     "DATA: seqno: %u msgno: #%u socket: %d %s",
                      tvb_get_ntohl(tvb, 0),
                      tvb_get_ntohl(tvb, 4) & SRT_MSGNO_MSGNO_MASK,
-                     tvb_get_ntohl(tvb, 12));
+                     tvb_get_ntohl(tvb, 12),
+                     tvb_get_ntohl(tvb, 4) & SRT_MSGNO_REXMIT_FLG ? "R" : "");
 
         if (tree)
         {
@@ -1138,7 +1196,7 @@ void proto_register_srt(void)
 
         {&hf_srt_id, {
             "Destination Socket ID", "srt.id",
-            FT_UINT32, BASE_HEX,
+            FT_UINT32, BASE_DEC,
             NULL, 0, NULL, HFILL}},
 
         {&hf_srt_ack_seqno, {
@@ -1193,7 +1251,7 @@ void proto_register_srt(void)
             HFILL}},
 
         {&hf_srt_handshake_enc_field_v5, {
-            "Encryption Field", "srt.hs.encfield",
+            "Crypto Key Field", "srt.hs.enckeyfield",
             FT_UINT16, BASE_HEX,
             VALS(srt_handshake_enc_field), 0, NULL,
             HFILL}},
@@ -1252,7 +1310,7 @@ void proto_register_srt(void)
 
         {&hf_srt_handshake_id, {
             "Socket ID", "srt.hs.id",
-            FT_UINT32, BASE_HEX,
+            FT_UINT32, BASE_DEC,
             NULL, 0, NULL, HFILL}},
 
         {&hf_srt_handshake_cookie, {
@@ -1368,6 +1426,11 @@ void proto_register_srt(void)
             FT_STRING, BASE_NONE,
             NULL, 0, NULL, HFILL}},
 
+        {&hf_srt_hs_ext_filter, {
+            "Packet Filter Type", "srt.hs.filter",
+            FT_STRING, BASE_NONE,
+            NULL, 0, NULL, HFILL}},
+
         {&hf_srt_km, {
             "Key Material", "srt.km",
             FT_BYTES, BASE_NONE,
@@ -1464,7 +1527,28 @@ void proto_register_srt(void)
         {&hf_srt_km_wrap, {
             "Key wrap", "srt.km.wrap",
             FT_BYTES, BASE_NONE,
+            NULL, 0, NULL, HFILL}},
+
+        {&hf_srt_hs_ext_group_id, {
+            "Group ID", "srt.hs_ext_group.id",
+            FT_UINT32, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+
+        { &hf_srt_hs_ext_group_type, {
+            "Group Type", "srt.hs_ext_group.type",
+            FT_UINT8, BASE_DEC,
+            VALS(srt_hs_ext_group_type), 0, NULL, HFILL}},
+
+        { &hf_srt_hs_ext_group_flags, {
+            "Group Flags", "srt.hs_ext_group.flags",
+            FT_UINT8, BASE_DEC,
+            NULL, 0, NULL, HFILL}},
+
+        { &hf_srt_hs_ext_group_weight, {
+            "Member Weight", "srt.hs_ext_group.member_weight",
+            FT_UINT16, BASE_DEC,
             NULL, 0, NULL, HFILL}}
+
     };
 
     static gint *ett[] = {
@@ -1485,6 +1569,10 @@ void proto_register_srt(void)
         { &ei_srt_hs_ext_type,
             { "srt.hs.ext.type", PI_PROTOCOL, PI_WARN,
               "Unknown HS Ext Type", EXPFILL }},
+
+        { &ei_srt_hs_ext_group_len,
+            { "srt.hs.ext.group", PI_PROTOCOL, PI_WARN,
+              "Wrong HS Ext Group length", EXPFILL }},
     };
 
     proto_srt = proto_register_protocol("SRT Protocol", "SRT", "srt");

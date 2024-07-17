@@ -60,7 +60,7 @@
 #define ZBEE_ZCL_BASIC_PWR_SRC_BATTERY                  0x03    /* Battery */
 #define ZBEE_ZCL_BASIC_PWR_SRC_DC_SRC                   0x04    /* DC source */
 #define ZBEE_ZCL_BASIC_PWR_SRC_EMERGENCY_1              0x05    /* Emergency mains constantly powered */
-#define ZBEE_ZCL_BASIC_PWR_SRC_EMERGENCY_2              0x06    /* Emergency mains and tranfer switch */
+#define ZBEE_ZCL_BASIC_PWR_SRC_EMERGENCY_2              0x06    /* Emergency mains and transfer switch */
 
 /* Device Enable Values */
 #define ZBEE_ZCL_BASIC_DISABLED                         0x00    /* Disabled */
@@ -418,7 +418,7 @@ proto_reg_handoff_zbee_zcl_basic(void)
 
 /* Attributes */
 #define ZBEE_ZCL_ATTR_ID_POWER_CONF_MAINS_VOLTAGE           0x0000  /* Mains voltage */
-#define ZBEE_ZCL_ATTR_ID_POWER_CONF_MAINS_FREQUENCY         0x0001  /* Mains frerquency */
+#define ZBEE_ZCL_ATTR_ID_POWER_CONF_MAINS_FREQUENCY         0x0001  /* Mains frequency */
 #define ZBEE_ZCL_ATTR_ID_POWER_CONF_MAINS_ALARM_MASK        0x0010  /* Mains Alarm Mask */
 #define ZBEE_ZCL_ATTR_ID_POWER_CONF_MAINS_VOLTAGE_MIN_THR   0x0011  /* Mains Voltage Min Threshold */
 #define ZBEE_ZCL_ATTR_ID_POWER_CONF_MAINS_VOLTAGE_MAX_THR   0x0012  /* Mains Voltage Max Threshold */
@@ -971,7 +971,7 @@ static const value_string zbee_zcl_device_temperature_configuration_attr_names[]
 static int
 dissect_zbee_zcl_device_temperature_configuration(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void* data _U_)
 {
-	return tvb_captured_length(tvb);;
+	return tvb_captured_length(tvb);
 } /*dissect_zbee_zcl_device_temperature_configuration*/
 
 
@@ -3099,7 +3099,7 @@ proto_register_zbee_zcl_scenes(void)
             0x00, NULL, HFILL }},
 
         { &hf_zbee_zcl_scenes_extension_set_color_loop_active,
-            { "Color Loop Active", "zbee_zcl_general.scenes.extension_set.color_loop_active", FT_BOOLEAN, 8, NULL,
+            { "Color Loop Active", "zbee_zcl_general.scenes.extension_set.color_loop_active", FT_BOOLEAN, BASE_NONE, NULL,
             0x00, NULL, HFILL }},
 
         { &hf_zbee_zcl_scenes_extension_set_color_loop_direction,
@@ -3484,11 +3484,11 @@ proto_register_zbee_zcl_on_off(void)
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_on_off_attr_onoff,
-            { "On/off Control", "zbee_zcl_general.onoff.attr.onoff", FT_BOOLEAN, 8, TFS(&tfs_on_off),
+            { "On/off Control", "zbee_zcl_general.onoff.attr.onoff", FT_BOOLEAN, BASE_NONE, TFS(&tfs_on_off),
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_on_off_attr_globalscenecontrol,
-            { "Global Scene Control", "zbee_zcl_general.onoff.attr.globalscenecontrol", FT_BOOLEAN, 8, NULL,
+            { "Global Scene Control", "zbee_zcl_general.onoff.attr.globalscenecontrol", FT_BOOLEAN, BASE_NONE, NULL,
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_on_off_attr_ontime,
@@ -6513,7 +6513,7 @@ proto_register_zbee_zcl_analog_output_basic(void)
         /* end Status Flags fields */
 
         { &hf_zbee_zcl_analog_output_basic_priority_array_bool,
-            { "Valid/Invalid", "zbee_zcl_general.analog_output_basic.attr.priority_array.bool", FT_BOOLEAN, 8, TFS(&tfs_invalid_valid),
+            { "Valid/Invalid", "zbee_zcl_general.analog_output_basic.attr.priority_array.bool", FT_BOOLEAN, BASE_NONE, TFS(&tfs_invalid_valid),
             0x0, NULL, HFILL } },
 
         { &hf_zbee_zcl_analog_output_basic_priority_array_sing_prec,
@@ -6796,7 +6796,7 @@ proto_register_zbee_zcl_analog_value_basic(void)
         /* end Status Flags fields */
 
         { &hf_zbee_zcl_analog_value_basic_priority_array_bool,
-            { "Valid/Invalid", "zbee_zcl_general.analog_value_basic.attr.priority_array.bool", FT_BOOLEAN, 8, TFS(&tfs_invalid_valid),
+            { "Valid/Invalid", "zbee_zcl_general.analog_value_basic.attr.priority_array.bool", FT_BOOLEAN, BASE_NONE, TFS(&tfs_invalid_valid),
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_analog_value_basic_priority_array_sing_prec,
@@ -7357,7 +7357,7 @@ proto_register_zbee_zcl_binary_output_basic(void)
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_binary_output_basic_priority_array_bool,
-            { "Valid/Invalid", "zbee_zcl_general.binary_output_basic.attr.priority_array.bool", FT_BOOLEAN, 8, TFS(&tfs_invalid_valid),
+            { "Valid/Invalid", "zbee_zcl_general.binary_output_basic.attr.priority_array.bool", FT_BOOLEAN, BASE_NONE, TFS(&tfs_invalid_valid),
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_binary_output_basic_priority_array_sing_prec,
@@ -7646,7 +7646,7 @@ proto_register_zbee_zcl_binary_value_basic(void)
         /* end Status Flags fields */
 
         { &hf_zbee_zcl_binary_value_basic_priority_array_bool,
-            { "Valid/Invalid", "zbee_zcl_general.binary_value_basic.attr.priority_array.bool", FT_BOOLEAN, 8,TFS(&tfs_invalid_valid),
+            { "Valid/Invalid", "zbee_zcl_general.binary_value_basic.attr.priority_array.bool", FT_BOOLEAN, BASE_NONE, TFS(&tfs_invalid_valid),
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_binary_value_basic_priority_array_sing_prec,
@@ -9770,7 +9770,7 @@ void proto_reg_handoff_zbee_zcl_part(void)
 #define ZBEE_ZCL_OTA_TIME_NOW                           0x00000000  /* Now */
 #define ZBEE_ZCL_OTA_TIME_UTC_LO                        0x00000001  /* UTC Low Boundary */
 #define ZBEE_ZCL_OTA_TIME_UTC_HI                        0xfffffffe  /* UTC High Boundary */
-#define ZBEE_ZCL_OTA_TIME_WAIT                          0xffffffff  /* Wait for a Upgrade command (not used for RequesTime) */
+#define ZBEE_ZCL_OTA_TIME_WAIT                          0xffffffff  /* Wait for a Upgrade command (not used for RequestTime) */
 
 /*************************/
 /* Function Declarations */
@@ -12961,7 +12961,7 @@ proto_register_zbee_zcl_poll_ctrl(void)
                 VALS(zbee_zcl_poll_ctrl_srv_tx_cmd_names), 0x0, NULL, HFILL }},
 
         { &hf_zbee_zcl_poll_ctrl_start_fast_polling,
-            { "Start Fast Polling", "zbee_zcl_general.poll.start", FT_BOOLEAN, 8, NULL, 0x0,
+            { "Start Fast Polling", "zbee_zcl_general.poll.start", FT_BOOLEAN, BASE_NONE, NULL, 0x0,
                 NULL, HFILL }},
 
         { &hf_zbee_zcl_poll_ctrl_fast_poll_timeout,

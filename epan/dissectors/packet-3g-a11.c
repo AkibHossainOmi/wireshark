@@ -24,6 +24,8 @@
  * https://www.3gpp2.org/Public_html/Specs/A.S0017-D%20v3.0_Interoperability%20Specification%20%28IOS%29%20for%20cdma2000%20Access%20Network%20Interfaces%20-%20Part%207%20%28A10%20and%20A11%20Interfaces%29_20110701.pdf
  * https://www.3gpp2.org/Public_html/Specs/A00-20110419-002Er0%20A.S0008-C%20v4.0%20HRPD%20IOS-Pub_20110513.pdf
  * https://www.3gpp2.org/Public_html/Specs/A.S0022-0_v2.0_100426.pdf
+ *
+ * https://web.archive.org/web/20070812071100/http://3gpp2.org:80/Public_html/specs/A.S0017-0_v2.0.pdf
  */
 
 #include "config.h"
@@ -173,8 +175,8 @@ static int hf_a11_fqui_updated_qoslen;
 static int hf_a11_fqui_updated_qos;
 static int hf_a11_rqui_updated_qoslen;
 static int hf_a11_rqui_updated_qos;
-static int hf_a11_subsciber_profile;
-/* static int hf_a11_subsciber_profile_len; */
+static int hf_a11_subscriber_profile;
+/* static int hf_a11_subscriber_profile_len; */
 
 /* Initialize the subtree pointers */
 static gint ett_a11;
@@ -1196,7 +1198,7 @@ dissect_subscriber_qos_profile(tvbuff_t *tvb, packet_info *pinfo, int offset, in
     /* Subscriber QoS profile */
     if (qos_profile_len) {
         proto_tree_add_item
-            (exts_tree,  hf_a11_subsciber_profile, tvb, offset,
+            (exts_tree,  hf_a11_subscriber_profile, tvb, offset,
              qos_profile_len, ENC_NA);
 
         dissect_attribute_value_pairs(exts_tree, pinfo, tvb, offset, qos_profile_len, NULL);
@@ -2217,7 +2219,7 @@ proto_register_a11(void)
         },
         { &hf_a11_vse_ehrpd_mode,
           { "eHRPD Mode",           "a11.ext.ehrpd.mode",
-            FT_BOOLEAN, 8, TFS(&a11_tfs_ehrpd_mode), 0,
+            FT_BOOLEAN, BASE_NONE, TFS(&a11_tfs_ehrpd_mode), 0,
             NULL, HFILL }
         },
         { &hf_a11_vse_ehrpd_pmk,
@@ -2530,13 +2532,13 @@ proto_register_a11(void)
             NULL, HFILL }
         },
 #if 0
-        { &hf_a11_subsciber_profile_len,
+        { &hf_a11_subscriber_profile_len,
           { "Subscriber QoS Profile Length",   "a11.ext.sqp.profilelen",
             FT_BYTES, BASE_NONE, NULL, 0,
             NULL, HFILL }
         },
 #endif
-        { &hf_a11_subsciber_profile,
+        { &hf_a11_subscriber_profile,
           { "Subscriber QoS Profile",   "a11.ext.sqp.profile",
             FT_BYTES, BASE_NONE, NULL, 0,
             NULL, HFILL }

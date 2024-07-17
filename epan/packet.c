@@ -158,6 +158,7 @@ destroy_depend_dissector_list(void *data)
  * A heuristics dissector list.
  */
 struct heur_dissector_list {
+	const char	*ui_name;
 	protocol_t	*protocol;
 	GSList		*dissectors;
 };
@@ -896,6 +897,8 @@ call_dissector_work(dissector_handle_t handle, tvbuff_t *tvb, packet_info *pinfo
 	int          len;
 	guint        saved_layers_len = 0;
 	guint        saved_tree_count = tree ? tree->tree_data->count : 0;
+	unsigned     saved_desegment_len = pinfo->desegment_len;
+	bool         consumed_none;
 
 	if (handle->protocol != NULL &&
 	    !proto_is_protocol_enabled(handle->protocol)) {
@@ -947,21 +950,35 @@ call_dissector_work(dissector_handle_t handle, tvbuff_t *tvb, packet_info *pinfo
 		 */
 		len = call_dissector_through_handle(handle, tvb, pinfo, tree, data);
 	}
+	consumed_none = len == 0 || (pinfo->desegment_len != saved_desegment_len && pinfo->desegment_offset == 0);
+	/* If len == 0, then the dissector didn't accept the packet.
+	 * In the latter case, the dissector accepted the packet, but didn't
+	 * consume any bytes because they all belong in a later segment.
+	 * In the latter case, we probably won't call a dissector here again
+	 * on the next pass, so removing the layer keeps any *further* layers
+	 * past this one the same on subsequent passes.
+	 *
+	 * XXX: DISSECTOR_ASSERT that the tree count didn't change? If the
+	 * dissector didn't consume any bytes but added items to the tree,
+	 * that's improper behavior and needs a rethink. We could also move the
+	 * test that the packet didn't change desegment_offset and desegment_len
+	 * while rejecting the packet from packet-tcp.c decode_tcp_ports to here.
+	 */
 	if (handle->protocol != NULL && !proto_is_pino(handle->protocol) && add_proto_name &&
-		(len == 0 || (tree && saved_tree_count == tree->tree_data->count))) {
+		(consumed_none || (tree && saved_tree_count == tree->tree_data->count))) {
 		/*
 		 * We've added a layer and either the dissector didn't
-		 * accept the packet or we didn't add any items to the
+		 * consume any data or we didn't add any items to the
 		 * tree. Remove it.
 		 */
 		while (wmem_list_count(pinfo->layers) > saved_layers_len) {
 			/*
-			 * Only reduce the layer number if the dissector
-			 * rejected the data. Since tree can be NULL on
+			 * Only reduce the layer number if the dissector didn't
+			 * consume any data. Since tree can be NULL on
 			 * the first pass, we cannot check it or it will
 			 * break dissectors that rely on a stable value.
 			 */
-			remove_last_layer(pinfo, len == 0);
+			remove_last_layer(pinfo, consumed_none);
 		}
 	}
 	pinfo->current_proto = saved_proto;
@@ -1339,7 +1356,7 @@ void dissector_add_uint_range_with_preference(const char *name, const char* rang
    with a particular pattern. */
 
 /* NOTE: this doesn't use the dissector call variable. It is included to */
-/*	be consistant with the dissector_add_uint and more importantly to be used */
+/*	be consistent with the dissector_add_uint and more importantly to be used */
 /*	if the technique of adding a temporary dissector is implemented.  */
 /*	If temporary dissectors are deleted, then the original dissector must */
 /*	be available. */
@@ -1749,7 +1766,7 @@ dissector_add_string(const char *name, const gchar *pattern,
    with a particular pattern. */
 
 /* NOTE: this doesn't use the dissector call variable. It is included to */
-/*	be consistant with the dissector_add_string and more importantly to */
+/*	be consistent with the dissector_add_string and more importantly to */
 /*      be used if the technique of adding a temporary dissector is */
 /*      implemented.  */
 /*	If temporary dissectors are deleted, then the original dissector must */
@@ -2950,6 +2967,8 @@ dissector_try_heuristic(heur_dissector_list_t sub_dissectors, tvbuff_t *tvb,
 	heur_dtbl_entry_t *hdtbl_entry;
 	int                proto_id;
 	int                len;
+	bool               consumed_none;
+	unsigned           saved_desegment_len;
 	guint              saved_tree_count = tree ? tree->tree_data->count : 0;
 
 	/* can_desegment is set to 2 by anyone which offers this api/service.
@@ -3004,22 +3023,24 @@ dissector_try_heuristic(heur_dissector_list_t sub_dissectors, tvbuff_t *tvb,
 
 		pinfo->heur_list_name = hdtbl_entry->list_name;
 
+		saved_desegment_len = pinfo->desegment_len;
 		len = (hdtbl_entry->dissector)(tvb, pinfo, tree, data);
+		consumed_none = len == 0 || (pinfo->desegment_len != saved_desegment_len && pinfo->desegment_offset == 0);
 		if (hdtbl_entry->protocol != NULL &&
-			(len == 0 || (tree && saved_tree_count == tree->tree_data->count))) {
+			(consumed_none || (tree && saved_tree_count == tree->tree_data->count))) {
 			/*
 			 * We added a protocol layer above. The dissector
-			 * didn't accept the packet or it didn't add any
+			 * didn't consume any data or it didn't add any
 			 * items to the tree so remove it from the list.
 			 */
 			while (wmem_list_count(pinfo->layers) > saved_layers_len) {
 				/*
 				 * Only reduce the layer number if the dissector
-				 * rejected the data. Since tree can be NULL on
+				 * didn't consume data. Since tree can be NULL on
 				 * the first pass, we cannot check it or it will
 				 * break dissectors that rely on a stable value.
 				 */
-				remove_last_layer(pinfo, len == 0);
+				remove_last_layer(pinfo, consumed_none);
 			}
 		}
 		if (len) {
@@ -3183,7 +3204,7 @@ dissector_dump_heur_decodes(void)
 
 
 heur_dissector_list_t
-register_heur_dissector_list(const char *name, const int proto)
+register_heur_dissector_list_with_description(const char *name, const char *ui_name, const int proto)
 {
 	heur_dissector_list_t sub_dissectors;
 
@@ -3196,10 +3217,23 @@ register_heur_dissector_list(const char *name, const int proto)
 	/* a pointer to the dissector table. */
 	sub_dissectors = g_slice_new(struct heur_dissector_list);
 	sub_dissectors->protocol  = (proto == -1) ? NULL : find_protocol_by_id(proto);
+	sub_dissectors->ui_name = ui_name;
 	sub_dissectors->dissectors = NULL;	/* initially empty */
 	g_hash_table_insert(heur_dissector_lists, (gpointer)name,
 			    (gpointer) sub_dissectors);
 	return sub_dissectors;
+}
+
+heur_dissector_list_t
+register_heur_dissector_list(const char *name, const int proto)
+{
+	return register_heur_dissector_list_with_description(name, NULL, proto);
+}
+
+const char *
+heur_dissector_list_get_description(heur_dissector_list_t list)
+{
+	return list ? list->ui_name : NULL;
 }
 
 /*
@@ -3283,7 +3317,7 @@ find_dissector(const char *name)
 	return (dissector_handle_t)g_hash_table_lookup(registered_dissectors, name);
 }
 
-/** Find a dissector by name and add parent protocol as a depedency*/
+/** Find a dissector by name and add parent protocol as a dependency*/
 dissector_handle_t find_dissector_add_dependency(const char *name, const int parent_proto)
 {
 	dissector_handle_t handle = (dissector_handle_t)g_hash_table_lookup(registered_dissectors, name);
@@ -3573,8 +3607,6 @@ void call_heur_dissector_direct(heur_dtbl_entry_t *heur_dtbl_entry, tvbuff_t *tv
 
 	/* call the dissector, in case of failure call data handle (might happen with exported PDUs) */
 	if (!(*heur_dtbl_entry->dissector)(tvb, pinfo, tree, data)) {
-		call_dissector_work(data_handle, tvb, pinfo, tree, TRUE, NULL);
-
 		/*
 		 * We added a protocol layer above. The dissector
 		 * didn't accept the packet or it didn't add any
@@ -3583,7 +3615,14 @@ void call_heur_dissector_direct(heur_dtbl_entry_t *heur_dtbl_entry, tvbuff_t *tv
 		while (wmem_list_count(pinfo->layers) > saved_layers_len) {
 			remove_last_layer(pinfo, TRUE);
 		}
+
+		call_dissector_work(data_handle, tvb, pinfo, tree, TRUE, NULL);
 	}
+
+	/* XXX: Remove layers if it was accepted but didn't actually consume
+	 * data due to desegmentation? (Currently the only callers of this
+	 * are UDP and exported PDUs, so not yet necessary.)
+	 */
 
 	/* Restore info from caller */
 	pinfo->can_desegment = saved_can_desegment;
@@ -3773,6 +3812,30 @@ dissector_dump_dissector_tables_display (gpointer key, gpointer user_data _U_)
 	printf("\n");
 }
 
+/** The output format of this function is meant to parallel
+ * that of dissector_dump_dissector_tables_display().
+ * Field 3 is shown as "heuristic".
+ * Field 4 is omitted, as it is for FT_STRING dissector tables above.
+ * Field 6 is omitted since "Decode As" doesn't apply.
+ */
+
+static void
+dissector_dump_heur_dissector_tables_display (gpointer key, gpointer user_data _U_)
+{
+	const char		*list_name = (const char *)key;
+	heur_dissector_list_t	list;
+
+	list = (heur_dissector_list_t)g_hash_table_lookup(heur_dissector_lists, key);
+	printf("%s\t%s\theuristic", list_name, list->ui_name ? list->ui_name : list_name);
+
+	if (list->protocol != NULL) {
+		printf("\t%s",
+		    proto_get_protocol_short_name(list->protocol));
+	} else
+		printf("\t(no protocol)");
+	printf("\n");
+}
+
 static gint
 compare_dissector_key_name(gconstpointer dissector_a, gconstpointer dissector_b)
 {
@@ -3787,6 +3850,11 @@ dissector_dump_dissector_tables(void)
 	list = g_hash_table_get_keys(dissector_tables);
 	list = g_list_sort(list, compare_dissector_key_name);
 	g_list_foreach(list, dissector_dump_dissector_tables_display, NULL);
+	g_list_free(list);
+
+	list = g_hash_table_get_keys(heur_dissector_lists);
+	list = g_list_sort(list, compare_dissector_key_name);
+	g_list_foreach(list, dissector_dump_heur_dissector_tables_display, NULL);
 	g_list_free(list);
 }
 

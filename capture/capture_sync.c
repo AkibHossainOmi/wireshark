@@ -21,6 +21,8 @@
 
 #include <signal.h>
 
+#include <ws_exit_codes.h>
+
 #include <wsutil/strtoi.h>
 #include <wsutil/ws_assert.h>
 
@@ -1430,9 +1432,13 @@ sync_if_list_capabilities_open(GList *if_queries,
         argv = sync_pipe_add_arg(argv, &argc, if_cap_query->name);
         if (if_cap_query->monitor_mode)
             argv = sync_pipe_add_arg(argv, &argc, "-I");
-        if (if_cap_query->auth) {
+        if (if_cap_query->auth_username && if_cap_query->auth_password) {
+            char sauth[256];
             argv = sync_pipe_add_arg(argv, &argc, "-A");
-            argv = sync_pipe_add_arg(argv, &argc, if_cap_query->auth);
+            snprintf(sauth, sizeof(sauth), "%s:%s",
+                       if_cap_query->auth_username,
+                       if_cap_query->auth_password);
+            argv = sync_pipe_add_arg(argv, &argc, sauth);
         }
     }
     argv = sync_pipe_add_arg(argv, &argc, "-L");
@@ -1562,8 +1568,14 @@ sync_interface_stats_open(int *data_read_fd, ws_process_id *fork_child, char **d
             /*
              * Pick up the child status.
              */
+            char *close_msg = NULL;
             sync_pipe_close_command(data_read_fd, message_read_io,
-                                    fork_child, msg);
+                                    fork_child, &close_msg);
+            /*
+             * Ignore the error from sync_pipe_close_command, presumably the one
+             * returned by the child is more pertinent to what went wrong.
+             */
+            g_free(close_msg);
             ret = -1;
             break;
 
@@ -1592,6 +1604,13 @@ sync_interface_stats_open(int *data_read_fd, ws_process_id *fork_child, char **d
                  * Child process failed unexpectedly, or wait failed; msg is the
                  * error message.
                  */
+            } else if (ret == WS_EXIT_NO_INTERFACES) {
+                /*
+                    * No interfaces were found.  If that's not the
+                    * result of an error when fetching the local
+                    * interfaces, let the user know.
+                    */
+                *msg = g_strdup(primary_msg_text);
             } else {
                 /*
                  * Child process failed, but returned the expected exit status.

@@ -70,6 +70,18 @@ enum {
     ENDP_NO_PORTS_IDX = ADDR2_IDX
 };
 
+/* Names for conversation_element_type values. */
+static const char *type_names[] = {
+    "endpoint",
+    "address",
+    "port",
+    "string",
+    "uint",
+    "uint64",
+    "int",
+    "int64",
+};
+
 /*
  * Hash table of hash tables for conversations identified by element lists.
  */
@@ -143,20 +155,12 @@ conversation_get_key_type(conversation_element_t *elements)
 /* Create a string based on element types. */
 static char*
 conversation_element_list_name(wmem_allocator_t *allocator, conversation_element_t *elements) {
-    const char *type_names[] = {
-        "endpoint",
-        "address",
-        "port",
-        "string",
-        "uint",
-        "uint64",
-        "int",
-    };
     char *sep = "";
     wmem_strbuf_t *conv_hash_group = wmem_strbuf_new(allocator, "");
     size_t element_count = conversation_element_count(elements);
     for (size_t i = 0; i < element_count; i++) {
         conversation_element_t *cur_el = &elements[i];
+        DISSECTOR_ASSERT(cur_el->type < array_length(type_names));
         wmem_strbuf_append_printf(conv_hash_group, "%s%s", sep, type_names[cur_el->type]);
         sep = ",";
     }
@@ -165,14 +169,6 @@ conversation_element_list_name(wmem_allocator_t *allocator, conversation_element
 
 #if 0 // debugging
 static char* conversation_element_list_values(conversation_element_t *elements) {
-    const char *type_names[] = {
-        "endpoint",
-        "address",
-        "port",
-        "string",
-        "uint",
-        "uint64",
-    };
     char *sep = "";
     GString *value_str = g_string_new("");
     size_t element_count = conversation_element_count(elements);
@@ -201,10 +197,13 @@ static char* conversation_element_list_values(conversation_element_t *elements) 
             g_string_append_printf(value_str, "%u", cur_el->uint_val);
             break;
         case CE_UINT64:
-            g_string_append_printf(value_str, "%" G_GUINT64_FORMAT, cur_el->uint64_val);
+            g_string_append_printf(value_str, "%" PRIu64, cur_el->uint64_val);
             break;
         case CE_INT:
             g_string_append_printf(value_str, "%d", cur_el->int_val);
+            break;
+        case CE_INT64:
+            g_string_append_printf(value_str, "%" PRId64, cur_el->int64_val);
             break;
         }
     }
@@ -384,6 +383,11 @@ conversation_hash_element_list(gconstpointer v)
             tmp_addr.data = &element->int_val;
             hash_val = add_address_to_hash(hash_val, &tmp_addr);
             break;
+        case CE_INT64:
+            tmp_addr.len = (int) sizeof(element->int64_val);
+            tmp_addr.data = &element->int64_val;
+            hash_val = add_address_to_hash(hash_val, &tmp_addr);
+            break;
         case CE_CONVERSATION_TYPE:
             tmp_addr.len = (int) sizeof(element->conversation_type_val);
             tmp_addr.data = &element->conversation_type_val;
@@ -444,6 +448,11 @@ conversation_match_element_list(gconstpointer v1, gconstpointer v2)
             break;
         case CE_INT:
             if (element1->int_val != element2->int_val) {
+                return FALSE;
+            }
+            break;
+        case CE_INT64:
+            if (element1->int64_val != element2->int64_val) {
                 return FALSE;
             }
             break;

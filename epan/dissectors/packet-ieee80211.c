@@ -32261,7 +32261,7 @@ ieee80211_tag_measure_rep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
 
     while (offset < tag_len)
     {
-      guint8 sub_id, sub_length, sub_tag_end;;
+      guint8 sub_id, sub_length, sub_tag_end;
       proto_item *sub_elem_item, *sub_elem_len_item;
       proto_tree *sub_elem_tree;
 
@@ -32380,7 +32380,7 @@ ieee80211_tag_measure_rep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
 
     while (offset < tag_len)
     {
-      guint8 sub_id, sub_length, sub_tag_end;;
+      guint8 sub_id, sub_length, sub_tag_end;
       proto_item *sub_elem_item, *sub_elem_len_item;
       proto_tree *sub_elem_tree;
 
@@ -32483,7 +32483,7 @@ ieee80211_tag_measure_rep(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, v
 
     while (offset < tag_len)
     {
-      guint8 sub_id, sub_length, sub_tag_end;;
+      guint8 sub_id, sub_length, sub_tag_end;
       proto_item *sub_elem_item, *sub_elem_len_item;
       proto_tree *sub_elem_tree;
 
@@ -44605,7 +44605,7 @@ proto_register_ieee80211(void)
 
     {&hf_ieee80211_tag_switching_stream_non_qos,
       {"Non-Qos Data Frames", "wlan.switching_stream.non_qos",
-       FT_BOOLEAN, 8, NULL, 0,
+       FT_BOOLEAN, BASE_NONE, NULL, 0,
        NULL, HFILL }},
 
     {&hf_ieee80211_tag_switching_stream_param_num,
@@ -51098,7 +51098,7 @@ proto_register_ieee80211(void)
 
     {&hf_ieee80211_tag_measure_request_beacon_sub_last_report_indication_request,
      {"Request Indication", "wlan.measure.req.beacon.sub.last_report_ind_req",
-      FT_BOOLEAN, BASE_DEC, TFS(&tfs_yes_no), 0,
+      FT_BOOLEAN, BASE_NONE, TFS(&tfs_yes_no), 0,
       NULL, HFILL }},
 
     {&hf_ieee80211_tag_measure_request_beacon_unknown,
@@ -60187,7 +60187,7 @@ proto_register_ieee80211(void)
 
   proto_wlan = proto_register_protocol("IEEE 802.11 wireless LAN", "IEEE 802.11", "wlan");
 
-  heur_subdissector_list = register_heur_dissector_list("wlan_data", proto_wlan);
+  heur_subdissector_list = register_heur_dissector_list_with_description("wlan_data", "IEEE 802.11 WLAN v0 data", proto_wlan);
 
   /* Created to remove Decode As confusion */
   proto_centrino = proto_register_protocol("IEEE 802.11 wireless LAN (Centrino)", "IEEE 802.11 (Centrino)", "wlan_centrino");
@@ -60466,6 +60466,7 @@ proto_reg_handoff_ieee80211(void)
   dissector_handle_t wlan_rsna_eapol_wpa_key_handle, wlan_rsna_eapol_rsn_key_handle;
   capture_dissector_handle_t ieee80211_cap_handle;
 
+  dissector_add_for_decode_as_with_preference("udp.port", ieee80211_handle);
   /*
    * Get handles for the 802.2 (LPD) LLC, EPD LLC, IPX and Ethernet
    * dissectors.

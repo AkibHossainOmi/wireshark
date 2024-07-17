@@ -3620,7 +3620,7 @@ static int reassemble_mq(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, vo
         if (mq_parm.mq_strucID == MQ_STRUCTID_TSHM || mq_parm.mq_strucID == MQ_STRUCTID_TSHM_EBCDIC)
             iMulS = 8;
 
-        /* Get the Semgnet Length */
+        /* Get the Segment Length */
         iSegL = tvb_get_ntohl(tvb, 4);
         if (iMulS == 8)
         {
@@ -4727,7 +4727,7 @@ void proto_register_mq(void)
     expert_mq = expert_register_protocol(proto_mq);
     expert_register_field_array(expert_mq, ei, array_length(ei));
 
-    mq_heur_subdissector_list = register_heur_dissector_list("mq", proto_mq);
+    mq_heur_subdissector_list = register_heur_dissector_list_with_description("mq", "WebSphere MQ data", proto_mq);
 
     reassembly_table_register(&mq_reassembly_table,
         &addresses_reassembly_table_functions);

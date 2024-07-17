@@ -1475,9 +1475,9 @@ collect_ifaces(capture_options *capture_opts)
         device = &g_array_index(capture_opts->all_ifaces, interface_t, i);
         if (device->selected) {
             interface_opts.name = g_strdup(device->name);
-            interface_opts.descr = g_strdup(device->friendly_name);
+            interface_opts.descr = g_strdup(device->if_info.friendly_name);
             interface_opts.ifname = NULL;
-            interface_opts.hardware = g_strdup(device->vendor_description);
+            interface_opts.hardware = g_strdup(device->if_info.vendor_description);
             interface_opts.display_name = g_strdup(device->display_name);
             interface_opts.linktype = device->active_dlt;
             interface_opts.cfilter = g_strdup(device->cfilter);
@@ -1530,8 +1530,8 @@ collect_ifaces(capture_options *capture_opts)
     }
 }
 
-static void
-capture_opts_free_interface_t_links(gpointer elem, gpointer unused _U_)
+void
+capture_opts_free_link_row(gpointer elem)
 {
     link_row* e = (link_row*)elem;
     if (e != NULL)
@@ -1545,14 +1545,10 @@ capture_opts_free_interface_t(interface_t *device)
     if (device != NULL) {
         g_free(device->name);
         g_free(device->display_name);
-        g_free(device->vendor_description);
-        g_free(device->friendly_name);
         g_free(device->addresses);
         g_free(device->cfilter);
         g_free(device->timestamp_type);
-        g_list_foreach(device->links,
-                       capture_opts_free_interface_t_links, NULL);
-        g_list_free(device->links);
+        g_list_free_full(device->links, capture_opts_free_link_row);
 #ifdef HAVE_PCAP_REMOTE
         g_free(device->remote_opts.remote_host_opts.remote_host);
         g_free(device->remote_opts.remote_host_opts.remote_port);
@@ -1564,6 +1560,12 @@ capture_opts_free_interface_t(interface_t *device)
         g_free(device->if_info.vendor_description);
         g_slist_free_full(device->if_info.addrs, g_free);
         g_free(device->if_info.extcap);
+        if (device->if_info.caps) {
+                free_if_capabilities(device->if_info.caps);
+        }
+        if (device->external_cap_args_settings) {
+                g_hash_table_unref(device->external_cap_args_settings);
+        }
     }
 }
 

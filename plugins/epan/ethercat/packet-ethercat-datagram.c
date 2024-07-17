@@ -3511,7 +3511,7 @@ void proto_register_ecat(void)
            FT_BOOLEAN, 8, TFS(&tfs_local_true_false), 0x10, NULL, HFILL }
          },
          { &hf_ecat_reg_dc_activation_stimecheck,
-           {"Start time chheck", "ecat.reg.dc.activation.stimecheck",
+           {"Start time check", "ecat.reg.dc.activation.stimecheck",
            FT_BOOLEAN, 8, TFS(&tfs_local_true_false), 0x20, NULL, HFILL }
          },
          { &hf_ecat_reg_dc_activation_hlfrange,
@@ -3718,7 +3718,7 @@ void proto_register_ecat(void)
    ecat_handle = register_dissector("ecat", dissect_ecat_datagram, proto_ecat_datagram);
 
    /* Sub dissector code */
-   heur_subdissector_list = register_heur_dissector_list("ecat.data", proto_ecat_datagram);
+   heur_subdissector_list = register_heur_dissector_list_with_description("ecat.data", "EtherCAT payload", proto_ecat_datagram);
 }
 
 /* The registration hand-off routing */

@@ -230,11 +230,11 @@ static const value_string mysql_clone_response_vals[] = {
 #define MARIADB_BULK_SEND_TYPES 128
 
 /* MariaDB extended capabilities */
-#define MARIADB_CAPS_PR 0x0001 /* MARIADB_CLIENT_PROGRESS */
-#define MARIADB_CAPS_CM 0x0002 /* MARIADB_CLIENT_COM_MULTI */
-#define MARIADB_CAPS_BO 0x0004 /* MARIADB_CLIENT_STMT_BULK_OPERATIONS */
-#define MARIADB_CAPS_EM 0x0008 /* MARIADB_CLIENT_EXTENDED_METADATA */
-#define MARIADB_CAPS_ME 0x0010 /* MARIADB_CLIENT_CACHE_METADATA */
+#define MARIADB_CAPS_PR 0x00000001 /* MARIADB_CLIENT_PROGRESS */
+#define MARIADB_CAPS_CM 0x00000002 /* MARIADB_CLIENT_COM_MULTI */
+#define MARIADB_CAPS_BO 0x00000004 /* MARIADB_CLIENT_STMT_BULK_OPERATIONS */
+#define MARIADB_CAPS_EM 0x00000008 /* MARIADB_CLIENT_EXTENDED_METADATA */
+#define MARIADB_CAPS_ME 0x00000010 /* MARIADB_CLIENT_CACHE_METADATA */
 
 /* MariaDB bulk indicators */
 #define MARIADB_INDICATOR_NONE       0
@@ -5678,22 +5678,22 @@ void proto_register_mysql(void)
 
 		{ &hf_mysql_fragment_overlap,
 		{ "Fragment overlap", "mysql.fragment.overlap",
-		FT_BOOLEAN, 0, NULL, 0x0,
+		FT_BOOLEAN, BASE_NONE, NULL, 0x0,
 		NULL, HFILL }},
 
 		{ &hf_mysql_fragment_overlap_conflicts,
 		{ "Conflicting data in fragment overlap", "mysql.fragment.overlap.conflicts",
-		FT_BOOLEAN, 0, NULL, 0x0,
+		FT_BOOLEAN, BASE_NONE, NULL, 0x0,
 		NULL, HFILL }},
 
 		{ &hf_mysql_fragment_multiple_tails,
 		{ "Multiple tail fragments found", "mysql.fragment.multiple_tails",
-		FT_BOOLEAN, 0, NULL, 0x00,
+		FT_BOOLEAN, BASE_NONE, NULL, 0x00,
 		NULL, HFILL }},
 
 		{ &hf_mysql_fragment_too_long_fragment,
 		{ "Fragment too long", "mysql.fragment.too_long_fragment",
-		FT_BOOLEAN, 0, NULL, 0x0,
+		FT_BOOLEAN, BASE_NONE, NULL, 0x0,
 		NULL, HFILL }},
 
 		{ &hf_mysql_fragment_error,

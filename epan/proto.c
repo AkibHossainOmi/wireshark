@@ -114,20 +114,26 @@ struct ptvcursor {
  @param free_block a code block to call to free resources if this returns
  @return the header field matching 'hfinfo' */
 #define TRY_TO_FAKE_THIS_ITEM_OR_FREE(tree, hfindex, hfinfo, free_block) \
-	/* If this item is not referenced we don't have to do much work	\
-	   at all but we should still return a node so that field items	\
-	   below this node (think proto_item_add_subtree()) will still	\
-	   have somewhere to attach to or else filtering will not work	\
-	   (they would be ignored since tree would be NULL).		\
+	/* If the tree is not visible and this item is not referenced	\
+	   we don't have to do much work at all but we should still	\
+	   return a node so that referenced field items below this node	\
+	   (think proto_item_add_subtree()) will still have somewhere	\
+	   to attach to or else filtering will not work (they would be	\
+	   ignored since tree would be NULL).				\
 	   DON'T try to fake a node where PTREE_FINFO(tree) is NULL	\
 	   since dissectors that want to do proto_item_set_len() or	\
 	   other operations that dereference this would crash.		\
+	   DON'T try to fake a node where PTREE_FINFO(tree) is visible	\
+	   because that means we can change its length or repr, and we	\
+	   don't want to do so with calls intended for this faked new	\
+	   item, so this item needs a new (hidden) child node.		\
+	   (PROTO_ITEM_IS_HIDDEN(tree) checks both conditions.)		\
 	   We fake FT_PROTOCOL unless some clients have requested us	\
 	   not to do so.						\
 	*/								\
 	PTREE_DATA(tree)->count++;					\
 	PROTO_REGISTRAR_GET_NTH(hfindex, hfinfo);			\
-	if (PTREE_DATA(tree)->count > prefs.gui_max_tree_items) {			\
+	if (PTREE_DATA(tree)->count > prefs.gui_max_tree_items) {	\
 		free_block;						\
 		if (wireshark_abort_on_too_many_items) \
 			ws_error("Adding %s would put more than %d items in the tree -- possible infinite loop (max number of items can be increased in advanced preferences)", \
@@ -140,8 +146,9 @@ struct ptvcursor {
 			    hfinfo->abbrev, prefs.gui_max_tree_items));	\
 	}								\
 	if (!(PTREE_DATA(tree)->visible)) {				\
-		if (PTREE_FINFO(tree)) {				\
+		if (PROTO_ITEM_IS_HIDDEN(tree)) {			\
 			if ((hfinfo->ref_type != HF_REF_TYPE_DIRECT)	\
+			    && (hfinfo->ref_type != HF_REF_TYPE_PRINT)	\
 			    && (hfinfo->type != FT_PROTOCOL ||		\
 				PTREE_DATA(tree)->fake_protocols)) {	\
 				free_block;				\
@@ -164,25 +171,28 @@ struct ptvcursor {
  @param pi the created protocol item we're about to return */
 #define TRY_TO_FAKE_THIS_REPR(pi)	\
 	ws_assert(pi);			\
-	if (!(PTREE_DATA(pi)->visible)) { \
-		/* If the tree (GUI) isn't visible it's pointless for us to generate the protocol \
-		 * items string representation */ \
+	if (!(PTREE_DATA(pi)->visible) && \
+	      PROTO_ITEM_IS_HIDDEN(pi)) { \
+		/* If the tree (GUI) or item isn't visible it's pointless for \
+		 * us to generate the protocol item's string representation */ \
 		return pi; \
 	}
 /* Same as above but returning void */
 #define TRY_TO_FAKE_THIS_REPR_VOID(pi)	\
 	if (!pi)			\
 		return;			\
-	if (!(PTREE_DATA(pi)->visible)) { \
-		/* If the tree (GUI) isn't visible it's pointless for us to generate the protocol \
-		 * items string representation */ \
+	if (!(PTREE_DATA(pi)->visible) && \
+	      PROTO_ITEM_IS_HIDDEN(pi)) { \
+		/* If the tree (GUI) or item isn't visible it's pointless for \
+		 * us to generate the protocol item's string representation */ \
 		return; \
 	}
 /* Similar to above, but allows a NULL tree */
 #define TRY_TO_FAKE_THIS_REPR_NESTED(pi)	\
-	if ((pi == NULL) || (!(PTREE_DATA(pi)->visible))) { \
-		/* If the tree (GUI) isn't visible it's pointless for us to generate the protocol \
-		 * items string representation */ \
+	if ((pi == NULL) || (!(PTREE_DATA(pi)->visible) && \
+		PROTO_ITEM_IS_HIDDEN(pi))) { \
+		/* If the tree (GUI) or item isn't visible it's pointless for \
+		 * us to generate the protocol item's string representation */ \
 		return pi; \
 	}
 
@@ -2598,7 +2608,7 @@ tree_data_add_maybe_interesting_field(tree_data_t *tree_data, field_info *fi)
 {
 	const header_field_info *hfinfo = fi->hfinfo;
 
-	if (hfinfo->ref_type == HF_REF_TYPE_DIRECT) {
+	if (hfinfo->ref_type == HF_REF_TYPE_DIRECT || hfinfo->ref_type == HF_REF_TYPE_PRINT) {
 		GPtrArray *ptrs = NULL;
 
 		if (tree_data->interesting_hfids == NULL) {
@@ -5460,7 +5470,7 @@ proto_tree_set_ether_tvb(field_info *fi, tvbuff_t *tvb, gint start)
 /* Add a FT_BOOLEAN to a proto_tree */
 proto_item *
 proto_tree_add_boolean(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
-		       gint length, guint32 value)
+		       gint length, guint64 value)
 {
 	proto_item	  *pi;
 	header_field_info *hfinfo;
@@ -5480,7 +5490,7 @@ proto_tree_add_boolean(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
 proto_item *
 proto_tree_add_boolean_format_value(proto_tree *tree, int hfindex,
 				    tvbuff_t *tvb, gint start, gint length,
-				    guint32 value, const char *format, ...)
+				    guint64 value, const char *format, ...)
 {
 	proto_item	  *pi;
 	va_list		   ap;
@@ -5497,7 +5507,7 @@ proto_tree_add_boolean_format_value(proto_tree *tree, int hfindex,
 
 proto_item *
 proto_tree_add_boolean_format(proto_tree *tree, int hfindex, tvbuff_t *tvb,
-			      gint start, gint length, guint32 value,
+			      gint start, gint length, guint64 value,
 			      const char *format, ...)
 {
 	proto_item	  *pi;
@@ -5511,25 +5521,6 @@ proto_tree_add_boolean_format(proto_tree *tree, int hfindex, tvbuff_t *tvb,
 		proto_tree_set_representation(pi, format, ap);
 		va_end(ap);
 	}
-
-	return pi;
-}
-
-static proto_item *
-proto_tree_add_boolean64(proto_tree *tree, int hfindex, tvbuff_t *tvb, gint start,
-		         gint length, guint64 value)
-{
-	proto_item	  *pi;
-	header_field_info *hfinfo;
-
-	CHECK_FOR_NULL_TREE(tree);
-
-	TRY_TO_FAKE_THIS_ITEM(tree, hfindex, hfinfo);
-
-	DISSECTOR_ASSERT_FIELD_TYPE(hfinfo, FT_BOOLEAN);
-
-	pi = proto_tree_add_pi(tree, hfinfo, tvb, start, &length);
-	proto_tree_set_boolean(PNODE_FINFO(pi), value);
 
 	return pi;
 }
@@ -6709,8 +6700,14 @@ new_field_info(proto_tree *tree, header_field_info *hfinfo, tvbuff_t *tvb,
 	fi->length     = item_length;
 	fi->tree_type  = -1;
 	fi->flags      = 0;
-	if (!PTREE_DATA(tree)->visible)
-		FI_SET_FLAG(fi, FI_HIDDEN);
+	if (!PTREE_DATA(tree)->visible) {
+		/* If the tree is not visible, set the item hidden, unless we
+		 * need the representation or length and can't fake them.
+		 */
+		if (hfinfo->ref_type != HF_REF_TYPE_PRINT && (hfinfo->type != FT_PROTOCOL || PTREE_DATA(tree)->fake_protocols)) {
+			FI_SET_FLAG(fi, FI_HIDDEN);
+		}
+	}
 	fi->value = fvalue_new(fi->hfinfo->type);
 	fi->rep        = NULL;
 
@@ -7193,7 +7190,7 @@ proto_custom_set(proto_tree* tree, GSList *field_ids, gint occurrence,
 				continue;
 			}
 
-			/* Calculate single index or set outer bounderies */
+			/* Calculate single index or set outer boundaries */
 			if (occurrence < 0) {
 				i = occurrence + len + prev_len;
 				last = i;
@@ -7342,7 +7339,7 @@ proto_custom_get_filter(epan_dissect_t* edt, GSList *field_ids, gint occurrence)
 				continue;
 			}
 
-			/* Calculate single index or set outer bounderies */
+			/* Calculate single index or set outer boundaries */
 			if (occurrence < 0) {
 				i = occurrence + len + prev_len;
 				last = i;
@@ -7548,12 +7545,9 @@ proto_item_set_len(proto_item *pi, const gint length)
 {
 	field_info *fi;
 
-	/* XXX: We actually want to set the length of non visible proto_items
-	 * that are protocols, if we're not faking protocols, so that
-	 * ui/proto_hier_stats can work correctly. (#17877) But we don't
-	 * want to set the length of the protocol accidentally when intending
-	 * to set the length of a faked child. However, we can't tell whether
-	 * this is called by the original item or the child when faking items.
+	/* If the item is not visible, we can't set the length because
+	 * we can't distinguish which proto item this is being called
+	 * on, since faked items share proto items. (#17877)
 	 */
 	TRY_TO_FAKE_THIS_REPR_VOID(pi);
 
@@ -7577,6 +7571,7 @@ proto_item_set_end(proto_item *pi, tvbuff_t *tvb, gint end)
 	field_info *fi;
 	gint length;
 
+	/* As with proto_item_set_len() above */
 	TRY_TO_FAKE_THIS_REPR_VOID(pi);
 
 	fi = PITEM_FINFO(pi);
@@ -7666,8 +7661,12 @@ proto_tree_prime_with_hfid(proto_tree *tree _U_, const gint hfid)
 	PROTO_REGISTRAR_GET_NTH(hfid, hfinfo);
 	/* this field is referenced by a filter so increase the refcount.
 	   also increase the refcount for the parent, i.e the protocol.
+	   Don't increase the refcount if we're already printing the
+	   type, as that is a superset of direct reference.
 	*/
-	hfinfo->ref_type = HF_REF_TYPE_DIRECT;
+	if (hfinfo->ref_type != HF_REF_TYPE_PRINT) {
+		hfinfo->ref_type = HF_REF_TYPE_DIRECT;
+	}
 	/* only increase the refcount if there is a parent.
 	   if this is a protocol and not a field then parent will be -1
 	   and there is no parent to add any refcounting for.
@@ -7679,7 +7678,35 @@ proto_tree_prime_with_hfid(proto_tree *tree _U_, const gint hfid)
 		/* Mark parent as indirectly referenced unless it is already directly
 		 * referenced, i.e. the user has specified the parent in a filter.
 		 */
-		if (parent_hfinfo->ref_type != HF_REF_TYPE_DIRECT)
+		if (parent_hfinfo->ref_type == HF_REF_TYPE_NONE)
+			parent_hfinfo->ref_type = HF_REF_TYPE_INDIRECT;
+	}
+}
+
+/* "prime" a proto_tree with a single hfid that a dfilter
+ * is interested in. */
+void
+proto_tree_prime_with_hfid_print(proto_tree *tree _U_, const gint hfid)
+{
+	header_field_info *hfinfo;
+
+	PROTO_REGISTRAR_GET_NTH(hfid, hfinfo);
+	/* this field is referenced by an (output) filter so increase the refcount.
+	   also increase the refcount for the parent, i.e the protocol.
+	*/
+	hfinfo->ref_type = HF_REF_TYPE_PRINT;
+	/* only increase the refcount if there is a parent.
+	   if this is a protocol and not a field then parent will be -1
+	   and there is no parent to add any refcounting for.
+	*/
+	if (hfinfo->parent != -1) {
+		header_field_info *parent_hfinfo;
+		PROTO_REGISTRAR_GET_NTH(hfinfo->parent, parent_hfinfo);
+
+		/* Mark parent as indirectly referenced unless it is already directly
+		 * referenced, i.e. the user has specified the parent in a filter.
+		 */
+		if (parent_hfinfo->ref_type == HF_REF_TYPE_NONE)
 			parent_hfinfo->ref_type = HF_REF_TYPE_INDIRECT;
 	}
 }
@@ -9553,7 +9580,7 @@ proto_register_subtree_array(gint * const *indices, const int num_indices)
 static void
 mark_truncated(char *label_str, gsize name_pos, const size_t size)
 {
-	static const char  trunc_str[] = " [truncated]";
+	static const char  trunc_str[] = " [" UTF8_HORIZONTAL_ELLIPSIS "]";
 	const size_t       trunc_len = sizeof(trunc_str)-1;
 	gchar             *last_char;
 
@@ -9561,7 +9588,7 @@ mark_truncated(char *label_str, gsize name_pos, const size_t size)
 	 *                 |
 	 *                 ^^^^^ name_pos
 	 *
-	 * ..... field_name [truncated]: dataaaaaaaaaaaaa
+	 * ..... field_name […]: dataaaaaaaaaaaaa
 	 *
 	 * name_pos==0 means that we have only data or only a field_name
 	 */
@@ -12228,7 +12255,7 @@ proto_item_add_bitmask_tree(proto_item *item, tvbuff_t *tvb, const int offset,
 			break;
 
 		case FT_BOOLEAN:
-			proto_tree_add_boolean64(tree, **fields, tvb, offset, len, value);
+			proto_tree_add_boolean(tree, **fields, tvb, offset, len, value);
 			break;
 
 		default:
@@ -12899,7 +12926,7 @@ _proto_tree_add_bits_ret_val(proto_tree *tree, const int hfindex, tvbuff_t *tvb,
 	switch (hf_field->type) {
 	case FT_BOOLEAN:
 		/* Boolean field */
-		return proto_tree_add_boolean_format(tree, hfindex, tvb, offset, length, (guint32)value,
+		return proto_tree_add_boolean_format(tree, hfindex, tvb, offset, length, value,
 			"%s = %s: %s",
 			bf_str, hf_field->name, tfs_get_string(!!value, hf_field->strings));
 		break;
@@ -13089,7 +13116,7 @@ proto_tree_add_split_bits_item_ret_val(proto_tree *tree, const int hfindex, tvbu
 	case FT_BOOLEAN: /* it is a bit odd to have a boolean encoded as split-bits, but possible, I suppose? */
 		/* Boolean field */
 		return proto_tree_add_boolean_format(tree, hfindex,
-						     tvb, octet_offset, octet_length, (guint32)value,
+						     tvb, octet_offset, octet_length, value,
 						     "%s = %s: %s",
 						     bf_str, hf_field->name, tfs_get_string(!!value, hf_field->strings));
 		break;
@@ -13253,7 +13280,7 @@ _proto_tree_add_bits_format_value(proto_tree *tree, const int hfindex,
 	 */
 	switch (hf_field->type) {
 	case FT_BOOLEAN:
-		return proto_tree_add_boolean_format(tree, hfindex, tvb, offset, length, *(guint32 *)value_ptr,
+		return proto_tree_add_boolean_format(tree, hfindex, tvb, offset, length, *(guint64 *)value_ptr,
 						     "%s: %s", str, value_str);
 		break;
 
@@ -13487,28 +13514,6 @@ proto_tree_add_int64_bits_format_value(proto_tree *tree, const int hfindex,
 
 proto_item *
 proto_tree_add_boolean_bits_format_value(proto_tree *tree, const int hfindex,
-					 tvbuff_t *tvb, const guint bit_offset,
-					 const gint no_of_bits, guint32 value,
-				         const guint encoding,
-					 const char *format, ...)
-{
-	va_list ap;
-	gchar  *dst;
-	header_field_info *hf_field;
-
-	CHECK_FOR_NULL_TREE(tree);
-
-	TRY_TO_FAKE_THIS_ITEM(tree, hfindex, hf_field);
-
-	DISSECTOR_ASSERT_FIELD_TYPE(hf_field, FT_BOOLEAN);
-
-	CREATE_VALUE_STRING(tree, dst, format, ap);
-
-	return proto_tree_add_bits_format_value(tree, hfindex, tvb, bit_offset, no_of_bits, &value, encoding, dst);
-}
-
-proto_item *
-proto_tree_add_boolean_bits_format_value64(proto_tree *tree, const int hfindex,
 					 tvbuff_t *tvb, const guint bit_offset,
 					 const gint no_of_bits, guint64 value,
 				         const guint encoding,

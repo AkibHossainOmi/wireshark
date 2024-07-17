@@ -1878,7 +1878,7 @@ dissect_tecmp_log_or_replay_stream(tvbuff_t *tvb, packet_info *pinfo, proto_tree
                     payload_tvb = tvb_new_subset_length(sub_tvb, offset2, length2);
                     offset2 += length2;
 
-                    can_info.fd = (data_type == TECMP_DATA_TYPE_CAN_FD_DATA);
+                    can_info.fd = (data_type == TECMP_DATA_TYPE_CAN_FD_DATA) ? CAN_TYPE_CAN_FD : CAN_TYPE_CAN_CLASSIC;
                     can_info.len = length2;
                     can_info.bus_id = ht_interface_config_to_bus_id(interface_id);
 
@@ -2470,7 +2470,7 @@ proto_register_tecmp_payload(void) {
             FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL }},
         { &hf_tecmp_payload_status_dev_vendor_technica_buffer_overflow,
             { "Buffer Overflow", "tecmp.payload.status_dev.vendor_technica.buffer_overflow",
-            FT_BOOLEAN, BASE_DEC, TFS(&tfs_tecmp_technica_bufferoverflow), 0x0, NULL, HFILL }},
+            FT_BOOLEAN, BASE_NONE, TFS(&tfs_tecmp_technica_bufferoverflow), 0x0, NULL, HFILL }},
         { &hf_tecmp_payload_status_dev_vendor_technica_buffer_size,
             { "Buffer Size", "tecmp.payload.status_dev.vendor_technica.buffer_size",
             FT_UINT32, BASE_DEC, NULL, 0x0, NULL, HFILL }},

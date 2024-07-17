@@ -3599,7 +3599,7 @@ static gint parse_PortInfo(proto_tree *parentTree, tvbuff_t *tvb, gint *offset, 
         PortInfo_PortWdthSpeedActive_item = proto_tree_add_item(PortInfo_Link_tree, hf_opa_PortInfo_LinkWidthDowngrade_TxActive, tvb, local_offset, 2, ENC_BIG_ENDIAN);
         local_offset += 2;
         if (!active && (MAD->Method == METHOD_GET_RESP || MAD->Method == METHOD_GETTABLE_RESP))
-            proto_item_set_text(PortInfo_PortWdthSpeedActive_item, "None");;
+            proto_item_set_text(PortInfo_PortWdthSpeedActive_item, "None");
         active = tvb_get_ntohs(tvb, local_offset);
         PortInfo_PortWdthSpeedActive_item = proto_tree_add_item(PortInfo_Link_tree, hf_opa_PortInfo_LinkWidthDowngrade_RxActive, tvb, local_offset, 2, ENC_BIG_ENDIAN);
         local_offset += 2;
@@ -8779,19 +8779,19 @@ void proto_register_opa_mad(void)
         },
         { &hf_opa_rmpp_fragment_overlap, {
                 "Message fragment overlap", "opa.fragment.overlap",
-                FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+                FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         { &hf_opa_rmpp_fragment_overlap_conflicts, {
                 "Message fragment overlapping with conflicting data", "opa.fragment.overlap.conflicts",
-                FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+                FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         { &hf_opa_rmpp_fragment_multiple_tails, {
                 "Message has multiple tail fragments", "opa.fragment.multiple_tails",
-                FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+                FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         { &hf_opa_rmpp_fragment_too_long_fragment, {
                 "Message fragment too long", "opa.fragment.too_long_fragment",
-                FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL }
+                FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL }
         },
         { &hf_opa_rmpp_fragment_error, {
                 "Message defragmentation error", "opa.fragment.error",

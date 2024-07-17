@@ -216,6 +216,7 @@ struct ssh_flow_data {
     wmem_array_t    *kex_gex_bits_max;
     wmem_array_t    *kex_shared_secret;
     gboolean        do_decrypt;
+    gboolean        ext_ping_openssh_offered;
     ssh_bignum      new_keys[6];
 };
 
@@ -249,6 +250,7 @@ static int hf_ssh2_msg_code;
 static int hf_ssh2_kex_dh_msg_code;
 static int hf_ssh2_kex_dh_gex_msg_code;
 static int hf_ssh2_kex_ecdh_msg_code;
+static int hf_ssh2_ext_ping_msg_code;
 
 /* Algorithm negotiation */
 static int hf_ssh_cookie;
@@ -320,6 +322,21 @@ static int hf_ssh_ecdh_q_c_length;
 static int hf_ssh_ecdh_q_s;
 static int hf_ssh_ecdh_q_s_length;
 
+/* Extension negotiation */
+static int hf_ssh_ext_count;
+static int hf_ssh_ext_name_length;
+static int hf_ssh_ext_name;
+static int hf_ssh_ext_value_length;
+static int hf_ssh_ext_value;
+static int hf_ssh_ext_server_sig_algs_algorithms;
+static int hf_ssh_ext_delay_compression_algorithms_client_to_server_length;
+static int hf_ssh_ext_delay_compression_algorithms_client_to_server;
+static int hf_ssh_ext_delay_compression_algorithms_server_to_client_length;
+static int hf_ssh_ext_delay_compression_algorithms_server_to_client;
+static int hf_ssh_ext_no_flow_control_value;
+static int hf_ssh_ext_elevation_value;
+static int hf_ssh_ext_prop_publickey_algorithms_algorithms;
+
 /* Miscellaneous */
 static int hf_ssh_mpint_length;
 
@@ -376,6 +393,10 @@ static int hf_ssh_disconnect_description_length;
 static int hf_ssh_disconnect_description;
 static int hf_ssh_lang_tag_length;
 static int hf_ssh_lang_tag;
+static int hf_ssh_ping_data_length;
+static int hf_ssh_ping_data;
+static int hf_ssh_pong_data_length;
+static int hf_ssh_pong_data;
 
 static int hf_ssh_blob_p;
 static int hf_ssh_blob_e;
@@ -400,6 +421,7 @@ static gint ett_ssh;
 static gint ett_key_exchange;
 static gint ett_key_exchange_host_key;
 static gint ett_key_exchange_host_sig;
+static gint ett_extension;
 static gint ett_userauth_pk_blob;
 static gint ett_userauth_pk_signautre;
 static gint ett_key_init;
@@ -459,6 +481,8 @@ static const gchar *ssh_debug_file_name     = NULL;
 #define SSH_MSG_DEBUG               4
 #define SSH_MSG_SERVICE_REQUEST     5
 #define SSH_MSG_SERVICE_ACCEPT      6
+#define SSH_MSG_EXT_INFO            7
+#define SSH_MSG_NEWCOMPRESS         8
 
 /* Transport layer protocol: Algorithm negotiation (20-29) */
 #define SSH_MSG_KEXINIT             20
@@ -506,6 +530,8 @@ static const gchar *ssh_debug_file_name     = NULL;
 
 /* 128-191 reserved for client protocols */
 /* 192-255 local extensions */
+#define SSH_MSG_PING                        192
+#define SSH_MSG_PONG                        193
 
 #define CIPHER_AES128_CTR               0x00010001
 #define CIPHER_AES192_CTR               0x00010003
@@ -532,6 +558,8 @@ static const value_string ssh2_msg_vals[] = {
     { SSH_MSG_DEBUG,                     "Debug" },
     { SSH_MSG_SERVICE_REQUEST,           "Service Request" },
     { SSH_MSG_SERVICE_ACCEPT,            "Service Accept" },
+    { SSH_MSG_EXT_INFO,                  "Extension Information" },
+    { SSH_MSG_NEWCOMPRESS,               "New Compression" },
     { SSH_MSG_KEXINIT,                   "Key Exchange Init" },
     { SSH_MSG_NEWKEYS,                   "New Keys" },
     { SSH_MSG_USERAUTH_REQUEST,          "User Authentication Request" },
@@ -574,6 +602,12 @@ static const value_string ssh2_kex_dh_gex_msg_vals[] = {
 static const value_string ssh2_kex_ecdh_msg_vals[] = {
     { SSH_MSG_KEX_ECDH_INIT,             "Elliptic Curve Diffie-Hellman Key Exchange Init" },
     { SSH_MSG_KEX_ECDH_REPLY,            "Elliptic Curve Diffie-Hellman Key Exchange Reply" },
+    { 0, NULL }
+};
+
+static const value_string ssh2_ext_ping_msg_vals[] = {
+    { SSH_MSG_PING,                     "Ping" },
+    { SSH_MSG_PONG,                     "Pong" },
     { 0, NULL }
 };
 
@@ -670,7 +704,9 @@ static int ssh_dissect_decrypted_packet(tvbuff_t *tvb, packet_info *pinfo,
         struct ssh_peer_data *peer_data, proto_tree *tree,
         ssh_message_info_t *message);
 static int ssh_dissect_transport_generic(tvbuff_t *packet_tvb, packet_info *pinfo,
-        int offset, proto_item *msg_type_tree, guint msg_code);
+        int offset, struct ssh_peer_data *peer_data, proto_item *msg_type_tree, guint msg_code);
+static int ssh_dissect_rfc8308_extension(tvbuff_t *packet_tvb, packet_info *pinfo,
+        int offset, struct ssh_peer_data *peer_data, proto_item *msg_type_tree);
 static int ssh_dissect_userauth_generic(tvbuff_t *packet_tvb, packet_info *pinfo,
         int offset, proto_item *msg_type_tree, guint msg_code);
 static int ssh_dissect_userauth_specific(tvbuff_t *packet_tvb, packet_info *pinfo,
@@ -680,6 +716,8 @@ static int ssh_dissect_connection_specific(tvbuff_t *packet_tvb, packet_info *pi
         guint msg_code, ssh_message_info_t *message);
 static int ssh_dissect_connection_generic(tvbuff_t *packet_tvb, packet_info *pinfo,
         int offset, proto_item *msg_type_tree, guint msg_code);
+static int ssh_dissect_local_extension(tvbuff_t *packet_tvb, packet_info *pinfo,
+        int offset, struct ssh_peer_data *peer_data, proto_item *msg_type_tree, guint msg_code);
 static int ssh_dissect_public_key_blob(tvbuff_t *packet_tvb, packet_info *pinfo,
         int offset, proto_item *msg_type_tree);
 static int ssh_dissect_public_key_signature(tvbuff_t *packet_tvb, packet_info *pinfo,
@@ -776,6 +814,7 @@ dissect_ssh(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
         global_data->kex_gex_bits_max = wmem_array_new(wmem_file_scope(), 1);
         global_data->kex_shared_secret = wmem_array_new(wmem_file_scope(), 1);
         global_data->do_decrypt      = TRUE;
+        global_data->ext_ping_openssh_offered = FALSE;
 
         conversation_add_proto_data(conversation, proto_ssh, global_data);
     }
@@ -3613,8 +3652,7 @@ ssh_dissect_decrypted_packet(tvbuff_t *tvb, packet_info *pinfo,
         col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, val_to_str(msg_code, ssh2_msg_vals, "Unknown (%u)"));
         msg_type_tree = proto_tree_add_subtree(tree, packet_tvb, offset, plen-1, ett_key_exchange, NULL, "Message: Transport (generic)");
         proto_tree_add_item(msg_type_tree, hf_ssh2_msg_code, packet_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset+=1;
-        dissected_len = ssh_dissect_transport_generic(packet_tvb, pinfo, offset, msg_type_tree, msg_code) - offset;
+        dissected_len = ssh_dissect_transport_generic(packet_tvb, pinfo, offset+1, peer_data, msg_type_tree, msg_code) - offset;
         // offset = ssh_dissect_transport_generic(packet_tvb, pinfo, global_data, offset, msg_type_tree, is_response, msg_code);
     }
     /* Algorithm negotiation (20-29) */
@@ -3675,11 +3713,8 @@ ssh_dissect_decrypted_packet(tvbuff_t *tvb, packet_info *pinfo,
 
     /* Local extensions (192-255) */
     else if (msg_code >= 192 && msg_code <= 255) {
-        col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, val_to_str(msg_code, ssh2_msg_vals, "Unknown (%u)"));
         msg_type_tree = proto_tree_add_subtree(tree, packet_tvb, offset, plen-1, ett_key_exchange, NULL, "Message: Local extension");
-        proto_tree_add_item(msg_type_tree, hf_ssh2_msg_code, packet_tvb, offset, 1, ENC_BIG_ENDIAN);
-        offset+=1;
-        // TODO: offset = ssh_dissect_local_extention(packet_tvb, pinfo, global_data, offset, msg_type_tree, is_response, msg_code);
+        dissected_len = ssh_dissect_local_extension(packet_tvb, pinfo, offset, peer_data, msg_type_tree, msg_code) - offset;
     }
 
     len = plen+4-padding_length-(offset-last_offset);
@@ -3708,7 +3743,7 @@ ssh_dissect_decrypted_packet(tvbuff_t *tvb, packet_info *pinfo,
 
 static int
 ssh_dissect_transport_generic(tvbuff_t *packet_tvb, packet_info *pinfo,
-        int offset, proto_item *msg_type_tree, guint msg_code)
+        int offset, struct ssh_peer_data *peer_data, proto_item *msg_type_tree, guint msg_code)
 {
         (void)pinfo;
         if(msg_code==SSH_MSG_DISCONNECT){
@@ -3755,8 +3790,81 @@ ssh_dissect_transport_generic(tvbuff_t *packet_tvb, packet_info *pinfo,
                 offset += 4;
                 proto_tree_add_item(msg_type_tree, hf_ssh_service_name, packet_tvb, offset, nlen, ENC_ASCII);
                 offset += nlen;
+        }else if(msg_code==SSH_MSG_EXT_INFO){
+                guint   ext_cnt;
+                ext_cnt = tvb_get_ntohl(packet_tvb, offset);
+                proto_tree_add_item(msg_type_tree, hf_ssh_ext_count, packet_tvb, offset, 4, ENC_BIG_ENDIAN);
+                offset += 4;
+                for(guint ext_index = 0; ext_index < ext_cnt; ext_index++) {
+                    offset = ssh_dissect_rfc8308_extension(packet_tvb, pinfo, offset, peer_data, msg_type_tree);
+                }
         }
         return offset;
+}
+
+static int
+ssh_dissect_rfc8308_extension(tvbuff_t *packet_tvb, packet_info *pinfo,
+        int offset, struct ssh_peer_data *peer_data, proto_item *msg_type_tree)
+{
+    (void)pinfo;
+    guint ext_name_slen = tvb_get_ntohl(packet_tvb, offset);
+    guint8 *ext_name = tvb_get_string_enc(wmem_packet_scope(), packet_tvb, offset + 4, ext_name_slen, ENC_ASCII);
+    guint ext_value_slen = tvb_get_ntohl(packet_tvb, offset + 4 + ext_name_slen);
+    guint ext_len = 8 + ext_name_slen + ext_value_slen;
+    proto_item *ext_tree = proto_tree_add_subtree_format(msg_type_tree, packet_tvb, offset, ext_len, ett_extension, NULL, "Extension: %s", ext_name);
+
+    proto_tree_add_item(ext_tree, hf_ssh_ext_name_length, packet_tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(ext_tree, hf_ssh_ext_name, packet_tvb, offset, ext_name_slen, ENC_ASCII);
+    offset += ext_name_slen;
+    proto_tree_add_item(ext_tree, hf_ssh_ext_value_length, packet_tvb, offset, 4, ENC_BIG_ENDIAN);
+    offset += 4;
+    proto_tree_add_item(ext_tree, hf_ssh_ext_value, packet_tvb, offset, ext_value_slen, ENC_NA);
+
+    if (g_str_equal(ext_name, "server-sig-algs")) {
+        // server-sig-algs (RFC8308 Sec. 3.1)
+        proto_tree_add_item(ext_tree, hf_ssh_ext_server_sig_algs_algorithms, packet_tvb, offset, ext_value_slen, ENC_ASCII);
+        offset += ext_value_slen;
+    } else if (g_str_equal(ext_name, "delay-compression")) {
+        // delay-compression (RFC8308 Sec 3.2)
+        guint slen;
+        slen = tvb_get_ntohl(packet_tvb, offset);
+        proto_tree_add_item(ext_tree, hf_ssh_ext_delay_compression_algorithms_client_to_server_length, packet_tvb, offset, 4, ENC_BIG_ENDIAN);
+        offset += 4;
+        proto_tree_add_item(ext_tree, hf_ssh_ext_delay_compression_algorithms_client_to_server, packet_tvb, offset, slen, ENC_ASCII);
+        offset += slen;
+        slen = tvb_get_ntohl(packet_tvb, offset);
+        proto_tree_add_item(ext_tree, hf_ssh_ext_delay_compression_algorithms_server_to_client_length, packet_tvb, offset, 4, ENC_BIG_ENDIAN);
+        offset += 4;
+        proto_tree_add_item(ext_tree, hf_ssh_ext_delay_compression_algorithms_server_to_client, packet_tvb, offset, slen, ENC_ASCII);
+        offset += slen;
+    } else if (g_str_equal(ext_name, "no-flow-control")) {
+        // no-flow-control (RFC 8308 Sec 3.3)
+        proto_tree_add_item(ext_tree, hf_ssh_ext_no_flow_control_value, packet_tvb, offset, ext_value_slen, ENC_ASCII);
+        offset += ext_value_slen;
+    } else if (g_str_equal(ext_name, "elevation")) {
+        // elevation (RFC 8308 Sec 3.4)
+        proto_tree_add_item(ext_tree, hf_ssh_ext_elevation_value, packet_tvb, offset, ext_value_slen, ENC_ASCII);
+        offset += ext_value_slen;
+    } else if (g_str_equal(ext_name, "publickey-algorithms@roumenpetrov.info")) {
+        // publickey-algorithms@roumenpetrov.info (proprietary)
+        proto_tree_add_item(ext_tree, hf_ssh_ext_prop_publickey_algorithms_algorithms, packet_tvb, offset, ext_value_slen, ENC_ASCII);
+        offset += ext_value_slen;
+    } else if (g_str_equal(ext_name, "ping@openssh.com")) {
+        // ping@openssh.com (proprietary w/ primitive extension value)
+        peer_data->global_data->ext_ping_openssh_offered = TRUE;
+        offset += ext_value_slen;
+    } else {
+        offset += ext_value_slen;
+    }
+
+    // The following extensions do not require advanced dissection:
+    //  - global-requests-ok
+    //  - ext-auth-info
+    //  - publickey-hostbound@openssh.com
+    //  - ext-info-in-auth@openssh.com
+
+    return offset;
 }
 
 static int
@@ -4696,6 +4804,35 @@ ssh_dissect_connection_generic(tvbuff_t *packet_tvb, packet_info *pinfo,
 }
 
 static int
+ssh_dissect_local_extension(tvbuff_t *packet_tvb, packet_info *pinfo,
+        int offset, struct ssh_peer_data *peer_data, proto_item *msg_type_tree, guint msg_code) {
+    guint slen;
+    if (peer_data->global_data->ext_ping_openssh_offered && msg_code >= SSH_MSG_PING && msg_code <= SSH_MSG_PONG) {
+        col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, val_to_str(msg_code, ssh2_ext_ping_msg_vals, "Unknown (%u)"));
+        proto_tree_add_item(msg_type_tree, hf_ssh2_ext_ping_msg_code, packet_tvb, offset, 1, ENC_BIG_ENDIAN);
+        offset += 1;
+        if (msg_code == SSH_MSG_PING) {
+            slen = tvb_get_ntohl(packet_tvb, offset) ;
+            proto_tree_add_item(msg_type_tree, hf_ssh_ping_data_length, packet_tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+            proto_tree_add_item(msg_type_tree, hf_ssh_ping_data, packet_tvb, offset, slen, ENC_NA);
+            offset += slen;
+        } else if (msg_code == SSH_MSG_PONG) {
+            slen = tvb_get_ntohl(packet_tvb, offset) ;
+            proto_tree_add_item(msg_type_tree, hf_ssh_pong_data_length, packet_tvb, offset, 4, ENC_BIG_ENDIAN);
+            offset += 4;
+            proto_tree_add_item(msg_type_tree, hf_ssh_pong_data, packet_tvb, offset, slen, ENC_NA);
+            offset += slen;
+        }
+    } else {
+        col_append_sep_str(pinfo->cinfo, COL_INFO, NULL, val_to_str(msg_code, ssh2_msg_vals, "Unknown (%u)"));
+        proto_tree_add_item(msg_type_tree, hf_ssh2_msg_code, packet_tvb, offset, 1, ENC_BIG_ENDIAN);
+        offset += 1;
+    }
+    return offset;
+}
+
+static int
 ssh_dissect_public_key_blob(tvbuff_t *packet_tvb, packet_info *pinfo,
         int offset, proto_item *msg_type_tree)
 {
@@ -5002,6 +5139,11 @@ proto_register_ssh(void)
         { &hf_ssh2_kex_ecdh_msg_code,
           { "Message Code", "ssh.message_code",
             FT_UINT8, BASE_DEC, VALS(ssh2_kex_ecdh_msg_vals), 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh2_ext_ping_msg_code,
+          { "Message Code", "ssh.message_code",
+            FT_UINT8, BASE_DEC, VALS(ssh2_ext_ping_msg_vals), 0x0,
             NULL, HFILL }},
 
         { &hf_ssh_cookie,
@@ -5359,6 +5501,71 @@ proto_register_ssh(void)
             FT_STRING, BASE_NONE, NULL, 0x0,
             NULL, HFILL }},
 
+        { &hf_ssh_ext_count,
+          { "Extension count", "ssh.extension.count",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_name_length,
+          { "Extension name length", "ssh.extension.name_length",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_name,
+          { "Extension name", "ssh.extension.name",
+            FT_STRING, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_value_length,
+          { "Extension value length", "ssh.extension.value_length",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_value,
+          { "Extension value", "ssh.extension.value",
+            FT_BYTES, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_server_sig_algs_algorithms,
+          { "Accepted signature algorithms", "ssh.extension.server_sig_algs.algorithms",
+            FT_STRING, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_delay_compression_algorithms_client_to_server_length,
+          { "Compression algorithms (client to server) length", "ssh.extension.delay_compression.compression_algorithms_client_to_server_length",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_delay_compression_algorithms_client_to_server,
+          { "Compression algorithms (client to server)", "ssh.extension.delay_compression.compression_algorithms_client_to_server",
+            FT_STRING, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_delay_compression_algorithms_server_to_client_length,
+          { "Compression algorithms (server to client) length", "ssh.extension.delay_compression.compression_algorithms_server_to_client_length",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_delay_compression_algorithms_server_to_client,
+          { "Compression algorithms (server to client)", "ssh.extension.delay_compression.compression_algorithms_server_to_client",
+            FT_STRING, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_no_flow_control_value,
+          { "No flow control flag", "ssh.extension.no_flow_control.value",
+            FT_STRING, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_elevation_value,
+          { "Elevation flag", "ssh.extension.elevation.value",
+            FT_STRING, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ext_prop_publickey_algorithms_algorithms,
+          { "Public key algorithms", "ssh.extension.prop_publickey_algorithms.algorithms",
+            FT_STRING, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
         { &hf_ssh_lang_tag_length,
           { "Language tag length", "ssh.lang_tag_length",
             FT_UINT32, BASE_DEC, NULL, 0x0,
@@ -5368,6 +5575,27 @@ proto_register_ssh(void)
           { "Language tag", "ssh.lang_tag",
             FT_STRING, BASE_NONE, NULL, 0x0,
             NULL, HFILL }},
+
+        { &hf_ssh_ping_data_length,
+          { "Data length", "ssh.ping_data_length",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_ping_data,
+          { "Data", "ssh.ping_data",
+            FT_BYTES, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_pong_data_length,
+          { "Data length", "ssh.pong_data_length",
+            FT_UINT32, BASE_DEC, NULL, 0x0,
+            NULL, HFILL }},
+
+        { &hf_ssh_pong_data,
+          { "Data", "ssh.pong_data",
+            FT_BYTES, BASE_NONE, NULL, 0x0,
+            NULL, HFILL }},
+
 
         { &hf_ssh_userauth_user_name_length,
           { "User Name length", "ssh.userauth_user_name_length",
@@ -5662,6 +5890,7 @@ proto_register_ssh(void)
         &ett_key_exchange,
         &ett_key_exchange_host_key,
         &ett_key_exchange_host_sig,
+        &ett_extension,
         &ett_userauth_pk_blob,
         &ett_userauth_pk_signautre,
         &ett_ssh1,

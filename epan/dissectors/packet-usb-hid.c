@@ -225,7 +225,7 @@ static wmem_tree_t *report_descriptors = NULL;
 #define HID_MAIN_NON_LINEAR     (1 << 4) /* linear / non linear             */
 #define HID_MAIN_NO_PREFERRED   (1 << 5) /* preferred state / no preferred  */
 #define HID_MAIN_NULL_STATE     (1 << 6) /* no null position / null state   */
-#define HID_MAIN_BUFFERED_BYTES (1 << 8) /* bit field / buferred bytes      */
+#define HID_MAIN_BUFFERED_BYTES (1 << 8) /* bit field / buffered bytes      */
 
 
 #define HID_MAIN_ARRAY          (0 << 1)
@@ -2781,7 +2781,7 @@ static const value_string usb_hid_medical_instrument_usage_page_vals[] = {
     {0xA1, "Soft Control Adjust"},
     {0, NULL}
 };
-static const value_string usb_hid_braille_dispaly_usage_page_vals[] = {
+static const value_string usb_hid_braille_display_usage_page_vals[] = {
     {0x000, "Undefined"},
     {0x001, "Braille Display"},
     {0x002, "Braille Row"},
@@ -4044,7 +4044,7 @@ get_usage_page_item_string(wmem_allocator_t *pool, guint32 usage_page, guint32 i
         str = try_val_to_str(id, usb_hid_medical_instrument_usage_page_vals);
         break;
     case BRAILLE_DISPLAY_PAGE:
-        str = try_val_to_str(id, usb_hid_braille_dispaly_usage_page_vals);
+        str = try_val_to_str(id, usb_hid_braille_display_usage_page_vals);
         break;
     case LIGHTING_AND_ILLUMINATION_PAGE:
         str = try_val_to_str(id, usb_hid_lighting_and_illumination_usage_page_vals);
@@ -5876,11 +5876,11 @@ proto_register_usb_hid(void)
                 NULL, 0x00, NULL, HFILL }},
 
         { &hf_usbhid_button,
-            { "Button", "usbhid.data.button", FT_BOOLEAN, 1,
+            { "Button", "usbhid.data.button", FT_BOOLEAN, BASE_NONE,
                 NULL, 0x00, NULL, HFILL }},
 
         { &hf_usbhid_key,
-            { "Key", "usbhid.data.key.variable", FT_BOOLEAN, 1,
+            { "Key", "usbhid.data.key.variable", FT_BOOLEAN, BASE_NONE,
                 NULL, 0x00, NULL, HFILL }},
 
         { &hf_usbhid_array,
@@ -5888,7 +5888,7 @@ proto_register_usb_hid(void)
                 NULL, 0x00, NULL, HFILL }},
 
         { &hf_usbhid_array_usage,
-            { "Usage", "usbhid.data.array.usage", FT_BOOLEAN, 1,
+            { "Usage", "usbhid.data.array.usage", FT_BOOLEAN, BASE_NONE,
             NULL, 0x00, NULL, HFILL }},
     };
 

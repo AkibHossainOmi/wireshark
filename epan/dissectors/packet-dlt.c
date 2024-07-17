@@ -1300,7 +1300,7 @@ void proto_register_dlt(void) {
 
         { &hf_dlt_data_bool, {
             "(bool)", "dlt.data.bool",
-            FT_BOOLEAN, 1, NULL, 0x0, NULL, HFILL } },
+            FT_BOOLEAN, BASE_NONE, NULL, 0x0, NULL, HFILL } },
         { &hf_dlt_uint8, {
             "(uint8)", "dlt.data.uint8",
             FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL } },
@@ -1435,7 +1435,7 @@ void proto_register_dlt(void) {
     expert_module_DLT = expert_register_protocol(proto_dlt);
     expert_register_field_array(expert_module_DLT, ei, array_length(ei));
 
-    heur_subdissector_list = register_heur_dissector_list("dlt", proto_dlt);
+    heur_subdissector_list = register_heur_dissector_list_with_description("dlt", "DLT Log Message payload", proto_dlt);
 }
 
 void proto_reg_handoff_dlt(void) {

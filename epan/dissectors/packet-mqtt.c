@@ -1432,7 +1432,7 @@ static int dissect_mqtt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, voi
 Disconnect), and the maximum size is 256MB.  Hence minimum fixed
 length should be 2 bytes for tcp_dissect_pdu.
 
-If the length filed is spread across two TCP segments, then we have a
+If the length field is spread across two TCP segments, then we have a
 problem, because exception will be raised.  So long as MQTT length
 field(although spread over 4 bytes) is present within single TCP
 segment we shouldn't have any issue by calling tcp_dissect_pdu with
@@ -1495,7 +1495,7 @@ void proto_register_mqtt(void)
     /* Conn-Ack */
     { &hf_mqtt_conack_reserved,
       { "Reserved", "mqtt.conack.flags.reserved",
-        FT_BOOLEAN, 8, TFS(&tfs_set_notset), 0,
+        FT_BOOLEAN, BASE_NONE, TFS(&tfs_set_notset), 0,
         NULL, HFILL }},
     { &hf_mqtt_conack_flags,
       { "Acknowledge Flags", "mqtt.conack.flags",
@@ -1821,7 +1821,7 @@ void proto_register_mqtt(void)
   proto_register_field_array(proto_mqtt, hf_mqtt, array_length(hf_mqtt));
   proto_register_subtree_array(ett_mqtt, array_length(ett_mqtt));
 
-  mqtt_topic_subdissector = register_heur_dissector_list("mqtt.topic", proto_mqtt);
+  mqtt_topic_subdissector = register_heur_dissector_list_with_description("mqtt.topic", "MQTT message topic", proto_mqtt);
 
   expert_mqtt = expert_register_protocol(proto_mqtt);
   expert_register_field_array(expert_mqtt, ei, array_length(ei));

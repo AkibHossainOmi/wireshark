@@ -43,7 +43,7 @@
 
 /* General definitions */
 
-/* Used to clasify incoming traffic and presort the heuristic */
+/* Used to classify incoming traffic and presort the heuristic */
 #define OPENSAFETY_ANY_TRANSPORT 0x00
 #define OPENSAFETY_CYCLIC_DATA   0x01
 #define OPENSAFETY_ACYCLIC_DATA  0x02
@@ -1237,7 +1237,7 @@ dissect_opensafety_ssdo_message(tvbuff_t *message_tvb, packet_info *pinfo, proto
                 val_to_str_ext_const(((guint32) (ssdoIndex << 16)), &opensafety_sod_idx_names_ext, "Unknown") );
         col_append_fstr(pinfo->cinfo, COL_INFO, " [%s", val_to_str_ext_const(((guint32) (ssdoIndex << 16)), &opensafety_sod_idx_names_ext, "Unknown"));
 
-        /* Some SOD downloads (0x101A for instance) don't have sub-indeces */
+        /* Some SOD downloads (0x101A for instance) don't have sub-indices */
         if ( ssdoSubIndex != 0x0 )
         {
             proto_tree_add_uint_format_value(ssdo_tree, hf_oss_ssdo_sod_subindex, message_tvb, db0Offset + 3, 1,
@@ -1812,8 +1812,8 @@ check_scmudid_validity(opensafety_packet_info *packet, tvbuff_t *message_tvb)
         packet->scm_udid_valid = TRUE;
 
         /* Now confirm, that the xor operation was successful. The ID fields of both frames have to be the same */
-        b_ID = tvb_get_guint8(message_tvb, packet->frame.subframe2 + 1) ^ (guint8)(scmUDID->data[OSS_FRAME_POS_ID]);;
-        if ( ( OSS_FRAME_ID_T(message_tvb, packet->frame.subframe1) ^ b_ID ) != 0 )
+        b_ID = tvb_get_guint8(message_tvb, packet->frame.subframe2 + 1) ^ (guint8)(scmUDID->data[OSS_FRAME_POS_ID]);
+        if ( ( OSS_FRAME_ID_T(message_tvb, packet->frame.subframe1) ^ (b_ID & 0xFC)) != 0 )
             packet->scm_udid_valid = FALSE;
 
         /* The IDs do not match, but the SCM UDID could still be ok. This happens, if this packet
@@ -2785,17 +2785,17 @@ proto_register_opensafety(void)
           FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_oss_fragment_overlap,
          {"Message fragment overlap", "opensafety.ssdo.fragment.overlap",
-          FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+          FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_oss_fragment_overlap_conflicts,
          {"Message fragment overlapping with conflicting data",
           "opensafety.ssdo.fragment.overlap.conflicts",
-          FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+          FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_oss_fragment_multiple_tails,
          {"Message has multiple tail fragments", "opensafety.ssdo.fragment.multiple_tails",
-          FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+          FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_oss_fragment_too_long_fragment,
          {"Message fragment too long", "opensafety.ssdo.fragment.too_long_fragment",
-          FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+          FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
         {&hf_oss_fragment_error,
          {"Message defragmentation error", "opensafety.ssdo.fragment.error",
           FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
@@ -2996,7 +2996,7 @@ proto_register_opensafety(void)
     oss_udp_module = prefs_register_protocol(proto_oss_udp_transport, apply_prefs);
 
     /* Register data dissector */
-    heur_opensafety_spdo_subdissector_list = register_heur_dissector_list("opensafety.spdo", proto_opensafety);
+    heur_opensafety_spdo_subdissector_list = register_heur_dissector_list_with_description("opensafety.spdo", "openSAFETY data", proto_opensafety);
 
     /* Required function calls to register the header fields and subtrees used */
     proto_register_field_array(proto_opensafety, hf, array_length(hf));

@@ -1502,8 +1502,11 @@ static guint
 dissect_zbee_nwk_gp_cmd_move_up_down(tvbuff_t *tvb, packet_info *pinfo _U_, proto_tree *tree,
     zbee_nwk_green_power_packet *packet _U_, guint offset)
 {
-    proto_tree_add_item(tree, hf_zbee_nwk_gp_cmd_move_up_down_rate, tvb, offset, 1, ENC_LITTLE_ENDIAN);
-    offset += 1;
+    /* Optional rate field. */
+    if (tvb_reported_length(tvb) - offset >= 1) {
+        proto_tree_add_item(tree, hf_zbee_nwk_gp_cmd_move_up_down_rate, tvb, offset, 1, ENC_LITTLE_ENDIAN);
+        offset += 1;
+    }
     return offset;
 } /* dissect_zbee_nwk_gp_cmd_move_up_down */
 
@@ -1549,8 +1552,11 @@ dissect_zbee_nwk_gp_cmd_step_up_down(tvbuff_t *tvb, packet_info *pinfo _U_, prot
 {
     proto_tree_add_item(tree, hf_zbee_nwk_gp_cmd_step_up_down_step_size, tvb, offset, 1, ENC_LITTLE_ENDIAN);
     offset += 1;
-    proto_tree_add_item(tree, hf_zbee_nwk_gp_cmd_step_up_down_transition_time, tvb, offset, 2, ENC_LITTLE_ENDIAN);
-    offset += 2;
+    /* Optional time field. */
+    if (tvb_reported_length(tvb) - offset >= 2) {
+        proto_tree_add_item(tree, hf_zbee_nwk_gp_cmd_step_up_down_transition_time, tvb, offset, 2, ENC_LITTLE_ENDIAN);
+        offset += 2;
+    }
     return offset;
 } /* dissect_zbee_nwk_gp_cmd_step_up_down */
 
@@ -1903,8 +1909,7 @@ dissect_zbee_nwk_heur_gp(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, vo
     if (!try_val_to_str(zbee_get_bit_field(fcf, ZBEE_NWK_FCF_FRAME_TYPE), zbee_nwk_gp_frame_types)) return FALSE;
 
     /* ZigBee greenpower frames are either sent to broadcast or the extended address. */
-    if (packet->dst_pan == IEEE802154_BCAST_PAN && packet->dst_addr_mode == IEEE802154_FCF_ADDR_SHORT &&
-        packet->dst16 == IEEE802154_BCAST_ADDR) {
+    if (packet->dst_addr_mode == IEEE802154_FCF_ADDR_SHORT && packet->dst16 == IEEE802154_BCAST_ADDR) {
         dissect_zbee_nwk_gp(tvb, pinfo, tree, data);
         return TRUE;
     }

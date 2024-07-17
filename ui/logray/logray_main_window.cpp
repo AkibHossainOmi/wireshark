@@ -26,9 +26,7 @@ DIAG_ON(frame-larger-than=)
 #include <wsutil/ws_assert.h>
 #include <wsutil/version_info.h>
 #include <epan/prefs.h>
-#include <epan/stats_tree_priv.h>
 #include <epan/plugin_if.h>
-#include <epan/export_object.h>
 #include <frame_tvbuff.h>
 
 #include "ui/iface_toolbar.h"
@@ -56,13 +54,12 @@ DIAG_ON(frame-larger-than=)
 #endif
 #include "conversation_colorize_action.h"
 #include "export_dissection_dialog.h"
-#include "export_object_action.h"
 #include "file_set_dialog.h"
 #include "filter_dialog.h"
+#include "follow_stream_action.h"
 #include "funnel_statistics.h"
 #include "import_text_dialog.h"
 #include "interface_toolbar.h"
-#include "packet_diagram.h"
 #include "packet_list.h"
 #include "proto_tree.h"
 #include "simple_dialog.h"
@@ -386,7 +383,7 @@ LograyMainWindow::LograyMainWindow(QWidget *parent) :
     connect(mainApp, SIGNAL(appInitialized()), this, SLOT(addDynamicMenus()));
     connect(mainApp, SIGNAL(appInitialized()), this, SLOT(addPluginIFStructures()));
     connect(mainApp, SIGNAL(appInitialized()), this, SLOT(initConversationMenus()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(initExportObjectsMenus()));
+    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(initFollowStreamMenus()));
 
     connect(mainApp, SIGNAL(profileChanging()), this, SLOT(saveWindowGeometry()));
     connect(mainApp, SIGNAL(preferencesChanged()), this, SLOT(layoutPanes()));
@@ -511,8 +508,6 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
 
     packet_list_->setProtoTree(proto_tree_);
     packet_list_->installEventFilter(this);
-
-    packet_diagram_ = new PacketDiagram(&master_split_);
 
     main_stack_ = main_ui_->mainStack;
     welcome_page_ = main_ui_->welcomePage;
@@ -756,7 +751,6 @@ QMenu *LograyMainWindow::createPopupMenu()
     menu->addAction(main_ui_->actionViewPacketList);
     menu->addAction(main_ui_->actionViewPacketDetails);
     menu->addAction(main_ui_->actionViewPacketBytes);
-    menu->addAction(main_ui_->actionViewPacketDiagram);
     return menu;
 }
 
@@ -1260,6 +1254,8 @@ void LograyMainWindow::mergeCaptureFile()
         cf_close(capture_file_.capFile());
 
         /* Try to open the merged capture file. */
+        // XXX - Just free rfcode and call
+        // openCaptureFile(tmpname, read_filter, WTAP_TYPE_AUTO, TRUE);
         CaptureFile::globalCapFile()->window = this;
         if (cf_open(CaptureFile::globalCapFile(), tmpname, WTAP_TYPE_AUTO, TRUE /* temporary file */, &err) != CF_OK) {
             /* We couldn't open it; fail. */
@@ -1292,8 +1288,7 @@ void LograyMainWindow::mergeCaptureFile()
             return;
         }
 
-        /* Save the name of the containing directory specified in the path name. */
-        mainApp->setLastOpenDirFromFilename(tmpname);
+        /* This is a tempfile; don't change the last open directory. */
         g_free(tmpname);
         main_ui_->statusBar->showExpert();
         return;
@@ -1315,7 +1310,7 @@ void LograyMainWindow::importCaptureFile() {
         return;
     }
 
-    openCaptureFile(import_dlg.capfileName());
+    openCaptureFile(import_dlg.capfileName(), QString(), WTAP_TYPE_AUTO, true);
 }
 
 bool LograyMainWindow::saveCaptureFile(capture_file *cf, bool dont_reopen) {
@@ -1484,7 +1479,7 @@ bool LograyMainWindow::saveAsCaptureFile(capture_file *cf, bool must_support_com
 
             msg_dialog.setIcon(QMessageBox::Critical);
             msg_dialog.setText(tr("Unknown file type returned by merge dialog."));
-            msg_dialog.setInformativeText(tr("Please report this as a Wireshark issue at https://gitlab.com/wireshark/wireshark/-/issues."));
+            msg_dialog.setInformativeText(tr("Please report this as a Logray issue at https://gitlab.com/wireshark/wireshark/-/issues."));
             msg_dialog.exec();
             return false;
 	}
@@ -1640,7 +1635,7 @@ void LograyMainWindow::exportSelectedPackets() {
 
             msg_box.setIcon(QMessageBox::Critical);
             msg_box.setText(tr("Unknown file type returned by export dialog."));
-            msg_box.setInformativeText(tr("Please report this as a Wireshark issue at https://gitlab.com/wireshark/wireshark/-/issues."));
+            msg_box.setInformativeText(tr("Please report this as a Logray issue at https://gitlab.com/wireshark/wireshark/-/issues."));
             msg_box.exec();
             goto cleanup;
 	}
@@ -1853,7 +1848,7 @@ bool LograyMainWindow::testCaptureFileClose(QString before_what, FileCloseContex
                 // We're being called from the software update window;
                 // don't spawn yet another dialog. Just try again later.
                 // XXX: The WinSparkle dialogs *aren't* modal, and a user
-                // can bring Wireshark to the foreground, close/save the
+                // can bring Logray to the foreground, close/save the
                 // file, and then click "Install Update" again, but it
                 // seems like many users don't expect that (and also don't
                 // know that Help->Check for Updates... exist, only knowing
@@ -1962,7 +1957,7 @@ bool LograyMainWindow::testCaptureFileClose(QString before_what, FileCloseContex
              */
             QList<QAbstractButton *> buttons = msg_dialog.buttons();
             for (int i = 0; i < buttons.size(); ++i) {
-                QPushButton *button = static_cast<QPushButton *>(buttons.at(i));;
+                QPushButton *button = static_cast<QPushButton *>(buttons.at(i));
                 button->setAutoDefault(false);
             }
 
@@ -2174,7 +2169,6 @@ void LograyMainWindow::initShowHideMainWidgets()
     shmw_actions[main_ui_->actionViewPacketList] = packet_list_;
     shmw_actions[main_ui_->actionViewPacketDetails] = proto_tree_;
     shmw_actions[main_ui_->actionViewPacketBytes] = byte_view_tab_;
-    shmw_actions[main_ui_->actionViewPacketDiagram] = packet_diagram_;
 
     foreach(QAction *shmwa, shmw_actions.keys()) {
         shmwa->setData(QVariant::fromValue(shmw_actions[shmwa]));
@@ -2252,10 +2246,10 @@ void LograyMainWindow::initFreezeActions()
     QList<QAction *> freeze_actions = QList<QAction *>()
             << main_ui_->actionFileClose
             << main_ui_->actionViewReload
-            << main_ui_->actionEditMarkPacket
+            << main_ui_->actionEditMarkSelected
             << main_ui_->actionEditMarkAllDisplayed
             << main_ui_->actionEditUnmarkAllDisplayed
-            << main_ui_->actionEditIgnorePacket
+            << main_ui_->actionEditIgnoreSelected
             << main_ui_->actionEditIgnoreAllDisplayed
             << main_ui_->actionEditUnignoreAllDisplayed
             << main_ui_->actionEditSetTimeReference
@@ -2332,25 +2326,56 @@ void LograyMainWindow::initConversationMenus()
     connect(colorize_action, SIGNAL(triggered()), this, SLOT(colorizeActionTriggered()));
 }
 
-bool LograyMainWindow::addExportObjectsMenuItem(const void *, void *value, void *userdata)
+bool LograyMainWindow::addFollowStreamMenuItem(const void *key _U_, void *value, void *userdata)
 {
-    register_eo_t *eo = (register_eo_t*)value;
+    register_follow_t *follow = (register_follow_t*)value;
     LograyMainWindow *window = (LograyMainWindow*)userdata;
 
-    ExportObjectAction *export_action = new ExportObjectAction(window->main_ui_->menuFileExportObjects, eo);
-    window->main_ui_->menuFileExportObjects->addAction(export_action);
+    FollowStreamAction *follow_action = new FollowStreamAction(window->main_ui_->menuFollow, follow);
+    window->main_ui_->menuFollow->addAction(follow_action);
 
-    //initially disable until a file is loaded (then file signals will take over)
-    export_action->setEnabled(false);
+    follow_action->setEnabled(false);
 
-    connect(&window->capture_file_, SIGNAL(captureEvent(CaptureEvent)), export_action, SLOT(captureFileEvent(CaptureEvent)));
-    connect(export_action, SIGNAL(triggered()), window, SLOT(applyExportObject()));
+    /* Special features for some of the built in follow types, like
+     * shortcuts and overriding the name. XXX: Should these go in
+     * FollowStreamAction, or should some of these (e.g. TCP and UDP)
+     * be registered in initFollowStreamMenus so that they can be
+     * on the top of the menu list too?
+     */
+    // XXX - Should we add matches for syscall properties, e.g. file descriptors?
+    const char *short_name = (const char*)key;
+    if (g_strcmp0(short_name, "Falco Bridge") == 0) {
+        follow_action->setText(tr("File Descriptor Stream"));
+    }
+    // if (g_strcmp0(short_name, "TCP") == 0) {
+    //     follow_action->setShortcut(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_T);
+    // } else if (g_strcmp0(short_name, "UDP") == 0) {
+    //     follow_action->setShortcut(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_U);
+    // } else if (g_strcmp0(short_name, "DCCP") == 0) {
+    //     /* XXX: Not sure this one is widely enough used to need a shortcut. */
+    //     follow_action->setShortcut(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_E);
+    // } else if (g_strcmp0(short_name, "TLS") == 0) {
+    //     follow_action->setShortcut(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_S);
+    // } else if (g_strcmp0(short_name, "HTTP") == 0) {
+    //     follow_action->setShortcut(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_H);
+    // } else if (g_strcmp0(short_name, "HTTP2") == 0) {
+    //     follow_action->setText(tr("HTTP/2 Stream"));
+    // } else if (g_strcmp0(short_name, "SIP") == 0) {
+    //     follow_action->setText(tr("SIP Call"));
+    // } else if (g_strcmp0(short_name, "USBCOM") == 0) {
+    //     follow_action->setText(tr("USB CDC Data"));
+    // }
+
+    connect(follow_action, &QAction::triggered, window,
+            [window, follow]() { window->openFollowStreamDialog(get_follow_proto_id(follow)); },
+            Qt::QueuedConnection);
     return FALSE;
 }
 
-void LograyMainWindow::initExportObjectsMenus()
+void LograyMainWindow::initFollowStreamMenus()
 {
-    eo_iterate_tables(addExportObjectsMenuItem, this);
+    /* This puts them all in the menus in alphabetical order.  */
+    follow_iterate_followers(addFollowStreamMenuItem, this);
 }
 
 // Titlebar
@@ -2363,7 +2388,7 @@ void LograyMainWindow::setTitlebarForCaptureFile()
 QString LograyMainWindow::replaceWindowTitleVariables(QString title)
 {
     title.replace("%P", get_profile_name());
-    title.replace("%V", get_ws_vcs_version_info());
+    title.replace("%V", get_lr_vcs_version_info());
 
 #ifdef HAVE_LIBPCAP
     if (global_commandline_info.capture_comments) {
@@ -2418,7 +2443,7 @@ QString LograyMainWindow::replaceWindowTitleVariables(QString title)
 void LograyMainWindow::setWSWindowTitle(QString title)
 {
     if (title.isEmpty()) {
-        title = tr("The Logray System Log Analyzer");
+        title = tr("The Logray System Call and Log Analyzer");
     }
 
     if (prefs.gui_prepend_window_title && prefs.gui_prepend_window_title[0]) {
@@ -2515,12 +2540,6 @@ void LograyMainWindow::setMenusForCaptureFile(bool force_disable)
     main_ui_->actionFileExportAsPSML->setEnabled(enable);
     main_ui_->actionFileExportAsJSON->setEnabled(enable);
 
-    main_ui_->actionFileExportPDU->setEnabled(enable);
-
-    foreach(QAction *eo_action, main_ui_->menuFileExportObjects->actions()) {
-        eo_action->setEnabled(enable);
-    }
-
     main_ui_->actionViewReload->setEnabled(enable);
 
 #ifdef HAVE_SOFTWARE_UPDATE
@@ -2542,12 +2561,6 @@ void LograyMainWindow::setMenusForCaptureInProgress(bool capture_in_progress) {
     main_ui_->actionFileExportAsPlainText->setEnabled(capture_in_progress);
     main_ui_->actionFileExportAsPSML->setEnabled(capture_in_progress);
     main_ui_->actionFileExportAsJSON->setEnabled(capture_in_progress);
-
-    main_ui_->actionFileExportPDU->setEnabled(!capture_in_progress);
-
-    foreach(QAction *eo_action, main_ui_->menuFileExportObjects->actions()) {
-        eo_action->setEnabled(capture_in_progress);
-    }
 
     main_ui_->menuFileSet->setEnabled(!capture_in_progress);
     main_ui_->actionFileQuit->setEnabled(true);

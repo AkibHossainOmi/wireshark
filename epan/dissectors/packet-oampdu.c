@@ -655,7 +655,7 @@ static const value_string dpoe_evt_code_vals[] = {
 #define DPOE_OBJ_CTX_MCAST_LOGICAL_LINK    0x0006
 #define DPOE_OBJ_CTX_RESERVED              0x0007
 
-/* As messages get implmented and verified, replace with defined codes from above. */
+/* As messages get implemented and verified, replace with defined codes from above. */
 static const value_string dpoe_variable_descriptor_vals[] = {
     { DPOE_LB_ONU_OBJ,                  "DPoE ONU Object" },
     { DPOE_LB_NETWORK_PORT_OBJ,         "Network Port Object" },
@@ -2750,7 +2750,7 @@ proto_register_oampdu(void)
 
         { &hf_oampdu_vendor_specific_dpoe_evt_raised,
             { "Raised", "oampdu.vendor.specific.dpoe.evt.raised",
-                FT_BOOLEAN, BASE_HEX, NULL,
+                FT_BOOLEAN, BASE_NONE, NULL,
                 0x0, NULL, HFILL }},
 
         { &hf_oampdu_vendor_specific_dpoe_evt_object_type,
@@ -2946,7 +2946,7 @@ proto_register_oampdu(void)
 
         { &hf_oam_dpoe_ll_fwd_state,
             { "Link State", "oampdu.link_state",
-                FT_BOOLEAN, BASE_DEC, NULL, 0x0,
+                FT_BOOLEAN, BASE_NONE, NULL, 0x0,
                 NULL, HFILL } },
 
         { &hf_oam_dpoe_s1_autoneg,

@@ -73,9 +73,15 @@ The following features are new (or have been significantly updated) since versio
   ** Added new display filter functions to test various IP address properties.
      Check the wireshark-filter(5) manpage for more information.
 
+  ** Display filter macros can be written with a semicolon after the macro
+     name before the argument list, e.g. `${mymacro;arg1;...;argN}`, instead
+     of `${mymacro:arg1;...;argN}`. The version with semicolons works better
+     with pop-up suggestions when editing the display filter, so the version
+     with the colon might be removed in the future.
+
   ** Display filter macros can be written using a function-like notation.
-     The macro `${mymacro:arg1; ...; argN}` can be written
-     $mymacro(arg1, ..., argN)`.
+     The macro `${mymacro:arg1;...;argN}` can be written
+     `$mymacro(arg1,...,argN)`.
 
 * Display filter functions can be implemented as libwireshark plugins. Plugins are loaded
   during startup from the usual binary plugin configuration directories. See the
@@ -114,25 +120,37 @@ The following features are new (or have been significantly updated) since versio
 * The binary plugins folder path no longer uses an X.Y version component. Plugins
   are required to add the ABI version to the file name.
 
+* Truncated fields in the detail view are now displayed as "Field name […]: data" instead of "Field name [truncated]: data"
+
+* When capturing files in multiple file mode, a pattern that places the date and time
+  before the index number can be used (e.g., foo_20240714110102_00001.pcap instead of
+  foo_00001_20240714110102.pcap). This causes filenames to sort in chronological order
+  across file sets from different captures. The File Set dialog has been updated to
+  handle the new pattern, which has been capable of being produced by tshark since
+  version 3.6.0
+
+* The "Follow Stream" dialog can now show delta times between turns and all packets and events.
+
 === Removed Features and Support
 
 * The tshark `-G` option with no argument is deprecated and will be removed in
   a future version. Use `tshark -G fields` to produce the same report.
 
-// === Removed Dissectors
+=== Removed Dissectors
+
+The Parlay dissector has been removed.
 
 //=== New File Format Decoding Support
 
 //[commaize]
 //--
-//RTPDump
 //--
 
 === New Protocol Support
 
 // Add one protocol per line between the -- delimiters in the format
 // “Full protocol name (Abbreviation)”
-// git log --oneline --diff-filter=A --stat v4.1.0rc0.. epan/dissectors plugins
+// git log --oneline --diff-filter=A --stat v4.3.0rc0.. epan/dissectors plugins
 [commaize]
 --
 MAC NR Framed (mac-nr-framed)
@@ -159,6 +177,10 @@ EGNOS Messager Server (EMS) files
 --
 
 // === New and Updated Capture Interfaces support
+[commaize]
+--
+u-blox GNSS receivers
+--
 
 //=== New and Updated Codec support
 

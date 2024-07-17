@@ -322,18 +322,18 @@ static hf_register_info fields[] = {
         FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
     {&hf_payload_fragment_overlap,
         {"Payload fragment overlap", "bpv7.payload.fragment.overlap",
-        FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+        FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
     {&hf_payload_fragment_overlap_conflicts,
         {"Payload fragment overlapping with conflicting data",
         "bpv7.payload.fragment.overlap.conflicts",
-        FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+        FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
     {&hf_payload_fragment_multiple_tails,
         {"Message has multiple tail fragments",
         "bpv7.payload.fragment.multiple_tails",
-        FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+        FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
     {&hf_payload_fragment_too_long_fragment,
         {"Payload fragment too long", "bpv7.payload.fragment.too_long_fragment",
-        FT_BOOLEAN, 0, NULL, 0x00, NULL, HFILL } },
+        FT_BOOLEAN, BASE_NONE, NULL, 0x00, NULL, HFILL } },
     {&hf_payload_fragment_error,
         {"Payload defragmentation error", "bpv7.payload.fragment.error",
         FT_FRAMENUM, BASE_NONE, NULL, 0x00, NULL, HFILL } },
@@ -2352,7 +2352,7 @@ void proto_register_bpv7(void) {
         &bundle_reassembly_table_functions
     );
 
-    btsd_heur = register_heur_dissector_list("bpv7.btsd", proto_bp);
+    btsd_heur = register_heur_dissector_list_with_description("bpv7.btsd", "BPv7 block data fallback", proto_bp);
 
     bp_tap = register_tap("bpv7");
     register_conversation_table(proto_bp, TRUE, bp_conv_packet, bp_endp_packet);

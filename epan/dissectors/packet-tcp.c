@@ -4647,9 +4647,6 @@ again:
                  *
                  * If "desegment_offset" is 0, then nothing in the reassembled
                  * TCP segments was dissected, so remove the data source.
-                 * XXX: We should also remove any layers that were added to
-                 * keep things consistent, because we won't call the
-                 * subdissector here on subsequent passes.
                  */
                 if (pinfo->desegment_offset == 0) {
                     if (reassemble_ooo && !PINFO_FD_VISITED(pinfo)) {
@@ -9895,7 +9892,7 @@ proto_register_tcp(void)
     /* subdissector code */
     subdissector_table = register_dissector_table("tcp.port",
         "TCP port", proto_tcp, FT_UINT16, BASE_DEC);
-    heur_subdissector_list = register_heur_dissector_list("tcp", proto_tcp);
+    heur_subdissector_list = register_heur_dissector_list_with_description("tcp", "TCP heuristic", proto_tcp);
     tcp_option_table = register_dissector_table("tcp.option",
         "TCP Options", proto_tcp, FT_UINT8, BASE_DEC);
 

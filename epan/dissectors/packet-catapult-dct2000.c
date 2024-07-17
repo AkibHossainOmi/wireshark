@@ -3824,7 +3824,7 @@ void proto_register_catapult_dct2000(void)
         },
         { &hf_catapult_dct2000_lte_ccpri_status,
             { "Status",
-              "dct2000.lte.ccpri.status", FT_BOOLEAN, 8, TFS(&tfs_error_ok), 0x0,
+              "dct2000.lte.ccpri.status", FT_BOOLEAN, BASE_NONE, TFS(&tfs_error_ok), 0x0,
               NULL, HFILL
             }
         },
@@ -3916,7 +3916,7 @@ void proto_register_catapult_dct2000(void)
         },
         { &hf_catapult_dct2000_tx_priority,
             { "Tx Priority",
-              "dct2000.tx-priority", FT_BOOLEAN, 8, TFS(&tfs_high_normal), 0x0,
+              "dct2000.tx-priority", FT_BOOLEAN, BASE_NONE, TFS(&tfs_high_normal), 0x0,
               NULL, HFILL
             }
         },
@@ -4048,7 +4048,7 @@ void proto_register_catapult_dct2000(void)
                                    "they may be matched with wireshark dissectors.",
                                    &catapult_dct2000_dissect_old_protocol_names);
 
-    /* Determines if the protocol field in the DCT2000 shall be used to lookup for disector*/
+    /* Determines if the protocol field in the DCT2000 shall be used to lookup for dissector */
     prefs_register_bool_preference(catapult_dct2000_module, "use_protocol_name_as_dissector_name",
                                    "Look for a dissector using the protocol name in the "
                                    "DCT2000 record",

@@ -21,7 +21,7 @@
 
 #define ENUM(arg) { #arg, arg }
 
-static ws_enum_t all_enums[] = {
+static ws_enum_t const all_enums[] = {
     ENUM(ABSOLUTE_TIME_DOY_UTC),
     ENUM(ABSOLUTE_TIME_LOCAL),
     ENUM(ABSOLUTE_TIME_NTP_UTC),
@@ -254,6 +254,7 @@ static ws_enum_t all_enums[] = {
     ENUM(HF_REF_TYPE_DIRECT),
     ENUM(HF_REF_TYPE_INDIRECT),
     ENUM(HF_REF_TYPE_NONE),
+    ENUM(HF_REF_TYPE_PRINT),
     ENUM(IP_PROTO_3PC),
     ENUM(IP_PROTO_AH),
     ENUM(IP_PROTO_AN),
@@ -408,10 +409,12 @@ static ws_enum_t all_enums[] = {
     ENUM(PI_DEPRECATED),
     ENUM(PI_ERROR),
     ENUM(PI_GROUP_MASK),
+    ENUM(PI_INTERFACE),
     ENUM(PI_MALFORMED),
     ENUM(PI_NOTE),
     ENUM(PI_PROTOCOL),
     ENUM(PI_REASSEMBLE),
+    ENUM(PI_RECEIVE),
     ENUM(PI_REQUEST_CODE),
     ENUM(PI_RESPONSE_CODE),
     ENUM(PI_SECURITY),

@@ -67,7 +67,8 @@ extern gint ett_opcua_array_Variant;
 extern gint ett_opcua_returnDiagnostics;
 
 enum ua_message_mode {
-    UA_MessageMode_None = 0,
+    UA_MessageMode_Unknown = 0,
+    UA_MessageMode_None,
     UA_MessageMode_Sign,
     UA_MessageMode_SignAndEncrypt,
     UA_MessageMode_MaybeEncrypted
@@ -98,6 +99,7 @@ void parseNodeId(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, gint *pOff
 void parseDiagnosticInfo(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, gint *pOffset, const char *szFieldName);
 void parseExtensionObject(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, gint *pOffset, const char *szFieldName);
 void parseQualifiedName(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, gint *pOffset, const char *szFieldName);
+void parseCertificate(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, gint *pOffset, int hfIndex);
 void parseDataValue(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, gint *pOffset, const char *szFieldName);
 void parseVariant(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, gint *pOffset, const char *szFieldName);
 void parseExpandedNodeId(proto_tree *tree, tvbuff_t *tvb, packet_info *pinfo, gint *pOffset, const char *szFieldName);

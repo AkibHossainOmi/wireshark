@@ -8903,7 +8903,7 @@ proto_register_zbee_zcl_tun(void)
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_tun_flow_control_support,
-            { "Flow Control Supported", "zbee_zcl_se.tun.flow_control_supported", FT_BOOLEAN, 8, NULL,
+            { "Flow Control Supported", "zbee_zcl_se.tun.flow_control_supported", FT_BOOLEAN, BASE_NONE, NULL,
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_tun_max_in_size,
@@ -8935,7 +8935,7 @@ proto_register_zbee_zcl_tun(void)
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_tun_protocol_list_complete,
-            { "List Complete", "zbee_zcl_se.tun.protocol_list_complete", FT_BOOLEAN, 8, NULL,
+            { "List Complete", "zbee_zcl_se.tun.protocol_list_complete", FT_BOOLEAN, BASE_NONE, NULL,
             0x00, NULL, HFILL } },
 
     };
@@ -8951,7 +8951,7 @@ proto_register_zbee_zcl_tun(void)
     proto_register_subtree_array(ett, array_length(ett));
 
     /* Make heuristic dissectors possible */
-    zbee_zcl_tun_heur_subdissector_list = register_heur_dissector_list(ZBEE_PROTOABBREV_ZCL_TUN, proto_zbee_zcl_tun);
+    zbee_zcl_tun_heur_subdissector_list = register_heur_dissector_list_with_description(ZBEE_PROTOABBREV_ZCL_TUN, "ZigBee Transfer Data", proto_zbee_zcl_tun);
 
     /* Register the ZigBee ZCL Tunneling dissector. */
     register_dissector(ZBEE_PROTOABBREV_ZCL_TUN, dissect_zbee_zcl_tun, proto_zbee_zcl_tun);
@@ -11988,7 +11988,7 @@ proto_register_zbee_zcl_calendar(void)
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_calendar_schedule_entry_friendly_credit_enable,
-          { "Friendly Credit Enable", "zbee_zcl_se.calendar.schedule_entry.friendly_credit_enable", FT_BOOLEAN, 8, TFS(&tfs_enabled_disabled),
+          { "Friendly Credit Enable", "zbee_zcl_se.calendar.schedule_entry.friendly_credit_enable", FT_BOOLEAN, BASE_NONE, TFS(&tfs_enabled_disabled),
             0x00, NULL, HFILL } },
 
         { &hf_zbee_zcl_calendar_schedule_entry_auxiliary_load_switch_state,

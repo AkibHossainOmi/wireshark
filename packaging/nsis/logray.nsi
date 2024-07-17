@@ -54,6 +54,7 @@ Icon "${TOP_SRC_DIR}\resources\icons\lograyinst.ico"
 ;!addplugindir ".\Plugins"
 
 !define MUI_ICON "${TOP_SRC_DIR}\resources\icons\lograyinst.ico"
+!define MUI_UNICON "${TOP_SRC_DIR}\resources\icons\lograyinst.ico"
 BrandingText "Logray${U+00ae} Installer"
 
 !define MUI_COMPONENTSPAGE_SMALLDESC
@@ -109,6 +110,7 @@ Page custom DisplayAdditionalTasksPage LeaveAdditionalTasksPage
   ; Old Modern 1 UI: https://nsis.sourceforge.io/Docs/Modern%20UI/Readme.html
   ; To do: Upgrade to the Modern 2 UI:
   ;ReserveFile "AdditionalTasksPage.ini"
+  ;ReserveFile "DonatePage.ini"
   ReserveFile /plugin InstallOptions.dll
 
   ; Modern UI 2 / nsDialog pages.
@@ -242,7 +244,7 @@ Var OLD_INSTDIR
 Var OLD_DISPLAYNAME
 Var TMP_UNINSTALLER
 
-; WiX
+; WiX - XXX - Remove?
 Var REGISTRY_BITS
 Var TMP_PRODUCT_GUID
 Var WIX_DISPLAYNAME
@@ -250,11 +252,11 @@ Var WIX_DISPLAYVERSION
 Var WIX_UNINSTALLSTRING
 
 ; ============================================================================
-; 64-bit support
+; Platform and OS version checks
 ; ============================================================================
-!include x64.nsh
 
-!include "GetWindowsVersion.nsh"
+!include x64.nsh
+!include WinVer.nsh
 !include WinMessages.nsh
 
 Function .onInit
@@ -266,8 +268,12 @@ Function .onInit
     ${EndIf}
   !endif
 
-  ; Get the Windows version
-  ${GetWindowsVersion} $R0
+  !if ${WIRESHARK_TARGET_PLATFORM} == "arm64"
+    ${IfNot} ${IsNativeARM64}
+      MessageBox MB_OK "You're trying to install the Arm64 version of Logray on an x64 system.$\nTry the native x64 installer instead." /SD IDOK
+      Abort
+    ${EndIf}
+  !endif
 
   ; This should match the following:
   ; - The NTDDI_VERSION and _WIN32_WINNT parts of cmakeconfig.h.in
@@ -277,25 +283,13 @@ Function .onInit
   ; Uncomment to test.
   ; MessageBox MB_OK "You're running Windows $R0."
 
-  ; Check if we're able to run with this version
-  StrCmp $R0 '95' lbl_winversion_unsupported
-  StrCmp $R0 '98' lbl_winversion_unsupported
-  StrCmp $R0 'ME' lbl_winversion_unsupported
-  StrCmp $R0 'NT 4.0' lbl_winversion_unsupported
-  StrCmp $R0 '2000' lbl_winversion_unsupported
-  StrCmp $R0 'XP' lbl_winversion_unsupported
-  StrCmp $R0 '2003' lbl_winversion_unsupported
-  StrCmp $R0 'Vista' lbl_winversion_unsupported
-  StrCmp $R0 '2008' lbl_winversion_unsupported
-  Goto lbl_winversion_supported
-
-lbl_winversion_unsupported:
+${If} ${AtMostWin8.1}
+${OrIf} ${AtMostWin2012R2}
   MessageBox MB_OK \
-    "Windows $R0 is not supported." \
-    /SD IDOK
+    "Windows 10, Server 2016, and later are required." /SD IDOK
   Quit
+${EndIf}
 
-lbl_winversion_supported:
 !insertmacro IsLograyRunning
 
   ; Default control values.
@@ -427,6 +421,11 @@ Function DisplayAdditionalTasksPage
 FunctionEnd
 !endif
 
+; Function DisplayDonatePage
+;   !insertmacro MUI_HEADER_TEXT "Your donations keep these releases coming" "Donate today"
+;   !insertmacro INSTALLOPTIONS_DISPLAY "DonatePage.ini"
+; FunctionEnd
+
 ; ============================================================================
 ; Installation execution commands
 ; ============================================================================
@@ -440,7 +439,7 @@ Section "-Required"
 SetShellVarContext all
 
 SetOutPath $INSTDIR
-File "${STAGING_DIR}\${UNINSTALLER_NAME}"
+WriteUninstaller "$INSTDIR\${UNINSTALLER_NAME}"
 File "${STAGING_DIR}\libwiretap.dll"
 File "${STAGING_DIR}\libwireshark.dll"
 File "${STAGING_DIR}\libwsutil.dll"
@@ -450,7 +449,6 @@ File "${STAGING_DIR}\libwsutil.dll"
 File "${STAGING_DIR}\COPYING.txt"
 File "${STAGING_DIR}\NEWS.txt"
 File "${STAGING_DIR}\README.txt"
-File "${STAGING_DIR}\README.windows.txt"
 File "${STAGING_DIR}\wka"
 File "${STAGING_DIR}\pdml2html.xsl"
 File "${STAGING_DIR}\ws.css"
@@ -495,19 +493,11 @@ ${EndSwitch}
 Delete "$INSTDIR\${VCREDIST_EXE}"
 
 
-; global config files - don't overwrite if already existing
-;IfFileExists cfilters dont_overwrite_cfilters
-File "${STAGING_DIR}\cfilters"
-;dont_overwrite_cfilters:
-;IfFileExists colorfilters dont_overwrite_colorfilters
-File "${STAGING_DIR}\colorfilters"
-;dont_overwrite_colorfilters:
-;IfFileExists dfilters dont_overwrite_dfilters
-File "${STAGING_DIR}\dfilters"
-;dont_overwrite_dfilters:
-;IfFileExists smi_modules dont_overwrite_smi_modules
+; Global config files
+File "${TOP_SRC_DIR}\resources\share\logray\colorfilters"
+File "${TOP_SRC_DIR}\resources\share\logray\dfilter_buttons"
+;File "${TOP_SRC_DIR}\resources\share\logray\dfilters"
 File "${STAGING_DIR}\smi_modules"
-;dont_overwrite_smi_modules:
 
 
 ;
@@ -544,6 +534,7 @@ File "${STAGING_DIR}\diameter\sunping.xml"
 File "${STAGING_DIR}\diameter\Telefonica.xml"
 File "${STAGING_DIR}\diameter\TGPP.xml"
 File "${STAGING_DIR}\diameter\TGPP2.xml"
+File "${STAGING_DIR}\diameter\Travelping.xml"
 File "${STAGING_DIR}\diameter\Vodafone.xml"
 File "${STAGING_DIR}\diameter\VerizonWireless.xml"
 !include "custom_diameter_xmls.txt"
@@ -886,43 +877,35 @@ File "${STAGING_DIR}\tshark.exe"
 File "${STAGING_DIR}\tshark.html"
 SectionEnd
 
-SectionGroup "Plugins & Extensions" SecPluginsGroup
+Section "-Plugins & Extensions"
 
-Section "Dissector Plugins" SecPlugins
 ;-------------------------------------------
 SetOutPath '$INSTDIR\plugins\epan'
 File "${STAGING_DIR}\plugins\epan\falco-bridge.dll.${ABI_VERSION_EPAN}"
 SetOutPath '$INSTDIR\plugins\falco'
-File "${STAGING_DIR}\plugins\falco\cloudtrail.dll.${ABI_VERSION_EPAN}"
+File "${STAGING_DIR}\plugins\falco\cloudtrail.dll"
 !include "custom_plugins.txt"
-SectionEnd
 
-Section "Tree Statistics Plugin" SecStatsTree
 ;-------------------------------------------
 SetOutPath '$INSTDIR\plugins\epan'
 File "${STAGING_DIR}\plugins\epan\stats_tree.dll.${ABI_VERSION_EPAN}"
-SectionEnd
 
-Section "Mate - Meta Analysis and Tracing Engine" SecMate
 ;-------------------------------------------
 SetOutPath '$INSTDIR\plugins\epan'
 File "${STAGING_DIR}\plugins\epan\mate.dll.${ABI_VERSION_EPAN}"
-SectionEnd
 
-Section "Configuration Profiles" SecProfiles
 ;-------------------------------------------
 ; This should be a function or macro
-SetOutPath '$INSTDIR\profiles\Bluetooth'
-File "${STAGING_DIR}\profiles\Bluetooth\colorfilters"
-File "${STAGING_DIR}\profiles\Bluetooth\preferences"
-SetOutPath '$INSTDIR\profiles\Classic'
-File "${STAGING_DIR}\profiles\Classic\colorfilters"
-SetOutPath '$INSTDIR\profiles\No Reassembly'
-File "${STAGING_DIR}\profiles\No Reassembly\preferences"
-SectionEnd
+SetOutPath '$INSTDIR\profiles\CloudTrail'
+File "${TOP_SRC_DIR}\resources\share\logray\profiles\CloudTrail\colorfilters"
+; File "${TOP_SRC_DIR}\resources\share\logray\profiles\CloudTrail\preferences"
+; SetOutPath '$INSTDIR\profiles\Classic'
+; File "${TOP_SRC_DIR}\resources\share\logray\profiles\Classic\colorfilters"
+; SetOutPath '$INSTDIR\profiles\No Reassembly'
+; File "${TOP_SRC_DIR}\resources\share\logray\profiles\No Reassembly\preferences"
+
 
 !ifdef SMI_DIR
-Section "SNMP MIBs" SecMIBs
 ;-------------------------------------------
 SetOutPath '$INSTDIR\snmp\mibs'
 File "${SMI_DIR}\share\mibs\iana\*"
@@ -932,80 +915,66 @@ File "${SMI_DIR}\share\mibs\tubs\*"
 File "${SMI_DIR}\share\pibs\*"
 File "${SMI_DIR}\share\yang\*.yang"
 !include "custom_mibs.txt"
-SectionEnd
 !endif
 
-SectionGroupEnd ; "Plugins / Extensions"
+SetOutPath '$INSTDIR\plugins\epan'
+File "${STAGING_DIR}\plugins\epan\transum.dll.${ABI_VERSION_EPAN}"
 
+SetOutPath '$INSTDIR\plugins\epan'
+File "${STAGING_DIR}\plugins\epan\stats_tree.dll.${ABI_VERSION_EPAN}"
 
-SectionGroup "Tools" SecToolsGroup
+SectionEnd ; "Plugins / Extensions"
 
-Section "Editcap" SecEditcap
-;-------------------------------------------
-SetOutPath $INSTDIR
-File "${STAGING_DIR}\editcap.exe"
-File "${STAGING_DIR}\editcap.html"
-SectionEnd
+Section "-Additional command line tools"
 
-Section "Text2Pcap" SecText2Pcap
-;-------------------------------------------
-SetOutPath $INSTDIR
-File "${STAGING_DIR}\text2pcap.exe"
-File "${STAGING_DIR}\text2pcap.html"
-SectionEnd
-
-Section "Mergecap" SecMergecap
-;-------------------------------------------
-SetOutPath $INSTDIR
-File "${STAGING_DIR}\mergecap.exe"
-File "${STAGING_DIR}\mergecap.html"
-SectionEnd
-
-Section "Reordercap" SecReordercap
-;-------------------------------------------
-SetOutPath $INSTDIR
-File "${STAGING_DIR}\reordercap.exe"
-File "${STAGING_DIR}\reordercap.html"
-SectionEnd
-
-Section "Capinfos" SecCapinfos
-;-------------------------------------------
 SetOutPath $INSTDIR
 File "${STAGING_DIR}\capinfos.exe"
 File "${STAGING_DIR}\capinfos.html"
-SectionEnd
 
-Section "Captype" SecCaptype
-;-------------------------------------------
-SetOutPath $INSTDIR
 File "${STAGING_DIR}\captype.exe"
 File "${STAGING_DIR}\captype.html"
-SectionEnd
 
-Section /o "Randpkt" SecRandpkt
-;-------------------------------------------
-SetOutPath $INSTDIR
-File "${STAGING_DIR}\randpkt.exe"
-File "${STAGING_DIR}\randpkt.html"
-SectionEnd
+File "${STAGING_DIR}\editcap.exe"
+File "${STAGING_DIR}\editcap.html"
+
+File "${STAGING_DIR}\mergecap.exe"
+File "${STAGING_DIR}\mergecap.html"
 
 !ifdef MMDBRESOLVE_EXE
-Section "MMDBResolve" SecMMDBResolve
-;-------------------------------------------
-SetOutPath $INSTDIR
 File "${STAGING_DIR}\mmdbresolve.html"
-SetOutPath $INSTDIR
 File "${STAGING_DIR}\mmdbresolve.exe"
-SectionEnd
 !endif
 
-Section /o "Etwdump" SecEtwdump
-;-------------------------------------------
-  !insertmacro InstallExtcap "Etwdump"
-SectionEnd
-!insertmacro CheckExtrasFlag "Etwdump"
+File "${STAGING_DIR}\randpkt.exe"
+File "${STAGING_DIR}\randpkt.html"
 
-SectionGroupEnd ; "Tools"
+File "${STAGING_DIR}\rawshark.exe"
+File "${STAGING_DIR}\rawshark.html"
+
+File "${STAGING_DIR}\reordercap.exe"
+File "${STAGING_DIR}\reordercap.html"
+
+File "${STAGING_DIR}\sharkd.exe"
+;File "${STAGING_DIR}\sharkd.html"
+
+File "${STAGING_DIR}\text2pcap.exe"
+File "${STAGING_DIR}\text2pcap.html"
+
+SectionEnd ; "Tools"
+
+SectionGroup /e "External capture tools (extcap)" SecExtcapGroup
+
+Section "Falcodump" SecFalcodump
+;-------------------------------------------
+  !insertmacro InstallExtcap "falcodump"
+SectionEnd
+!insertmacro CheckExtrasFlag "falcodump"
+
+SectionGroupEnd ; "External Capture (extcap)"
+
+Section "-Clear Partial Selected"
+!insertmacro ClearSectionFlag ${SecExtcapGroup} ${SF_PSELECTED}
+SectionEnd
 
 !ifdef DOCBOOK_DIR
 !ifdef DOC_DIR
@@ -1032,39 +1001,263 @@ WriteRegDWORD HKEY_LOCAL_MACHINE "${UNINSTALL_PATH}" "EstimatedSize" "$0"
 SectionEnd
 
 ; ============================================================================
+; Section macros
+; ============================================================================
+!include "Sections.nsh"
+
+; ============================================================================
+; Uninstall page configuration
+; ============================================================================
+ShowUninstDetails show
+
+; ============================================================================
+; Functions and macros
+; ============================================================================
+
+Function un.Disassociate
+  Push $R0
+!insertmacro PushFileExtensions
+
+  Pop $EXTENSION
+  ${DoUntil} $EXTENSION == ${FILE_EXTENSION_MARKER}
+    ReadRegStr $R0 HKCR $EXTENSION ""
+    StrCmp $R0 ${LOGRAY_ASSOC} un.Disassociate.doDeregister
+    Goto un.Disassociate.end
+un.Disassociate.doDeregister:
+    ; The extension is associated with Logray so, we must destroy this!
+    DeleteRegKey HKCR $EXTENSION
+    DetailPrint "Deregistered file type: $EXTENSION"
+un.Disassociate.end:
+    Pop $EXTENSION
+  ${Loop}
+
+  Pop $R0
+FunctionEnd
+
+Section "-Required"
+SectionEnd
+
+!define EXECUTABLE_MARKER "EXECUTABLE_MARKER"
+Var EXECUTABLE
+
+Section "Uninstall" un.SecUinstall
+;-------------------------------------------
+;
+; UnInstall for every user
+;
+SectionIn 1 2
+SetShellVarContext all
+
+!insertmacro IsLograyRunning
+
+Push "${EXECUTABLE_MARKER}"
+Push "${PROGRAM_NAME}"
+Push "capinfos"
+Push "captype"
+Push "dftest"
+Push "dumpcap"
+Push "editcap"
+Push "mergecap"
+Push "randpkt"
+Push "rawshark"
+Push "reordercap"
+Push "sharkd"
+Push "text2pcap"
+Push "tshark"
+
+!ifdef MMDBRESOLVE_EXE
+Push "mmdbresolve"
+!endif
+
+Pop $EXECUTABLE
+${DoUntil} $EXECUTABLE == ${EXECUTABLE_MARKER}
+
+  ; IsLograyRunning should make sure everything is closed down so we *shouldn't* run
+  ; into any problems here.
+  Delete "$INSTDIR\$EXECUTABLE.exe"
+  IfErrors 0 deletionSuccess
+    MessageBox MB_OK "$EXECUTABLE.exe could not be removed. Is it in use?" /SD IDOK IDOK 0
+    Abort "$EXECUTABLE.exe could not be removed. Aborting the uninstall process."
+
+deletionSuccess:
+  Pop $EXECUTABLE
+
+${Loop}
+
+
+DeleteRegKey HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PROGRAM_NAME}"
+DeleteRegKey HKEY_LOCAL_MACHINE "Software\${PROGRAM_NAME}"
+DeleteRegKey HKEY_LOCAL_MACHINE "Software\Microsoft\Windows\CurrentVersion\App Paths\${PROGRAM_NAME}.exe"
+
+Call un.Disassociate
+
+DeleteRegKey HKCR ${LOGRAY_ASSOC}
+DeleteRegKey HKCR "${LOGRAY_ASSOC}\Shell\open\command"
+DeleteRegKey HKCR "${LOGRAY_ASSOC}\DefaultIcon"
+
+Delete "$INSTDIR\*.dll"
+Delete "$INSTDIR\*.exe"
+Delete "$INSTDIR\*.html"
+Delete "$INSTDIR\*.qm"
+Delete "$INSTDIR\accessible\*.*"
+Delete "$INSTDIR\AUTHORS-SHORT"
+Delete "$INSTDIR\COPYING*"
+Delete "$INSTDIR\audio\*.*"
+Delete "$INSTDIR\bearer\*.*"
+Delete "$INSTDIR\diameter\*.*"
+Delete "$INSTDIR\extcap\falcodump.*"
+Delete "$INSTDIR\gpl-2.0-standalone.html"
+Delete "$INSTDIR\Acknowledgements.md"
+Delete "$INSTDIR\generic\*.*"
+Delete "$INSTDIR\help\*.*"
+Delete "$INSTDIR\iconengines\*.*"
+Delete "$INSTDIR\imageformats\*.*"
+Delete "$INSTDIR\mediaservice\*.*"
+Delete "$INSTDIR\multimedia\*.*"
+Delete "$INSTDIR\networkinformation\*.*"
+Delete "$INSTDIR\platforms\*.*"
+Delete "$INSTDIR\playlistformats\*.*"
+Delete "$INSTDIR\printsupport\*.*"
+Delete "$INSTDIR\share\glib-2.0\schemas\*.*"
+Delete "$INSTDIR\snmp\*.*"
+Delete "$INSTDIR\snmp\mibs\*.*"
+Delete "$INSTDIR\styles\translations\*.*"
+Delete "$INSTDIR\styles\*.*"
+Delete "$INSTDIR\protobuf\*.*"
+Delete "$INSTDIR\tls\*.*"
+Delete "$INSTDIR\tpncp\*.*"
+Delete "$INSTDIR\translations\*.*"
+Delete "$INSTDIR\ui\*.*"
+Delete "$INSTDIR\wimaxasncp\*.*"
+Delete "$INSTDIR\ws.css"
+; previous versions installed these files
+Delete "$INSTDIR\*.manifest"
+; previous versions installed this file
+Delete "$INSTDIR\AUTHORS-SHORT-FORMAT"
+Delete "$INSTDIR\README*"
+Delete "$INSTDIR\NEWS.txt"
+Delete "$INSTDIR\manuf"
+Delete "$INSTDIR\wka"
+Delete "$INSTDIR\services"
+Delete "$INSTDIR\pdml2html.xsl"
+Delete "$INSTDIR\pcrepattern.3.txt"
+Delete "$INSTDIR\example_snmp_users_file"
+Delete "$INSTDIR\ipmap.html"
+Delete "$INSTDIR\radius\*.*"
+Delete "$INSTDIR\dtds\*.*"
+Delete "$INSTDIR\browser_sslkeylog.lua"
+Delete "$INSTDIR\console.lua"
+Delete "$INSTDIR\dtd_gen.lua"
+Delete "$INSTDIR\init.lua"
+Delete "$INSTDIR\release-notes.html"
+
+RMDir "$INSTDIR\accessible"
+RMDir "$INSTDIR\audio"
+RMDir "$INSTDIR\bearer"
+RMDir "$INSTDIR\extcap"
+RMDir "$INSTDIR\iconengines"
+RMDir "$INSTDIR\imageformats"
+RMDir "$INSTDIR\mediaservice"
+RMDir "$INSTDIR\multimedia"
+RMDir "$INSTDIR\networkinformation"
+RMDir "$INSTDIR\platforms"
+RMDir "$INSTDIR\playlistformats"
+RMDir "$INSTDIR\printsupport"
+RMDir "$INSTDIR\styles\translations"
+RMDir "$INSTDIR\styles"
+RMDir "$SMPROGRAMS\${PROGRAM_NAME}"
+RMDir "$INSTDIR\help"
+RMDir "$INSTDIR\generic"
+RMDir /r "$INSTDIR\Wireshark User's Guide"
+RMDir "$INSTDIR\diameter"
+RMDir "$INSTDIR\snmp\mibs"
+RMDir "$INSTDIR\snmp"
+RMDir "$INSTDIR\radius"
+RMDir "$INSTDIR\dtds"
+RMDir "$INSTDIR\protobuf"
+RMDir "$INSTDIR\tls"
+RMDir "$INSTDIR\tpncp"
+RMDir "$INSTDIR\translations"
+RMDir "$INSTDIR\ui"
+RMDir "$INSTDIR\wimaxasncp"
+RMDir "$INSTDIR"
+
+SectionEnd ; "Uinstall"
+
+Section "Un.Plugins" un.SecPlugins
+;-------------------------------------------
+SectionIn 1 2
+;Delete "$INSTDIR\plugins\${VERSION}\*.*"
+;Delete "$INSTDIR\plugins\*.*"
+;RMDir "$INSTDIR\plugins\${VERSION}"
+;RMDir "$INSTDIR\plugins"
+RMDir /r "$INSTDIR\plugins"
+SectionEnd
+
+Section "Un.Global Profiles" un.SecProfiles
+;-------------------------------------------
+SectionIn 1 2
+RMDir /r "$INSTDIR\profiles"
+SectionEnd
+
+Section "Un.Global Settings" un.SecGlobalSettings
+;-------------------------------------------
+SectionIn 1 2
+Delete "$INSTDIR\colorfilters"
+Delete "$INSTDIR\dfilter_buttons"
+Delete "$INSTDIR\dfilters"
+Delete "$INSTDIR\smi_modules"
+RMDir "$INSTDIR"
+SectionEnd
+
+Section /o "Un.Personal Settings" un.SecPersonalSettings
+;-------------------------------------------
+SectionIn 2
+SetShellVarContext current
+Delete "$APPDATA\${PROGRAM_NAME}\*.*"
+RMDir "$APPDATA\${PROGRAM_NAME}"
+DeleteRegKey HKCU "Software\${PROGRAM_NAME}"
+SectionEnd
+
+Section "-Un.Finally"
+;-------------------------------------------
+SectionIn 1 2
+
+!insertmacro UpdateIcons
+
+; this test must be done after all other things uninstalled (e.g. Global Settings)
+IfFileExists "$INSTDIR" 0 NoFinalErrorMsg
+    MessageBox MB_OK "Unable to remove $INSTDIR." /SD IDOK IDOK 0 ; skipped if dir doesn't exist
+NoFinalErrorMsg:
+SectionEnd
+
+; Sign our installer and uninstaller during compilation.
+!ifdef ENABLE_SIGNED_NSIS
+!finalize 'sign-logray.bat "%1"' = 0 ; %1 is replaced by the installer exe to be signed.
+!uninstfinalize 'sign-logray.bat "%1"' = 0 ; %1 is replaced by the uninstaller exe to be signed.
+!endif
+
+; ============================================================================
 ; PLEASE MAKE SURE, THAT THE DESCRIPTIVE TEXT FITS INTO THE DESCRIPTION FIELD!
 ; ============================================================================
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
 !ifdef QT_DIR
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecLograyQt} "The main network protocol analyzer application."
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecLograyQt} "The main syscall and log analyzer application."
 !endif
   !insertmacro MUI_DESCRIPTION_TEXT ${SecTShark} "Text based network protocol analyzer."
 
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecPluginsGroup} "Plugins and extensions for both ${PROGRAM_NAME} and TShark."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecPlugins} "Additional protocol dissectors."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecStatsTree} "Extended statistics."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecMate} "Plugin - Meta Analysis and Tracing Engine (Experimental)."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecProfiles} "Configuration profiles"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecExtcapGroup} "External Capture Interfaces"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecFalcodump} "Provide capture interfaces from Falco plugins."
 
-!ifdef SMI_DIR
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecMIBs} "SNMP MIBs for better SNMP dissection."
-!endif
-
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecToolsGroup} "Additional command line based tools."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecEtwdump} "Provide ETW reader"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecEditCap} "Copy packets to a new file, optionally trimming packets, omitting them, or saving to a different format."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecText2Pcap} "Read an ASCII hex dump and write the data into a libpcap-style capture file."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecMergecap} "Combine multiple saved capture files into a single output file"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecReordercap} "Copy packets to a new file, sorted by time."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecCapinfos} "Print information about capture files."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecCaptype} "Print the types capture files."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecRandpkt} "Random packet generator."
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecMMDBResolve} "MaxMind Database resolution tool"
-
-!ifdef DOC_DIR
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecDocumentation} "Install an offline copy of the User's Guide and FAQ."
-!endif
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
+
+!insertmacro MUI_UNFUNCTION_DESCRIPTION_BEGIN
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecUinstall} "Uninstall all ${PROGRAM_NAME} components."
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecPlugins} "Uninstall all Plugins (even from previous ${PROGRAM_NAME} versions)."
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecProfiles} "Uninstall all global configuration profiles."
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecGlobalSettings} "Uninstall global settings like: $INSTDIR\colorfilters"
+  !insertmacro MUI_DESCRIPTION_TEXT ${un.SecPersonalSettings} "Uninstall personal settings like your preferences file from your profile: $PROFILE."
+!insertmacro MUI_UNFUNCTION_DESCRIPTION_END
 
 ; ============================================================================
 ; Callback functions

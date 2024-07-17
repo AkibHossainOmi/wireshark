@@ -685,13 +685,13 @@ protobuf_dissect_field_value(proto_tree *value_tree, tvbuff_t *tvb, guint offset
 
     case PROTOBUF_TYPE_BOOL:
         if (length > 1) break; /* boolean should not use more than one bytes */
-        proto_tree_add_boolean(value_tree, hf_protobuf_value_bool, tvb, offset, length, (guint32)value);
+        proto_tree_add_boolean(value_tree, hf_protobuf_value_bool, tvb, offset, length, value);
         proto_item_append_text(ti_field, "%s %s", prepend_text, value ? "true" : "false");
         if (is_top_level) {
             col_append_fstr(pinfo->cinfo, COL_INFO, "=%s", value ? "true" : "false");
         }
         if (hf_id_ptr) {
-            proto_tree_add_boolean(pbf_tree, *hf_id_ptr, tvb, offset, length, (guint32)value);
+            proto_tree_add_boolean(pbf_tree, *hf_id_ptr, tvb, offset, length, value);
         }
         if (field_desc && dumper) {
             json_dumper_value_anyf(dumper, value ? "true" : "false");
@@ -2092,7 +2092,7 @@ proto_register_protobuf(void)
         },
         { &hf_protobuf_value_bool,
             { "Bool", "protobuf.field.value.bool",
-               FT_BOOLEAN, BASE_DEC, NULL, 0x0,
+               FT_BOOLEAN, BASE_NONE, NULL, 0x0,
               "Dissect value as bool", HFILL }
         },
         { &hf_protobuf_value_string,

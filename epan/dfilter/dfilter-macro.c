@@ -92,13 +92,16 @@ static bool start_is_field_reference(const char *start)
 	char saved_c;
 	const header_field_info *hfinfo;
 
-	end = strchr(start, '#');
-	if (end == NULL)
-		end = strchr(start, '}');
+	end = strpbrk(start, "#}:;");
 	if (end == NULL)
 		return false;
 
 	saved_c = *end;
+	if (saved_c == ';' || saved_c == ':') {
+		/* Cannot be a field, looks like macro. */
+		return false;
+	}
+
 	/* This violates constness but we will restore the original string. */
 	*(char *)end = '\0';
 	/* Search for name in registered fields. */
@@ -166,7 +169,7 @@ static char* dfilter_macro_apply_recurse(const char* text, unsigned depth, df_er
 		open_c = 0; \
 	} while(0)
 
-#define NAME_PARENS_CHAR(c) (g_ascii_isalnum(c) || (c) == '_')
+#define MACRO_NAME_CHAR(c) (g_ascii_isalnum(c) || (c) == '_')
 
 	if (error != NULL)
 		*error = NULL;
@@ -215,7 +218,7 @@ static char* dfilter_macro_apply_recurse(const char* text, unsigned depth, df_er
 
 						goto finish;
 					default:
-						if (NAME_PARENS_CHAR(c)) {
+						if (MACRO_NAME_CHAR(c)) {
 							/* Possible macro of the form $macro_name() */
 							args = g_ptr_array_new();
 							arg = g_string_sized_new(32);
@@ -236,9 +239,13 @@ static char* dfilter_macro_apply_recurse(const char* text, unsigned depth, df_er
 			}
 			case NAME:
 			{
-				if ( g_ascii_isalnum(c) || c == '_' || c == '-' || c == '.' ) {
+				if (MACRO_NAME_CHAR(c)) {
 					g_string_append_c(name,c);
-				} else if ( c == ':') {
+				} else if ( c == ':' || c == ';' ) {
+					/* XXX - The traditional form with ':' makes for a more
+					 * complicated grammar because ':' is found inside
+					 * literals and args can be literals. (See #19499)
+					 */
 					state = ARGS;
 				} else if ( c == '}') {
 					g_ptr_array_add(args,NULL);
@@ -260,6 +267,9 @@ static char* dfilter_macro_apply_recurse(const char* text, unsigned depth, df_er
 						*error = df_error_new_msg("end of filter in the middle of a macro expression");
 					goto on_error;
 				} else {
+					/* XXX - Spaces or other whitespace after the macro name but
+					 * before the ':' or ';' are not allowed. Should it be?
+					 */
 					if (error != NULL)
 						*error = df_error_new_msg("invalid character in macro name");
 					goto on_error;
@@ -268,7 +278,7 @@ static char* dfilter_macro_apply_recurse(const char* text, unsigned depth, df_er
 			}
 			case NAME_PARENS:
 			{
-				if (NAME_PARENS_CHAR(c)) {
+				if (MACRO_NAME_CHAR(c)) {
 					g_string_append_c(name,c);
 				} else if ( c == '(' || c == '{') {
 					state = ARGS;
@@ -294,6 +304,12 @@ static char* dfilter_macro_apply_recurse(const char* text, unsigned depth, df_er
 						goto on_error;
 					case ';':
 					case ',':
+						if (arg->len == 0) {
+							/* Null arguments aren't accepted */
+							if (error != NULL)
+								*error = df_error_new_msg("null argument in macro expression");
+							goto on_error;
+						}
 						g_ptr_array_add(args,g_string_free(arg,false));
 
 						arg = g_string_sized_new(32);
@@ -316,10 +332,19 @@ static char* dfilter_macro_apply_recurse(const char* text, unsigned depth, df_er
 							break;
 						}
 
-						g_ptr_array_add(args,g_string_free(arg,false));
-						g_ptr_array_add(args,NULL);
-
-						arg = NULL;
+						if (arg->len == 0) {
+							/* Null arguments aren't accepted... */
+							if (args->len != 0) {
+								/* Except $macro() or ${macro:} means zero args, not one null arg */
+								if (error != NULL)
+									*error = df_error_new_msg("null argument in macro expression");
+								goto on_error;
+							}
+						} else {
+							g_ptr_array_add(args,g_string_free(arg,false));
+							g_ptr_array_add(args,NULL);
+							arg = NULL;
+						}
 
 						resolved = dfilter_macro_resolve(name->str, (char**)args->pdata, error);
 						if (resolved == NULL)
@@ -335,6 +360,10 @@ static char* dfilter_macro_apply_recurse(const char* text, unsigned depth, df_er
 						state = OUTSIDE;
 						break;
 					default:
+						/* XXX - Spaces and other whitespace are passed through
+						 * whether interior or exterior to the rest of the
+						 * argument, which is powerful but confusing.
+						 */
 						g_string_append_c(arg,c);
 						break;
 				}

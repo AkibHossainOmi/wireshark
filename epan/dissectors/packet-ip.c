@@ -575,7 +575,7 @@ capture_ip(const guchar *pd, int offset, int len, capture_packet_info_t *cpinfo,
 }
 
 static void
-add_geoip_info_entry(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, gint offset, ws_in4_addr ip, int isdst)
+add_geoip_info_entry(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, gint offset, ws_in4_addr ip, gboolean isdst)
 {
   const mmdb_lookup_t *lookup = maxmind_db_lookup_ipv4(&ip);
   if (!lookup->found) return;
@@ -600,7 +600,7 @@ add_geoip_info_entry(proto_tree *tree, packet_info *pinfo, tvbuff_t *tvb, gint o
     wmem_strbuf_append(summary, lookup->as_org);
   }
 
-  int addr_offset = offset + isdst ? IPH_DST : IPH_SRC;
+  int addr_offset = offset + (isdst ? IPH_DST : IPH_SRC);
   int dir_hf = isdst ? hf_geoip_dst_summary : hf_geoip_src_summary;
   proto_item *geoip_info_item = proto_tree_add_string(tree, dir_hf, tvb, addr_offset, 4, wmem_strbuf_finalize(summary));
   proto_item_set_generated(geoip_info_item);
@@ -1934,7 +1934,7 @@ dissect_ip_v4(tvbuff_t *tvb, packet_info *pinfo, proto_tree *parent_tree, void* 
     col_add_fstr(pinfo->cinfo, COL_INFO,
                  "Bogus IPv4 version (%u, must be 4)", iph->ip_ver);
     expert_add_info_format(pinfo, tf, &ei_ip_bogus_ip_version, "Bogus IPv4 version");
-    /* I have a Linux cooked capture with ethertype IPv4 containing an IPv6 packet, continnue dissection in that case*/
+    /* I have a Linux cooked capture with ethertype IPv4 containing an IPv6 packet, continue dissection in that case*/
     if (iph->ip_ver == 6) {
         call_dissector(ipv6_handle, tvb, pinfo, tree);
     }
@@ -3056,7 +3056,7 @@ proto_register_ip(void)
                                                 proto_ip, FT_UINT8, BASE_DEC);
   ip_option_table = register_dissector_table("ip.option", "IP Options",
                                                 proto_ip, FT_UINT8, BASE_DEC);
-  heur_subdissector_list = register_heur_dissector_list("ip", proto_ip);
+  heur_subdissector_list = register_heur_dissector_list_with_description("ip", "IPv4 heuristic", proto_ip);
   register_capture_dissector_table("ip.proto", "IP protocol");
 
   /* Register configuration options */

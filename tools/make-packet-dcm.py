@@ -123,6 +123,10 @@ vrs = {i+1: get_texts_in_row(x)[0].split(maxsplit=1) for i,x in enumerate(get_tr
 uid_trs = get_trs(part06, "table_A-1")
 uid_rows = [get_texts_in_row(x) for x in uid_trs]
 
+wkfr_trs = get_trs(part06, "table_A-2")
+wkfr_rows = [get_texts_in_row(x) for x in wkfr_trs]
+uid_rows += [x[:3] + ['Well-known frame of reference'] + x[3:] for x in wkfr_rows]
+
 def uid_define_name(uid):
     if uid[1] == "(Retired)":
         return f'"{uid[0]}"'
@@ -196,7 +200,7 @@ typedef struct dcm_tag {
     const gboolean add_to_summary;          /* Add to parent's item description */
 } dcm_tag_t;
 
-static dcm_tag_t dcm_tag_data[] = {
+static dcm_tag_t const dcm_tag_data[] = {
 
     /* Command Tags */
 """ + text_for_rows(cmd_rows) + """
@@ -233,7 +237,7 @@ typedef struct dcm_uid {
 """ + "\n".join(f'#define {uid_define_name(uid)} "{uid[0]}"'
                 for uid in uid_rows if uid[1] != '(Retired)') + """
 
-static dcm_uid_t dcm_uid_data[] = {
+static dcm_uid_t const dcm_uid_data[] = {
 """ + "\n".join(f'    {{ {uid_define_name(uid)}, "{uid[1]}", "{uid[3]}"}},'
                             for uid in uid_rows)+ """
 };

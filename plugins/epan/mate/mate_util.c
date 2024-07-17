@@ -825,7 +825,7 @@ extern void merge_avpl(AVPL* dst, AVPL* src, gboolean copy_avps) {
 		}
 	}
 
-	// if there are remaing source AVPs while there are no more destination
+	// if there are remaining source AVPs while there are no more destination
 	// AVPs (cd now represents the NULL item, after the last item), append
 	// all remaining source AVPs to the end
 	while (cs->avp) {
@@ -961,7 +961,7 @@ extern AVP* match_avp(AVP* src, AVP* op) {
 		/* case AVP_OP_TRANSF: */
 		/*	return do_transform(src,op); */
 		case AVP_OP_CONTAINS:
-			return g_strrstr(src->v, op->v) ? src : NULL;;
+			return g_strrstr(src->v, op->v) ? src : NULL;
 	}
 	/* will never get here */
 	return NULL;

@@ -55,7 +55,7 @@
 */
 
 #include "config.h"
-
+#define WS_LOG_DOMAIN "RTMPT"
 
 #include <epan/packet.h>
 #include <wsutil/pint.h>
@@ -64,8 +64,6 @@
 #include <epan/to_str.h>
 #include <epan/expert.h>
 #include "packet-tcp.h"
-
-/* #define DEBUG_RTMPT 1 */
 
 #define MAX_AMF_ITERATIONS 1000
 
@@ -111,8 +109,11 @@ static int hf_rtmpt_audio_type;
 static int hf_rtmpt_audio_data;
 
 static int hf_rtmpt_video_control;
+static int hf_rtmpt_video_is_ex_header;
 static int hf_rtmpt_video_type;
 static int hf_rtmpt_video_format;
+static int hf_rtmpt_video_packet_type;
+static int hf_rtmpt_video_fourcc;
 static int hf_rtmpt_video_data;
 
 static int hf_rtmpt_tag_type;
@@ -144,11 +145,14 @@ static gboolean rtmpt_desegment = TRUE;
  * onBWDone() calls) transmits a series of increasing size packets over
  * the course of 2 seconds. On a fast link the largest packet can just
  * exceed 256KB, but setting the limit there can cause massive memory
- * usage in some scenarios. For now make it a preference, but a better fix
- * is really needed.
+ * usage, especially with fuzzed packets where the length value is bogus.
+ * Limit the initial allocation size and realloc if needed, i.e., in
+ * future frames if the bytes are actually there.
+ * This initial max allocation size can be reduced further if need be,
+ * but keep it at least 18 so that the headers fit without checking,
  * See https://gitlab.com/wireshark/wireshark/-/issues/6898
  */
-static guint rtmpt_max_packet_size = 32768;
+#define RTMPT_INIT_ALLOC_SIZE 32768
 
 #define RTMP_PORT                     1935 /* Not IANA registered */
 
@@ -159,7 +163,9 @@ static guint rtmpt_max_packet_size = 32768;
 #define RTMPT_HANDSHAKE_LENGTH_1      1537
 #define RTMPT_HANDSHAKE_LENGTH_2      3073
 #define RTMPT_HANDSHAKE_LENGTH_3      1536
-#define RTMPT_DEFAULT_CHUNK_SIZE       128
+#define RTMPT_INITIAL_CHUNK_SIZE       128
+
+static guint rtmpt_default_chunk_size = 128;
 
 #define RTMPT_ID_MAX                     65599
 #define RTMPT_TYPE_HANDSHAKE_1        0x100001
@@ -189,6 +195,8 @@ static guint rtmpt_max_packet_size = 32768;
 #define RTMPT_UCM_STREAM_ISRECORDED   0x04
 #define RTMPT_UCM_PING_REQUEST        0x06
 #define RTMPT_UCM_PING_RESPONSE       0x07
+
+#define RTMPT_IS_EX_HEADER            0x80
 
 #define RTMPT_TEXT_RTMP_HEADER        "RTMP Header"
 #define RTMPT_TEXT_RTMP_BODY          "RTMP Body"
@@ -304,6 +312,19 @@ static const value_string rtmpt_video_codecs[] = {
         {  6,                               "Screen video version 2" },
         {  7,                               "H.264" },
         { 12,                               "H.265" },
+        { 0, NULL }
+};
+
+/*
+ * https://raw.githubusercontent.com/veovera/enhanced-rtmp/main/enhanced-rtmp.pdf
+ */
+static const value_string rtmpt_video_packet_types[] = {
+        { 0,                                "PacketTypeSequenceStart" },
+        { 1,                                "PacketTypeCodedFrames" },
+        { 2,                                "PacketTypeSequenceEnd" },
+        { 3,                                "PacketTypeCodedFramesX" },
+        { 4,                                "PacketTypeMetadata" },
+        { 5,                                "PacketTypeMPEG2TSSequenceStart" },
         { 0, NULL }
 };
 
@@ -444,6 +465,15 @@ static const value_string amf3_type_vals[] = {
 
 /* Holds the reassembled data for a packet during un-chunking
  */
+/* XXX: Because we don't use the TCP dissector's built-in desegmentation,
+ * or the standard reassembly API, we don't get FT_FRAMENUM links for
+ * chunk fragments, and we don't mark depended upon frames for export.
+ * Ideally we'd use the standard API (mark pinfo->desegment_offset and
+ * pinfo->desegment_len for TCP, or use the reassembly API), or call
+ * mark_frame_as_depended_upon and add the FT_FRAMENUM fields ourselves.
+ * To do the latter, we should have a data structure indicating which
+ * frames contributed to the packet.
+ */
 typedef struct rtmpt_packet {
         guint32          seq;
         guint32          lastseq;
@@ -454,7 +484,10 @@ typedef struct rtmpt_packet {
                 guint32  offset;
         } data;
 
+        wmem_list_t *frames;
+
         /* used during unchunking */
+        int              alloc;
         int              want;
         int              have;
         int              chunkwant;
@@ -519,19 +552,13 @@ typedef struct rtmpt_conv {
         wmem_tree_t *txids[2];
 } rtmpt_conv_t;
 
-#ifdef DEBUG_RTMPT
-static void rtmpt_debug(const char *fmt, ...)
+static void
+rtmpt_packet_mark_depended(gpointer data, gpointer user_data)
 {
-        va_list args;
-        va_start(args, fmt);
-        vprintf(fmt, args);
-        va_end(args);
+    frame_data *fd = (frame_data *)user_data;
+    uint32_t frame_num = GPOINTER_TO_UINT(data);
+    mark_frame_as_depended_upon(fd, frame_num);
 }
-#define RTMPT_DEBUG rtmpt_debug
-#else
-static void rtmpt_debug(const char *fmt, ...){ (void)fmt; }
-#define RTMPT_DEBUG 1 ? (void)0 : rtmpt_debug
-#endif
 
 /* Header length helpers */
 
@@ -569,7 +596,7 @@ rtmpt_get_amf_length(tvbuff_t *tvb, gint offset, proto_item* pi)
 
         while (rv == 0 || depth > 0) {
 
-                if (--iterations) {
+                if (--iterations == 0) {
                         expert_add_info(NULL, pi, &ei_amf_loop);
                         return 0;
                 }
@@ -793,7 +820,7 @@ rtmpt_get_packet_desc(tvbuff_t *tvb, guint32 offset, proto_item* pi, guint32 rem
                 }
                 if (slen > 0) {
                         sFunc = tvb_get_string_enc(wmem_packet_scope(), tvb, offset+3+soff, slen, ENC_ASCII);
-                        RTMPT_DEBUG("got function call '%s'\n", sFunc);
+                        ws_debug("got function call '%s'", sFunc);
 
                         if (strcmp(sFunc, "connect") == 0) {
                                 sParam = rtmpt_get_amf_param(tvb, offset+soff, pi, 2, "app");
@@ -826,7 +853,7 @@ rtmpt_get_packet_desc(tvbuff_t *tvb, guint32 offset, proto_item* pi, guint32 rem
                         if (tp->txid != 0 && tp->otherframe == 0) {
                                 tp->otherframe = GPOINTER_TO_INT(wmem_tree_lookup32(rconv->txids[cdir^1], tp->txid));
                                 if (tp->otherframe) {
-                                        RTMPT_DEBUG("got otherframe=%d\n", tp->otherframe);
+                                        ws_debug("got otherframe=%d", tp->otherframe);
                                 }
                         }
                 }
@@ -1622,15 +1649,35 @@ dissect_rtmpt_body_video(tvbuff_t *tvb, gint offset, proto_tree *rtmpt_tree)
         proto_tree *vt;
 
         iCtl = tvb_get_guint8(tvb, offset);
-        vi = proto_tree_add_uint_format(rtmpt_tree, hf_rtmpt_video_control, tvb, offset, 1, iCtl,
-                                        "Control: 0x%02x (%s %s)", iCtl,
-                                        val_to_str_const((iCtl & 0xf0)>>4, rtmpt_video_types, "Unknown frame type"),
-                                        val_to_str_const(iCtl & 0x0f, rtmpt_video_codecs, "Unknown codec"));
 
-        vt = proto_item_add_subtree(vi, ett_rtmpt_video_control);
-        proto_tree_add_uint(vt, hf_rtmpt_video_type, tvb, offset, 1, iCtl);
-        proto_tree_add_uint(vt, hf_rtmpt_video_format, tvb, offset, 1, iCtl);
-        proto_tree_add_item(rtmpt_tree, hf_rtmpt_video_data, tvb, offset+1, -1, ENC_NA);
+        /*
+         * https://raw.githubusercontent.com/veovera/enhanced-rtmp/main/enhanced-rtmp.pdf
+         */
+        if (iCtl & RTMPT_IS_EX_HEADER) {
+            vi = proto_tree_add_uint_format(rtmpt_tree, hf_rtmpt_video_control, tvb, offset, 1, iCtl,
+                                            "Control: 0x%02x (%s %s)", iCtl,
+                                            val_to_str_const((iCtl & 0x70)>>4, rtmpt_video_types, "Reserved frame type"),
+                                            val_to_str_const(iCtl & 0x0f, rtmpt_video_packet_types, "Reserved packet type"));
+
+            vt = proto_item_add_subtree(vi, ett_rtmpt_video_control);
+            proto_tree_add_uint(vt, hf_rtmpt_video_is_ex_header, tvb, offset, 1, iCtl);
+            proto_tree_add_uint(vt, hf_rtmpt_video_type, tvb, offset, 1, iCtl);
+            proto_tree_add_uint(vt, hf_rtmpt_video_packet_type, tvb, offset, 1, iCtl);
+
+            proto_tree_add_item(rtmpt_tree, hf_rtmpt_video_fourcc, tvb, offset+1, 4, ENC_ASCII);
+            proto_tree_add_item(rtmpt_tree, hf_rtmpt_video_data, tvb, offset+5, -1, ENC_NA);
+        } else {
+            vi = proto_tree_add_uint_format(rtmpt_tree, hf_rtmpt_video_control, tvb, offset, 1, iCtl,
+                                            "Control: 0x%02x (%s %s)", iCtl,
+                                            val_to_str_const((iCtl & 0xf0)>>4, rtmpt_video_types, "Reserved frame type"),
+                                            val_to_str_const(iCtl & 0x0f, rtmpt_video_codecs, "Unknown codec"));
+
+            vt = proto_item_add_subtree(vi, ett_rtmpt_video_control);
+            proto_tree_add_uint(vt, hf_rtmpt_video_type, tvb, offset, 1, iCtl);
+            proto_tree_add_uint(vt, hf_rtmpt_video_format, tvb, offset, 1, iCtl);
+
+            proto_tree_add_item(rtmpt_tree, hf_rtmpt_video_data, tvb, offset+1, -1, ENC_NA);
+        }
 }
 
 static void
@@ -1691,9 +1738,9 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
 
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "RTMP");
 
-        RTMPT_DEBUG("Dissect: frame=%u visited=%d len=%d tree=%p\n",
-                    pinfo->num, pinfo->fd->visited,
-                    tvb_reported_length_remaining(tvb, offset), tree);
+        ws_debug("Dissect: frame=%u visited=%d len=%d tree=%p",
+                 pinfo->num, pinfo->fd->visited,
+                 tvb_reported_length_remaining(tvb, offset), tree);
 
         /* Clear any previous data in Info column (RTMP packets are protected by a "fence") */
         col_clear(pinfo->cinfo, COL_INFO);
@@ -1711,8 +1758,8 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
                 iBodyRemain = tvb_reported_length_remaining(tvb, iBodyOffset);
 
                 if (tp->cmd == RTMPT_TYPE_CHUNK_SIZE && tp->len >= 4 && iBodyRemain >= 4) {
-                        guint32 newchunksize = tvb_get_ntohl(tvb, iBodyOffset);
-                        if (newchunksize < rtmpt_max_packet_size) {
+                        gint32 newchunksize = tvb_get_ntohl(tvb, iBodyOffset);
+                        if (newchunksize > 0) {
                                 wmem_tree_insert32(rconv->chunksize[cdir], tp->lastseq, GINT_TO_POINTER(newchunksize));
                         }
                 }
@@ -1725,10 +1772,13 @@ dissect_rtmpt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_conv_t 
                         }
                         tp->txid = rtmpt_get_amf_txid(tvb, iBodyOffset+soff, tree);
                         if (tp->txid != 0 && !PINFO_FD_VISITED(pinfo)) {
-                                RTMPT_DEBUG("got txid=%d\n", tp->txid);
+                                ws_debug("got txid=%d", tp->txid);
                                 wmem_tree_insert32(rconv->txids[cdir], tp->txid, GINT_TO_POINTER(pinfo->num));
                         }
                 }
+        } else if (tp->id == RTMPT_TYPE_HANDSHAKE_2 || tp->id == RTMPT_TYPE_HANDSHAKE_3) {
+                guint32 newchunksize = RTMPT_INITIAL_CHUNK_SIZE;
+                wmem_tree_insert32(rconv->chunksize[cdir], tp->lastseq, GINT_TO_POINTER(newchunksize));
         }
 
         if (tp->id <= RTMPT_ID_MAX)
@@ -1891,7 +1941,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
         if (!remain)
                 return;
 
-        RTMPT_DEBUG("Segment: cdir=%d seq=%d-%d\n", cdir, seq, seq+remain-1);
+        ws_debug("Segment: cdir=%d seq=%d-%d", cdir, seq, seq+remain-1);
 
         if (pinfo->fd->visited) {
                 /* Already done the work, so just dump the existing state */
@@ -1966,7 +2016,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
 
                         if (tf) {
                                 /* May need to reassemble cross-TCP-segment fragments */
-                                RTMPT_DEBUG("  tf seq=%d lseq=%d h=%d l=%d\n", tf->seq, tf->lastseq, tf->have, tf->len);
+                                ws_noisy("  tf seq=%d lseq=%d h=%d l=%d", tf->seq, tf->lastseq, tf->have, tf->len);
                                 if (tf->have >= tf->len || seq+offset < tf->seq || seq+offset > tf->lastseq+tf->len-tf->have) {
                                         tf = NULL;
                                 } else if (!tf->ishdr) {
@@ -2102,8 +2152,9 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                                 chunk_size = body_len = 1536;
                 } else {
                         chunk_size = GPOINTER_TO_INT(wmem_tree_lookup32_le(rconv->chunksize[cdir], seq+offset-1));
-                        if (!chunk_size)
-                                chunk_size = RTMPT_DEFAULT_CHUNK_SIZE;
+                        if (!chunk_size) {
+                                chunk_size = ((int)rtmpt_default_chunk_size > 0) ? rtmpt_default_chunk_size : INT_MAX;
+                        }
 
                         if (header_type < 2)
                                 body_len = tf ? pntoh24(tf->saved.d+basic_hlen+3) : tvb_get_ntoh24(tvb, offset+basic_hlen+3);
@@ -2111,10 +2162,6 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                                 body_len = ti->len;
                         else
                                 body_len = chunk_size;
-
-                        if (body_len > (gint)rtmpt_max_packet_size) {
-                                return;
-                        }
                 }
 
                 if (!ti || !tp || header_type<3 || tp->have == tp->want || tp->chunkhave != tp->chunkwant) {
@@ -2124,7 +2171,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                          *   previous packet with same id was complete
                          *   previous incomplete chunk not handled by fragment handler
                          */
-                        RTMPT_DEBUG("New packet cdir=%d seq=%d ti=%p tp=%p header_type=%d header_len=%d id=%d tph=%d tpw=%d len=%d cs=%d\n",
+                        ws_noisy("New packet cdir=%d seq=%d ti=%p tp=%p header_type=%d header_len=%d id=%d tph=%d tpw=%d len=%d cs=%d",
                                     cdir, seq+offset,
                                     ti, tp, header_type, basic_hlen+message_hlen, id, tp?tp->have:0, tp?tp->want:0, body_len, chunk_size);
 
@@ -2177,6 +2224,9 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                         tp->isresponse = FALSE;
                         tp->otherframe = 0;
 
+                        tp->frames     = wmem_list_new(wmem_file_scope());
+                        wmem_list_prepend(tp->frames, GUINT_TO_POINTER(pinfo->num));
+
                         /* Save the header information for future defaulting needs */
                         ti->ts  = ts;
                         ti->tsd = tsd;
@@ -2206,7 +2256,15 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                         } else {
                                 /* Some more reassembly required */
                                 tp->resident = TRUE;
-                                tp->data.p = (guint8 *)wmem_alloc(wmem_file_scope(), tp->bhlen+tp->mhlen+tp->len);
+                                /* tp->want is how much data we think we want.
+                                 * If it's a really big number, we don't want
+                                 * to allocate it all at once, due to memory
+                                 * exhaustion on fuzzed data (#6898).
+                                 * RTMPT_INIT_ALLOC_SIZE should always be larger
+                                 * than basic_hlen + message_hlen.
+                                 */
+                                tp->alloc = MIN(tp->want, RTMPT_INIT_ALLOC_SIZE);
+                                tp->data.p = (guint8 *)wmem_alloc(wmem_file_scope(), tp->alloc);
 
                                 if (tf && tf->ishdr) {
                                         memcpy(tp->data.p, tf->saved.d, tf->len);
@@ -2241,9 +2299,9 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                                  */
                                 message_hlen += 4;
                         }
-                        RTMPT_DEBUG("Old packet cdir=%d seq=%d ti=%p tp=%p header_len=%d id=%d tph=%d tpw=%d len=%d cs=%d\n",
-                                    cdir, seq+offset,
-                                    ti, tp, basic_hlen+message_hlen, id, tp?tp->have:0, tp?tp->want:0, body_len, chunk_size);
+                        ws_noisy("Old packet cdir=%d seq=%d ti=%p tp=%p header_len=%d id=%d tph=%d tpw=%d len=%d cs=%d",
+                                 cdir, seq+offset,
+                                 ti, tp, basic_hlen+message_hlen, id, tp?tp->have:0, tp?tp->want:0, body_len, chunk_size);
 
                         tp->chunkwant = chunk_size;
                         if (tp->chunkwant > tp->want-tp->have)
@@ -2260,9 +2318,18 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                 want = tp->chunkwant - tp->chunkhave;
                 if (want > remain)
                         want = remain;
-                RTMPT_DEBUG("  cw=%d ch=%d r=%d w=%d\n", tp->chunkwant, tp->chunkhave, remain, want);
+                ws_noisy("  cw=%d ch=%d r=%d w=%d", tp->chunkwant, tp->chunkhave, remain, want);
 
+                /* message length is a 3 byte number, never overflows an int */
+                if (tp->alloc < tp->have + want) {
+                        tp->alloc = MIN(tp->alloc*2, tp->want);
+                        tp->data.p = wmem_realloc(wmem_file_scope(), tp->data.p, tp->alloc);
+                }
                 tvb_memcpy(tvb, tp->data.p+tp->have, offset, want);
+                wmem_list_frame_t *frame_head = wmem_list_head(tp->frames);
+                if (wmem_list_frame_data(frame_head) != GUINT_TO_POINTER(pinfo->num)) {
+                        wmem_list_prepend(tp->frames, GUINT_TO_POINTER(pinfo->num));
+                }
 
                 if (tf) {
                         tf->have += want;
@@ -2284,6 +2351,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                 if (tp->have == tp->want) {
                         /* Whole packet is complete */
                         wmem_tree_insert32(rconv->packets[cdir], tp->lastseq, tp);
+                        wmem_list_foreach(tp->frames, rtmpt_packet_mark_depended, pinfo->fd);
 
                         pktbuf = tvb_new_child_real_data(tvb, tp->data.p, tp->have, tp->have);
                         add_new_data_source(pinfo, pktbuf, "Unchunked RTMP");
@@ -2297,7 +2365,7 @@ dissect_rtmpt_common(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, rtmpt_
                         tf2->have     = tp->chunkhave;
                         tf2->len      = tp->chunkwant;
                         tf2->saved.id = tp->id;
-                        RTMPT_DEBUG("  inserting tf @ %d\n", seq+offset-want-1);
+                        ws_noisy("  inserting tf @ %d", seq+offset-want-1);
                         wmem_tree_insert32(rconv->frags[cdir], seq+offset-want-1, tf2);
                 }
         }
@@ -2408,13 +2476,13 @@ dissect_rtmpt_http(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* da
         if (cdir) {
                 conv = find_conversation(pinfo->num, &pinfo->dst, &pinfo->src, conversation_pt_to_conversation_type(pinfo->ptype), 0, pinfo->srcport, 0);
                 if (!conv) {
-                        RTMPT_DEBUG("RTMPT new conversation\n");
+                        ws_debug("RTMPT new conversation");
                         conv = conversation_new(pinfo->num, &pinfo->dst, &pinfo->src, conversation_pt_to_conversation_type(pinfo->ptype), 0, pinfo->srcport, 0);
                 }
         } else {
                 conv = find_conversation(pinfo->num, &pinfo->src, &pinfo->dst, conversation_pt_to_conversation_type(pinfo->ptype), 0, pinfo->destport, 0);
                 if (!conv) {
-                        RTMPT_DEBUG("RTMPT new conversation\n");
+                        ws_debug("RTMPT new conversation");
                         conv = conversation_new(pinfo->num, &pinfo->src, &pinfo->dst, conversation_pt_to_conversation_type(pinfo->ptype), 0, pinfo->destport, 0);
                 }
         }
@@ -2459,7 +2527,7 @@ dissect_rtmpt_http(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* da
 
         seq -= remain-1;
 
-        RTMPT_DEBUG("RTMPT f=%d cdir=%d seq=%d lastackseq=%d len=%d\n", pinfo->num, cdir, seq, lastackseq, remain);
+        ws_debug("RTMPT f=%d cdir=%d seq=%d lastackseq=%d len=%d", pinfo->num, cdir, seq, lastackseq, remain);
 
         if (remain < 1)
                 return offset;
@@ -2694,13 +2762,25 @@ proto_register_rtmpt(void)
                   { "Video control", "rtmpt.video.control", FT_UINT8, BASE_HEX,
                     NULL, 0x0, "RTMPT Video control", HFILL }},
 
+                { &hf_rtmpt_video_is_ex_header,
+                  { "IsExHeader", "rtmpt.video.is_ex_header", FT_UINT8, BASE_DEC,
+                    NULL, 0x80, "RTMPT IsExHeader flag introduced in enhanced RTMP", HFILL }},
+
                 { &hf_rtmpt_video_type,
                   { "Type", "rtmpt.video.type", FT_UINT8, BASE_DEC,
-                    VALS(rtmpt_video_types), 0xf0, "RTMPT Video type", HFILL }},
+                    VALS(rtmpt_video_types), 0x70, "RTMPT Video type", HFILL }},
 
                 { &hf_rtmpt_video_format,
                   { "Format", "rtmpt.video.format", FT_UINT8, BASE_DEC,
                     VALS(rtmpt_video_codecs), 0x0f, "RTMPT Video format", HFILL }},
+
+                { &hf_rtmpt_video_packet_type,
+                  { "Packet Type", "rtmpt.video.packet_type", FT_UINT8, BASE_DEC,
+                    VALS(rtmpt_video_packet_types), 0x0f, "RTMPT Video packet type", HFILL }},
+
+                { &hf_rtmpt_video_fourcc,
+                  { "FourCC", "rtmpt.video.fourcc", FT_STRING, BASE_NONE,
+                    NULL, 0x0, "RTMPT Video fourCC", HFILL }},
 
                 { &hf_rtmpt_video_data,
                   { "Video data", "rtmpt.video.data", FT_BYTES, BASE_NONE,
@@ -2753,6 +2833,7 @@ proto_register_rtmpt(void)
         rtmpt_http_handle = register_dissector("rtmpt.http", dissect_rtmpt_http, proto_rtmpt);
 
         rtmpt_module = prefs_register_protocol(proto_rtmpt, NULL);
+        /* XXX: This desegment preference doesn't do anything */
         prefs_register_bool_preference(rtmpt_module, "desegment",
                                        "Reassemble RTMPT messages spanning multiple TCP segments",
                                        "Whether the RTMPT dissector should reassemble messages spanning multiple TCP segments."
@@ -2760,11 +2841,13 @@ proto_register_rtmpt(void)
                                        " in the TCP protocol settings.",
                                        &rtmpt_desegment);
 
-        prefs_register_uint_preference(rtmpt_module, "max_packet_size",
-                                       "Maximum packet size",
-                                       "The largest acceptable packet size for reassembly",
-                                       10, &rtmpt_max_packet_size);
+        prefs_register_obsolete_preference(rtmpt_module, "max_packet_size");
 
+        prefs_register_uint_preference(rtmpt_module, "default_chunk_size",
+                                       "Default chunk size",
+                                       "Chunk size to use for connections where the initial handshake is missing,"
+                                       " i.e. are already in progress at the beginning of the capture file.",
+                                       10, &rtmpt_default_chunk_size);
 }
 
 void

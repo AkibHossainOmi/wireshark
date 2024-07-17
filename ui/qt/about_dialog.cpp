@@ -29,16 +29,12 @@
 #include <epan/wslua/init_wslua.h>
 #endif
 
-#include "ui/alert_box.h"
 #include "ui/util.h"
-#include "ui/help_url.h"
-#include <wsutil/utf8_entities.h>
 
-#include "file.h"
-#include "wsutil/file_util.h"
-#include "wsutil/tempfile.h"
+#include "wsutil/filesystem.h"
 #include "wsutil/plugins.h"
 #include "wsutil/version_info.h"
+
 #include "ui/capture_globals.h"
 
 #include "extcap.h"
@@ -340,6 +336,11 @@ AboutDialog::AboutDialog(QWidget *parent) :
     connect(ui->tblAuthors, &QTreeView::customContextMenuRequested, this, &AboutDialog::handleCopyMenu);
     connect(ui->searchAuthors, &QLineEdit::textChanged, proxyAuthorModel, &AStringListListSortFilterProxyModel::setFilter);
 
+    if (!is_packet_configuration_namespace()) {
+        setWindowTitle(tr("About Logray"));
+        ui->tabWidget->setTabText(ui->tabWidget->indexOf(ui->tab_wireshark), tr("Logray"));
+    }
+
     /* Wireshark tab */
     updateWiresharkText();
 
@@ -503,7 +504,7 @@ void AboutDialog::showEvent(QShowEvent * event)
 
 void AboutDialog::updateWiresharkText()
 {
-    QString vcs_version_info_str = get_ws_vcs_version_info();
+    QString vcs_version_info_str = is_packet_configuration_namespace() ? get_ws_vcs_version_info() : get_lr_vcs_version_info();
     QString copyright_info_str = get_copyright_info();
     QString license_info_str = get_license_info();
     QString comp_info_str = gstring_free_to_qbytearray(get_compiled_version_info(gather_wireshark_qt_compiled_info));

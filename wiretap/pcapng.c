@@ -3192,7 +3192,7 @@ pcapng_read_sysdig_event_block(wtap *wth, FILE_T fh, pcapng_block_header_t *bh,
 
     wblock->rec->rec_type = REC_TYPE_SYSCALL;
     wblock->rec->rec_header.syscall_header.record_type = bh->block_type;
-    wblock->rec->presence_flags = WTAP_HAS_TS|WTAP_HAS_CAP_LEN /*|WTAP_HAS_INTERFACE_ID */;
+    wblock->rec->presence_flags = WTAP_HAS_CAP_LEN /*|WTAP_HAS_INTERFACE_ID */;
     wblock->rec->tsprec = WTAP_TSPREC_NSEC;
 
     if (!wtap_read_bytes(fh, &cpu_id, sizeof cpu_id, err, err_info)) {
@@ -3246,6 +3246,10 @@ pcapng_read_sysdig_event_block(wtap *wth, FILE_T fh, pcapng_block_header_t *bh,
         wblock->rec->rec_header.syscall_header.event_len = event_len;
         wblock->rec->rec_header.syscall_header.event_type = event_type;
         wblock->rec->rec_header.syscall_header.nparams = nparams;
+    }
+
+    if (ts) {
+        wblock->rec->presence_flags |= WTAP_HAS_TS;
     }
 
     wblock->rec->ts.secs = (time_t) (ts / 1000000000);
@@ -6795,7 +6799,7 @@ static const struct supported_option_type packet_block_options_supported[] = {
     { OPT_CUSTOM_BIN_NO_COPY, MULTIPLE_OPTIONS_SUPPORTED }
 };
 
-/* Options for file-type-sepcific reports. */
+/* Options for file-type-specific reports. */
 static const struct supported_option_type ft_specific_report_block_options_supported[] = {
     { OPT_COMMENT, MULTIPLE_OPTIONS_SUPPORTED },
     { OPT_CUSTOM_STR_COPY, MULTIPLE_OPTIONS_SUPPORTED },
@@ -6804,7 +6808,7 @@ static const struct supported_option_type ft_specific_report_block_options_suppo
     { OPT_CUSTOM_BIN_NO_COPY, MULTIPLE_OPTIONS_SUPPORTED }
 };
 
-/* Options for file-type-sepcific event. */
+/* Options for file-type-specific event. */
 static const struct supported_option_type ft_specific_event_block_options_supported[] = {
     { OPT_COMMENT, MULTIPLE_OPTIONS_SUPPORTED },
     { OPT_CUSTOM_STR_COPY, MULTIPLE_OPTIONS_SUPPORTED },

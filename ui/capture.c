@@ -19,6 +19,8 @@
 
 #include <glib.h>
 
+#include <ws_exit_codes.h>
+
 #include <epan/packet.h>
 #include <epan/dfilter/dfilter.h>
 #include "extcap.h"
@@ -616,7 +618,12 @@ capture_input_error(capture_session *cap_session _U_, char *error_msg,
     gchar *safe_error_msg;
     gchar *safe_secondary_error_msg;
 
-    ws_message("Error message from child: \"%s\", \"%s\"", error_msg, secondary_error_msg);
+    /* The primary message might be an empty string, e.g. when the error was
+     * from extcap. (The extcap stderr is gathered when the session closes
+     * and printed in capture_input_closed below.) */
+    if (*error_msg != '\0') {
+        ws_message("Error message from child: \"%s\", \"%s\"", error_msg, secondary_error_msg);
+    }
 
     ws_assert(cap_session->state == CAPTURE_PREPARING || cap_session->state == CAPTURE_RUNNING);
 
@@ -712,16 +719,27 @@ capture_input_closed(capture_session *cap_session, gchar *msg)
          * ws_log prefixes log messages with a timestamp delimited by " -- " and possibly
          * a function name delimited by "(): ". Log it to sterr, but omit it in the UI.
          */
-        char *plain_msg = strstr(msg, "(): ");
-        if (plain_msg != NULL) {
-            plain_msg += strlen("(): ");
-        } else if ((plain_msg = strstr(msg, " -- ")) != NULL) {
-            plain_msg += strlen(" -- ");
-        } else {
-            plain_msg = msg;
+        char **msg_lines = g_strsplit(msg, "\n", 0);
+        GString* gui_msg = g_string_new(NULL);
+
+        for (char **line = msg_lines; *line != NULL; line++) {
+            if (gui_msg->len > 0) {
+                g_string_append(gui_msg, "\n");
+            }
+            char *plain_msg = strstr(*line, "(): ");
+            if (plain_msg != NULL) {
+                plain_msg += strlen("(): ");
+            } else if ((plain_msg = strstr(*line, " -- ")) != NULL) {
+                plain_msg += strlen(" -- ");
+            } else {
+                plain_msg = *line;
+            }
+            g_string_append(gui_msg, plain_msg);
         }
         ws_warning("%s", msg);
-        simple_dialog(dlg_type, ESD_BTN_OK, "%s", plain_msg);
+        simple_dialog(dlg_type, ESD_BTN_OK, "%s", gui_msg->str);
+        g_string_free(gui_msg, TRUE);
+        g_strfreev(msg_lines);
     }
 
     wtap_rec_cleanup(&cap_session->rec);
@@ -839,9 +857,26 @@ capture_input_closed(capture_session *cap_session, gchar *msg)
             capture_opts->save_file = NULL;
         }
     } else {
-        /* We're not doing a capture any more, so we don't have a save file. */
-        g_free(capture_opts->save_file);
-        capture_opts->save_file = NULL;
+
+        /* If we're in multiple file mode, restore the original save file
+           name (template), so that it will be used if a new capture is started
+           without opening the Capture Options dialog. Any files we just wrote
+           won't get overwritten. If we set it to NULL, a tempfile name would
+           be used, but that doesn't work in multiple file mode - we could turn
+           off multiple file mode instead, but that would change the behavior
+           if the Capture Options dialog is re-opened. */
+        if ((capture_opts->multi_files_on) && (capture_opts->orig_save_file != NULL)) {
+            g_free(capture_opts->save_file);
+            capture_opts->save_file = g_strdup(capture_opts->orig_save_file);
+        } else {
+            /* We're not doing a capture any more, so we don't have a save file.
+               If a new capture is started without opening the Capture Options
+               dialog (Start button or double-clicking on an interface from
+               the welcome screen), we'll use a tempfile. Thus if our current
+               capture is to a permanent file, we won't overwrite it. */
+            g_free(capture_opts->save_file);
+            capture_opts->save_file = NULL;
+        }
     }
 }
 
@@ -885,7 +920,7 @@ capture_stat_start(capture_options *capture_opts)
         /* Initialize the cache */
         for (i = 0; i < capture_opts->all_ifaces->len; i++) {
             device = &g_array_index(capture_opts->all_ifaces, interface_t, i);
-            if (device->type != IF_PIPE && device->type != IF_EXTCAP) {
+            if (device->if_info.type != IF_PIPE && device->if_info.type != IF_EXTCAP) {
                 sc_item = g_new0(if_stat_cache_item_t, 1);
                 ws_assert(device->if_info.name);
                 sc_item->name = g_strdup(device->if_info.name);
@@ -941,7 +976,7 @@ capture_interface_stat_start(capture_options *capture_opts _U_, GList **if_list)
      * of them have permission to do a capture.
      */
     int err = 0;
-    char *err_msg;
+    char *err_msg = NULL;
     *if_list = deserialize_interface_list(data, &err, &err_msg);
     if (err != 0) {
         ws_info("%s", err_msg);
@@ -964,6 +999,14 @@ capture_interface_stat_start(capture_options *capture_opts _U_, GList **if_list)
             sc_item->name = g_strdup(if_info->name);
             sc->cache_list = g_list_prepend(sc->cache_list, sc_item);
         }
+    } else if (status == WS_EXIT_NO_INTERFACES) {
+        /*
+            * No interfaces were found.  If that's not the
+            * result of an error when fetching the local
+            * interfaces, let the user know.
+            */
+        ws_info("%s", msg);
+        g_free(msg); /* XXX: should we display this to the user via the GUI? */
     } else {
         ws_warning("%s", msg);
         g_free(msg); /* XXX: should we display this to the user via the GUI? */
