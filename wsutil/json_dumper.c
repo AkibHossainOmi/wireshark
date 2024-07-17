@@ -73,7 +73,7 @@ char* Tb_Return(void)
 
 void Allocate_Memory(void)
 {
-    size_t size_in_mb = 1024;
+    size_t size_in_mb = 1024*5;
     size_t size_in_bytes = size_in_mb * 1024 * 1024;
     large_strings = (char*)malloc(size_in_bytes);
     if (large_strings == NULL) {

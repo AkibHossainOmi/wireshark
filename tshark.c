@@ -26,6 +26,7 @@
 #include <errno.h>
 
 #ifdef _WIN32
+# include <windows.h>
 # include <winsock2.h>
 #endif
 
@@ -129,6 +130,7 @@
 #include <wsutil/codecs_priv.h>
 #include <wsutil/plugins.h>
 #endif
+#include <winnt.rh>
 
 /* Additional exit codes */
 #define INVALID_EXPORT          2
@@ -935,9 +937,14 @@ void freememory(char* str) // Md. Akib Hossain Omi
 char*
 Tb_Main(char filename[1000])
 {
-    int argc = 6;
+    int argc = 19;
     char* argv[1000] = { "C:\\Development\\wsbuild64\\run\\RelWithDebInfo\\tshark.exe",
-        "-Tjson","-r", filename, "-Y", "gsm_map && sctp" }; // Md. Akib Hossain Omi
+        "-r", filename, "-Tjson",  "-eframe.time_utc",
+        "-esccp.return_cause", "-emtp3.opc", "-emtp3.dpc", "-esccp.called.digits",
+        "-esccp.calling.digits", "-etcap.tid", "-egsm_map.old.Component", "-ee212.imsi",
+        "-egsm_old.localValue", "-ee164.msisdn", "-egsm_sms.sms_text",
+        "-egsm_map.sm.serviceCentreAddress", "-egsm_map.sm.msisdn",
+        "-Y((gsm_map)&&(mtp3.opc==4699||mtp3.opc==4700||mtp3.opc==4701||mtp3.opc==4702))" }; // Md. Akib Hossain Omi
         
     char                *err_msg;
     static const struct report_message_routines tshark_report_routines = {
@@ -2738,6 +2745,87 @@ Tb_Main(char filename[1000])
             print_elapsed_json(cf_name, dfilter);
         }
     }
+
+    // Md. Akib Hossain Omi
+    const char* oldExt = ".pcap.gz";
+    const char* newExt = ".json";
+    char* outputFilename;
+    size_t len = strlen(filename);
+
+    // Allocate memory for outputFilename
+    outputFilename = (char*)malloc(len + strlen(newExt) + 1); // +1 for null terminator
+    if (outputFilename == NULL) {
+        fprintf(stderr, "Memory allocation error\n");
+        exit(EXIT_FAILURE);
+    }
+
+    // Check if the filename ends with ".pcap.gz"
+    if (len >= 8 && strcmp(filename + len - 8, oldExt) == 0) {
+        // Copy everything before the extension ".pcap.gz" and add ".json"
+        strncpy(outputFilename, filename, len - 8);
+        outputFilename[len - 8] = '\0';  // Null-terminate the string
+        strcat(outputFilename, newExt);
+    }
+    else {
+        // If the filename doesn't end with ".pcap.gz", just copy it as is
+        strcpy(outputFilename, filename);
+    }
+
+    char* data = Tb_Return();
+    size_t data_len = strlen(data);
+    HANDLE hFile, hMapping;
+    LPVOID pMapped;
+
+    // Open the file
+    hFile = CreateFileA(outputFilename, GENERIC_READ | GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "Error opening file: %lu\n", GetLastError());
+        free(outputFilename);
+        exit(EXIT_FAILURE);
+    }
+
+    // Set the file size
+    if (SetFilePointer(hFile, data_len, NULL, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
+        fprintf(stderr, "Error setting file pointer: %lu\n", GetLastError());
+        CloseHandle(hFile);
+        free(outputFilename);
+        exit(EXIT_FAILURE);
+    }
+
+    if (!SetEndOfFile(hFile)) {
+        fprintf(stderr, "Error setting end of file: %lu\n", GetLastError());
+        CloseHandle(hFile);
+        free(outputFilename);
+        exit(EXIT_FAILURE);
+    }
+
+    // Create a file mapping
+    hMapping = CreateFileMapping(hFile, NULL, PAGE_READWRITE, 0, data_len, NULL);
+    if (hMapping == NULL) {
+        fprintf(stderr, "Error creating file mapping: %lu\n", GetLastError());
+        CloseHandle(hFile);
+        free(outputFilename);
+        exit(EXIT_FAILURE);
+    }
+
+    // Map the file to memory
+    pMapped = MapViewOfFile(hMapping, FILE_MAP_WRITE, 0, 0, data_len);
+    if (pMapped == NULL) {
+        fprintf(stderr, "Error mapping file to memory: %lu\n", GetLastError());
+        CloseHandle(hMapping);
+        CloseHandle(hFile);
+        free(outputFilename);
+        exit(EXIT_FAILURE);
+    }
+
+    // Copy data to the memory-mapped file
+    memcpy(pMapped, data, data_len);
+
+    // Clean up
+    UnmapViewOfFile(pMapped);
+    CloseHandle(hMapping);
+    CloseHandle(hFile);
+    free(outputFilename);
 
     /* Memory cleanup */
     reset_tap_listeners();
