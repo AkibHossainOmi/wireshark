@@ -66,6 +66,7 @@ enum json_dumper_change {
 
 // Md. Akib Hossain Omi
 long long int Length, flag = 0;
+bool disable_console = false;
 char* large_strings;
 
 char* Tb_Return(void)
@@ -103,6 +104,7 @@ jd_putc(const json_dumper* dumper, char c)
 
     if (dumper->output_file) {
         Construct_Result(c);
+        if(!disable_console) fputc(c, dumper->output_file);
     }
 
     if (dumper->output_string) {
@@ -120,6 +122,7 @@ jd_puts(const json_dumper* dumper, const char* s)
         {
             Construct_Result(s[size]);
         }
+        if(!disable_console) fputs(s, dumper->output_file);
     }
 
     if (dumper->output_string) {
