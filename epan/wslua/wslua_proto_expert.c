@@ -24,16 +24,10 @@
 
 
 WSLUA_CLASS_DEFINE(ProtoExpert,FAIL_ON_NULL("null ProtoExpert"));
-    /* A Protocol expert info field, to be used when adding items to the dissection tree.
-
-       @since 1.11.3
-     */
+    /* A Protocol expert info field, to be used when adding items to the dissection tree. */
 
 WSLUA_CONSTRUCTOR ProtoExpert_new(lua_State* L) {
-    /* Creates a new `ProtoExpert` object to be used for a protocol's expert information notices.
-
-       @since 1.11.3
-     */
+    /* Creates a new `ProtoExpert` object to be used for a protocol's expert information notices. */
 #define WSLUA_ARG_ProtoExpert_new_ABBR 1 /* Filter name of the expert info field (the string that
                                             is used in filters). */
 #define WSLUA_ARG_ProtoExpert_new_TEXT 2 /* The default text of the expert field. */
@@ -62,8 +56,8 @@ WSLUA_CONSTRUCTOR ProtoExpert_new(lua_State* L) {
                                                 or `expert.severity.ERROR`. */
 
     ProtoExpert pe    = NULL;
-    const gchar* abbr = wslua_checkstring_only(L,WSLUA_ARG_ProtoExpert_new_ABBR);
-    const gchar* text = wslua_checkstring_only(L,WSLUA_ARG_ProtoExpert_new_TEXT);
+    const char* abbr = wslua_checkstring_only(L,WSLUA_ARG_ProtoExpert_new_ABBR);
+    const char* text = wslua_checkstring_only(L,WSLUA_ARG_ProtoExpert_new_TEXT);
     int group         = (int)luaL_checkinteger(L, WSLUA_ARG_ProtoExpert_new_GROUP);
     int severity      = (int)luaL_checkinteger(L, WSLUA_ARG_ProtoExpert_new_SEVERITY);
 
@@ -104,6 +98,7 @@ WSLUA_CONSTRUCTOR ProtoExpert_new(lua_State* L) {
     case PI_DEPRECATED:
     case PI_RECEIVE:
     case PI_INTERFACE:
+    case PI_DISSECTOR_BUG:
         break;
     default:
         luaL_argerror(L, WSLUA_ARG_ProtoExpert_new_GROUP, "Group must be one of expert.group.*");
@@ -137,10 +132,7 @@ WSLUA_CONSTRUCTOR ProtoExpert_new(lua_State* L) {
 }
 
 WSLUA_METAMETHOD ProtoExpert__tostring(lua_State* L) {
-    /* Returns a string with debugging information about a `ProtoExpert` object.
-
-       @since 1.11.3
-     */
+    /* Returns a string with debugging information about a `ProtoExpert` object. */
     ProtoExpert pe = toProtoExpert(L,1);
 
     if (!pe) {
@@ -166,8 +158,8 @@ static int ProtoExpert__gc(lua_State* L) {
         return 0;
     }
 
-    g_free((gchar *)pe->abbrev);
-    g_free((gchar *)pe->text);
+    g_free((char *)pe->abbrev);
+    g_free((char *)pe->text);
     g_free(pe);
 
     return 0;

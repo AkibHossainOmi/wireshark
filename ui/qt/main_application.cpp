@@ -33,6 +33,7 @@
 #include "epan/decode_as.h"
 #include "epan/dfilter/dfilter-macro.h"
 
+#include "ui/commandline.h"
 #include "ui/decode_as_utils.h"
 #include "ui/preference_utils.h"
 #include "ui/iface_lists.h"
@@ -111,7 +112,7 @@
 #pragma warning(pop)
 #endif
 
-MainApplication *mainApp = NULL;
+MainApplication *mainApp;
 
 // XXX - Copied from ui/gtk/file_dlg.c
 
@@ -162,7 +163,7 @@ topic_action(topic_action_e action)
  * https://stackoverflow.com/questions/437212/how-do-you-register-a-most-recently-used-list-with-windows-in-preparation-for-win
  */
 extern "C" void
-add_menu_recent_capture_file(const gchar *cf_name, bool force) {
+add_menu_recent_capture_file(const char *cf_name, bool force) {
     QString normalized_cf_name = QString::fromUtf8(cf_name);
     QDir cf_path;
 
@@ -283,7 +284,7 @@ void MainApplication::colorSchemeChanged() {
 
 void MainApplication::updateTaps()
 {
-    draw_tap_listeners(FALSE);
+    draw_tap_listeners(false);
 }
 
 QDir MainApplication::openDialogInitialDir() {
@@ -292,7 +293,8 @@ QDir MainApplication::openDialogInitialDir() {
 
 void MainApplication::setLastOpenDirFromFilename(const QString file_name)
 {
-    QString directory = QFileInfo(file_name).absolutePath();
+    /* XXX - Use canonicalPath() instead of absolutePath()? */
+    QString directory = QDir::toNativeSeparators(QFileInfo(file_name).absolutePath());
     /* XXX - printable? */
     set_last_open_dir(qUtf8Printable(directory));
 }
@@ -403,18 +405,18 @@ int MainApplication::monospaceTextSize(const char *str)
     return QFontMetrics(mono_font_).horizontalAdvance(str);
 }
 
-void MainApplication::setConfigurationProfile(const gchar *profile_name, bool write_recent_file)
+void MainApplication::setConfigurationProfile(const char *profile_name, bool write_recent_file)
 {
     char  *rf_path;
     int    rf_open_errno;
-    gchar *err_msg = NULL;
+    char *err_msg = NULL;
 
-    gboolean prev_capture_no_interface_load;
-    gboolean prev_capture_no_extcap;
+    bool prev_capture_no_interface_load;
+    bool prev_capture_no_extcap;
 
     /* First check if profile exists */
-    if (!profile_exists(profile_name, FALSE)) {
-        if (profile_exists(profile_name, TRUE)) {
+    if (!profile_exists(profile_name, false)) {
+        if (profile_exists(profile_name, true)) {
             char  *pf_dir_path, *pf_dir_path2, *pf_filename;
             /* Copy from global profile */
             if (create_persconffile_profile(profile_name, &pf_dir_path) == -1) {
@@ -425,7 +427,7 @@ void MainApplication::setConfigurationProfile(const gchar *profile_name, bool wr
                 g_free(pf_dir_path);
             }
 
-            if (copy_persconffile_profile(profile_name, profile_name, TRUE, &pf_filename,
+            if (copy_persconffile_profile(profile_name, profile_name, true, &pf_filename,
                     &pf_dir_path, &pf_dir_path2) == -1) {
                 simple_dialog(ESD_TYPE_ERROR, ESD_BTN_OK,
                     "Can't copy file \"%s\" in directory\n\"%s\" to\n\"%s\":\n%s.",
@@ -452,7 +454,7 @@ void MainApplication::setConfigurationProfile(const gchar *profile_name, bool wr
     /* Get the current geometry, before writing it to disk */
     emit profileChanging();
 
-    if (write_recent_file && profile_exists(get_profile_name(), FALSE))
+    if (write_recent_file && profile_exists(get_profile_name(), false))
     {
         /* Write recent file for profile we are leaving, if it still exists */
         write_profile_recent();
@@ -464,6 +466,10 @@ void MainApplication::setConfigurationProfile(const gchar *profile_name, bool wr
 
     /* Apply new preferences */
     readConfigurationFiles(true);
+
+    /* Apply command-line preferences */
+    commandline_options_reapply();
+    extcap_register_preferences();
 
     /* Switching profile requires reloading the macro list. */
     reloadDisplayFilterMacros();
@@ -496,6 +502,7 @@ void MainApplication::setConfigurationProfile(const gchar *profile_name, bool wr
     emit freezePacketList(true);
 
     emit columnsChanged();
+    emit colorsChanged();
     emit preferencesChanged();
     emit recentPreferencesRead();
     emit filterExpressionsChanged();
@@ -525,7 +532,7 @@ void MainApplication::setConfigurationProfile(const gchar *profile_name, bool wr
 
 void MainApplication::reloadLuaPluginsDelayed()
 {
-    QTimer::singleShot(0, this, SIGNAL(reloadLuaPlugins()));
+    QTimer::singleShot(0, this, &MainApplication::reloadLuaPlugins);
 }
 
 const QIcon &MainApplication::normalIcon()
@@ -700,7 +707,7 @@ MainApplication::MainApplication(int &argc,  char **argv) :
     // QFileSystemWatcher should allow us to watch for files being
     // removed or renamed.  It uses kqueues and EVFILT_VNODE on FreeBSD,
     // NetBSD, FSEvents on macOS, inotify on Linux if available, and
-    // FindFirstChagneNotification() on Windows.  On all other platforms,
+    // FindFirstChangeNotification() on Windows.  On all other platforms,
     // it just periodically polls, as we're doing now.
     //
     // For unmounts:
@@ -779,17 +786,17 @@ MainApplication::MainApplication(int &argc,  char **argv) :
     // I'm not sure what can be done on Linux.
     //
     recent_timer_.setParent(this);
-    connect(&recent_timer_, SIGNAL(timeout()), this, SLOT(refreshRecentCaptures()));
+    connect(&recent_timer_, &QTimer::timeout, this, &MainApplication::refreshRecentCaptures);
     recent_timer_.start(2000);
 
     packet_data_timer_.setParent(this);
-    connect(&packet_data_timer_, SIGNAL(timeout()), this, SLOT(refreshPacketData()));
+    connect(&packet_data_timer_, &QTimer::timeout, this, &MainApplication::refreshPacketData);
     packet_data_timer_.start(1000);
 
     tap_update_timer_.setParent(this);
     tap_update_timer_.setInterval(TAP_UPDATE_DEFAULT_INTERVAL);
-    connect(this, SIGNAL(appInitialized()), &tap_update_timer_, SLOT(start()));
-    connect(&tap_update_timer_, SIGNAL(timeout()), this, SLOT(updateTaps()));
+    connect(this, &MainApplication::appInitialized, &tap_update_timer_, [&]() { tap_update_timer_.start(); });
+    connect(&tap_update_timer_, &QTimer::timeout, this, &MainApplication::updateTaps);
 
     // Application-wide style sheet
     QString app_style_sheet = qApp->styleSheet();
@@ -799,7 +806,7 @@ MainApplication::MainApplication(int &argc,  char **argv) :
     prefs_set_gui_theme_is_dark(ColorUtils::themeIsDark());
 
 #if defined(HAVE_SOFTWARE_UPDATE) && defined(Q_OS_WIN)
-    connect(this, SIGNAL(softwareUpdateQuit()), this, SLOT(quit()), Qt::QueuedConnection);
+    connect(this, &MainApplication::softwareUpdateQuit, this, &MainApplication::quit, Qt::QueuedConnection);
 #endif
 
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0) && defined(Q_OS_WIN)
@@ -807,7 +814,7 @@ MainApplication::MainApplication(int &argc,  char **argv) :
     connect(styleHints(), &QStyleHints::colorSchemeChanged, this, &MainApplication::colorSchemeChanged);
 #endif
 
-    connect(qApp, SIGNAL(aboutToQuit()), this, SLOT(cleanup()));
+    connect(qApp, &QApplication::aboutToQuit, this, &MainApplication::cleanup);
 }
 
 MainApplication::~MainApplication()
@@ -862,6 +869,9 @@ void MainApplication::emitAppSignal(AppSignal signal)
         break;
     case FieldsChanged:
         emit fieldsChanged();
+        break;
+    case ColorsChanged:
+        emit colorsChanged();
         break;
     case FreezePacketList:
         emit freezePacketList(false);
@@ -991,7 +1001,7 @@ static void
 iface_mon_event_cb(const char *iface, int added, int up)
 {
     int present = 0;
-    guint ifs, j;
+    unsigned ifs, j;
     interface_t *device;
     interface_options *interface_opts;
 
@@ -1106,7 +1116,7 @@ void MainApplication::allSystemsGo()
     if (err == 0) {
         if_notifier_ = new QSocketNotifier(iface_mon_get_sock(),
                                            QSocketNotifier::Read, this);
-        connect(if_notifier_, SIGNAL(activated(int)), SLOT(ifChangeEventsAvailable()));
+        connect(if_notifier_, &QSocketNotifier::activated, this, &MainApplication::ifChangeEventsAvailable);
     }
 #endif
 }
@@ -1204,9 +1214,9 @@ void MainApplication::loadLanguage(const QString newLanguage)
         switchTranslator(mainApp->translator,
                 QString("wireshark_%1.qm").arg(localeLanguage), QString(get_datafile_dir()) + QString("/languages"));
     if (QFile::exists(QString("%1/wireshark_%3.qm")
-            .arg(gchar_free_to_qstring(get_persconffile_path("languages", FALSE))).arg(localeLanguage)))
+            .arg(gchar_free_to_qstring(get_persconffile_path("languages", false))).arg(localeLanguage)))
         switchTranslator(mainApp->translator,
-                QString("wireshark_%1.qm").arg(localeLanguage), gchar_free_to_qstring(get_persconffile_path("languages", FALSE)));
+                QString("wireshark_%1.qm").arg(localeLanguage), gchar_free_to_qstring(get_persconffile_path("languages", false)));
     if (QFile::exists(QString("%1/qt_%2.qm")
             .arg(get_datafile_dir()).arg(localeLanguage))) {
         switchTranslator(mainApp->translatorQt,

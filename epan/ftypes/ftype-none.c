@@ -15,7 +15,7 @@ void
 ftype_register_none(void)
 {
 
-	static ftype_t none_type = {
+	static const ftype_t none_type = {
 		FT_NONE,			/* ftype */
 		0,				/* wire_size */
 		NULL,				/* new_value */
@@ -45,7 +45,7 @@ ftype_register_none(void)
 		NULL,				/* is_negative */
 		NULL,				/* len */
 		NULL,				/* slice */
-		NULL,				/* biwise_and */
+		NULL,				/* bitwise_and */
 		NULL,				/* unary_minus */
 		NULL,				/* add */
 		NULL,				/* subtract */

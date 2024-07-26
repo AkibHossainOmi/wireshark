@@ -524,13 +524,22 @@ class TestDecryptTLS:
         first_response = binascii.hexlify(b'Request for /first, version TLSv1.3, Early data: no\n').decode("ascii")
         early_response = binascii.hexlify(b'Request for /early, version TLSv1.3, Early data: yes\n').decode("ascii")
         second_response = binascii.hexlify(b'Request for /second, version TLSv1.3, Early data: yes\n').decode("ascii")
+        # assert [
+            # r'5|/first|',
+            # fr'6||{first_response}',
+            # r'8|/early|',
+            # fr'10||{early_response}',
+            # r'12|/second|',
+            # fr'13||{second_response}',
+        # ] == stdout.splitlines()
+
         assert [
             r'5|/first|',
-            fr'6||{first_response}',
+            fr'6|/first|{first_response}',
             r'8|/early|',
-            fr'10||{early_response}',
+            fr'10|/early|{early_response}',
             r'12|/second|',
-            fr'13||{second_response}',
+            fr'13|/second|{second_response}',
         ] == stdout.splitlines()
 
     def test_tls13_rfc8446_noearly(self, cmd_tshark, dirs, features, capture_file, test_env):
@@ -549,12 +558,20 @@ class TestDecryptTLS:
         first_response = binascii.hexlify(b'Request for /first, version TLSv1.3, Early data: no\n').decode("ascii")
         early_response = binascii.hexlify(b'Request for /early, version TLSv1.3, Early data: yes\n').decode("ascii")
         second_response = binascii.hexlify(b'Request for /second, version TLSv1.3, Early data: yes\n').decode("ascii")
+        # assert [
+            # r'5|/first|',
+            # fr'6||{first_response}',
+            # fr'10||{early_response}',
+            # r'12|/second|',
+            # fr'13||{second_response}',
+        # ] == stdout.splitlines()
+
         assert [
             r'5|/first|',
-            fr'6||{first_response}',
+            fr'6|/first|{first_response}',
             fr'10||{early_response}',
             r'12|/second|',
-            fr'13||{second_response}',
+            fr'13|/second|{second_response}',
         ] == stdout.splitlines()
 
     def test_tls12_dsb(self, cmd_tshark, capture_file, test_env):

@@ -22,7 +22,7 @@
 
 void proto_register_glow(void);
 
-static dissector_handle_t glow_handle=NULL;
+static dissector_handle_t glow_handle;
 static int proto_glow;
 
 #include "packet-glow-hf.c"
@@ -61,7 +61,7 @@ void proto_register_glow(void) {
   };
 
   /* List of subtrees */
-  static gint *ett[] = {
+  static int *ett[] = {
                   &ett_glow,
 #include "packet-glow-ettarr.c"
   };

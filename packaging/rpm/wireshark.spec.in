@@ -24,6 +24,7 @@
 %bcond_with	bcg729
 %bcond_with	libxml2
 %bcond_with	nghttp2
+%bcond_with	nghttp3
 %bcond_with	sdjournal
 %bcond_with	guides
 %bcond_with	brotli
@@ -120,12 +121,15 @@ BuildRequires:	(c-ares-devel or libcares-devel)
 BuildRequires:	speexdsp-devel
 
 %if %{with lua}
-# We only support Lua before 5.3 (#10881)
-BuildRequires:	(compat-lua-devel < 5.3 or lua51-devel)
+BuildRequires:	(lua-devel or lua53-devel or compat-lua-devel or lua52-devel or lua51-devel)
 %endif
 
 %if %{with nghttp2}
 BuildRequires:	libnghttp2-devel
+%endif
+
+%if %{with nghttp3}
+BuildRequires:	libnghttp3-devel
 %endif
 
 %if %{with sdjournal}
@@ -346,6 +350,13 @@ development of Wireshark scripts and plugins.
 %{?!__cmake_builddir: %global __cmake_builddir %{?__builddir}%{!?__builddir:.}}
 
 %cmake_build
+%if %{with guides}
+%if 0%{?suse_version}
+%cmake_build all_guides
+%else
+%cmake_build --target all_guides
+%endif
+%endif
 
 %install
 
@@ -357,6 +368,7 @@ development of Wireshark scripts and plugins.
 %cmake_install --component Development
 %if %{with guides}
 %cmake_install --component UserGuide
+%cmake_install --component DeveloperGuide
 %endif
 
 # If we're being installed in an unusual prefix tell the loader where
@@ -412,6 +424,9 @@ update-mime-database %{_datadir}/mime &> /dev/null || :
 
 %defattr(-,root,root)
 %doc AUTHORS COPYING NEWS README.md
+%if %{with guides}
+%exclude %{_datadir}/doc/wireshark/wsdg_html_chunked
+%endif
 %{_datadir}/doc/wireshark
 %docdir %{_datadir}/doc/wireshark
 
@@ -480,6 +495,10 @@ update-mime-database %{_datadir}/mime &> /dev/null || :
 %{_includedir}/wireshark
 %{_libdir}/cmake/wireshark
 %{_libdir}/pkgconfig/wireshark.pc
+%if %{with guides}
+%{_datadir}/doc/wireshark/wsdg_html_chunked
+%docdir %{_datadir}/doc/wireshark/wsdg_html_chunked
+%endif
 
 %changelog
 * Wed Jun 14 2023 Joao Valverde

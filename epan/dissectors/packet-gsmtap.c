@@ -34,6 +34,7 @@
 #include "config.h"
 
 #include <epan/packet.h>
+#include <epan/expert.h>
 #include <epan/conversation.h>
 #include "packet-gsm_rlcmac.h"
 #include <wiretap/wtap.h>
@@ -80,7 +81,9 @@ static int hf_ptcch_padding;
 
 static int hf_um_voice_type;
 
-static gint ett_gsmtap;
+static int ett_gsmtap;
+
+static expert_field ei_gsmtap_unknown_gsmtap_version;
 
 enum {
 	GSMTAP_SUB_DATA = 0,
@@ -497,8 +500,8 @@ dissect_sacch_l1h(tvbuff_t *tvb, proto_tree *tree)
 
 	ti = proto_tree_add_protocol_format(tree, proto_gsmtap, tvb, 0, 2,
 			"SACCH L1 Header, Power Level: %u, Timing Advance: %u",
-			tvb_get_guint8(tvb, 0) & 0x1f,
-			tvb_get_guint8(tvb, 1));
+			tvb_get_uint8(tvb, 0) & 0x1f,
+			tvb_get_uint8(tvb, 1));
 	l1h_tree = proto_item_add_subtree(ti, ett_gsmtap);
 	/* Power Level */
 	proto_tree_add_item(l1h_tree, hf_sacch_l1h_power_lev, tvb, 0, 1, ENC_BIG_ENDIAN);
@@ -506,7 +509,7 @@ dissect_sacch_l1h(tvbuff_t *tvb, proto_tree *tree)
 	proto_tree_add_item(l1h_tree, hf_sacch_l1h_fpc, tvb, 0, 1, ENC_BIG_ENDIAN);
 	/* SRO/SRR (SACCH Repetition) bit */
 	proto_tree_add_item(l1h_tree, hf_sacch_l1h_sro_srr, tvb, 0, 1, ENC_BIG_ENDIAN);
-	/* Acutal Timing Advance */
+	/* Actual Timing Advance */
 	proto_tree_add_item(l1h_tree, hf_sacch_l1h_ta, tvb, 1, 1, ENC_BIG_ENDIAN);
 }
 
@@ -549,7 +552,7 @@ dissect_ptcch_dl(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 }
 
 static void
-handle_lapdm(guint8 sub_type, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
+handle_lapdm(uint8_t sub_type, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	lapdm_data_t ld;
 
@@ -560,7 +563,7 @@ handle_lapdm(guint8 sub_type, tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
 static void
 handle_rach(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
-	guint8 channel_type = GSMTAP_CHANNEL_RACH;
+	uint8_t channel_type = GSMTAP_CHANNEL_RACH;
 	call_dissector_with_data(sub_handles[GSMTAP_SUB_UM], tvb, pinfo, tree, &channel_type);
 }
 
@@ -568,7 +571,7 @@ static void
 dissect_um_voice(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree)
 {
 	tvbuff_t *payload_tvb;
-	guint8 vtype = tvb_get_guint8(tvb, 0);
+	uint8_t vtype = tvb_get_uint8(tvb, 0);
 
 	col_add_fstr(pinfo->cinfo, COL_INFO, "GSM CS User Plane (Voice/CSD): %s",
 			val_to_str(vtype, gsmtap_um_voice_types, "Unknown %d"));
@@ -594,7 +597,7 @@ handle_tetra(int channel, tvbuff_t *payload_tvb, packet_info *pinfo, proto_tree 
 }
 
 /* length of an EGPRS RLC data block for given MCS */
-static const guint data_block_len_by_mcs[] = {
+static const unsigned data_block_len_by_mcs[] = {
 	0,	/* MCS0 */
 	22,	/* MCS1 */
 	28,
@@ -610,10 +613,10 @@ static const guint data_block_len_by_mcs[] = {
 
 /* determine the number of rlc data blocks and their size / offsets */
 static void
-setup_rlc_mac_priv(RlcMacPrivateData_t *rm, gboolean is_uplink,
-	guint *n_calls, guint *data_block_bits, guint *data_block_offsets)
+setup_rlc_mac_priv(RlcMacPrivateData_t *rm, bool is_uplink,
+	unsigned *n_calls, unsigned *data_block_bits, unsigned *data_block_offsets)
 {
-	guint nc, dbl = 0, dbo[2] = {0,0};
+	unsigned nc, dbl = 0, dbo[2] = {0,0};
 
 	dbl = data_block_len_by_mcs[rm->mcs];
 
@@ -645,15 +648,15 @@ setup_rlc_mac_priv(RlcMacPrivateData_t *rm, gboolean is_uplink,
 /* bit-shift the entire 'src' of length 'length_bytes' by 'offset_bits'
  * and store the reuslt to caller-allocated 'buffer'.  The shifting is
  * done lsb-first, unlike tvb_new_octet_aligned() */
-static void clone_aligned_buffer_lsbf(guint offset_bits, guint length_bytes,
-	const guint8 *src, guint8 *buffer)
+static void clone_aligned_buffer_lsbf(unsigned offset_bits, unsigned length_bytes,
+	const uint8_t *src, uint8_t *buffer)
 {
-	guint hdr_bytes;
-	guint extra_bits;
-	guint i;
+	unsigned hdr_bytes;
+	unsigned extra_bits;
+	unsigned i;
 
-	guint8 c, last_c;
-	guint8 *dst;
+	uint8_t c, last_c;
+	uint8_t *dst;
 
 	hdr_bytes = offset_bits / 8;
 	extra_bits = offset_bits % 8;
@@ -677,18 +680,18 @@ static void clone_aligned_buffer_lsbf(guint offset_bits, guint length_bytes,
 
 /* obtain an (aligned) EGPRS data block with given bit-offset and
  * bit-length from the parent TVB */
-static tvbuff_t *get_egprs_data_block(tvbuff_t *tvb, guint offset_bits,
-	guint length_bits, packet_info *pinfo)
+static tvbuff_t *get_egprs_data_block(tvbuff_t *tvb, unsigned offset_bits,
+	unsigned length_bits, packet_info *pinfo)
 {
 	tvbuff_t *aligned_tvb;
-	const guint initial_spare_bits = 6;
-	guint8 *aligned_buf;
-	guint min_src_length_bytes = (offset_bits + length_bits + 7) / 8;
-	guint length_bytes = (initial_spare_bits + length_bits + 7) / 8;
+	const unsigned initial_spare_bits = 6;
+	uint8_t *aligned_buf;
+	unsigned min_src_length_bytes = (offset_bits + length_bits + 7) / 8;
+	unsigned length_bytes = (initial_spare_bits + length_bits + 7) / 8;
 
 	tvb_ensure_bytes_exist(tvb, 0, min_src_length_bytes);
 
-	aligned_buf = (guint8 *) wmem_alloc(pinfo->pool, length_bytes);
+	aligned_buf = (uint8_t *) wmem_alloc(pinfo->pool, length_bytes);
 
 	/* Copy the data out of the tvb to an aligned buffer */
 	clone_aligned_buffer_lsbf(
@@ -706,7 +709,7 @@ static tvbuff_t *get_egprs_data_block(tvbuff_t *tvb, guint offset_bits,
 	return aligned_tvb;
 }
 
-static void tvb_len_get_mcs_and_fmt(guint len, gboolean is_uplink, guint *frm, guint8 *mcs)
+static void tvb_len_get_mcs_and_fmt(unsigned len, bool is_uplink, unsigned *frm, uint8_t *mcs)
 {
 	if (len <= 5 && is_uplink) {
 		/* Assume random access burst */
@@ -740,15 +743,15 @@ static void tvb_len_get_mcs_and_fmt(guint len, gboolean is_uplink, guint *frm, g
 }
 
 static void
-handle_rlcmac(guint32 frame_nr, tvbuff_t *payload_tvb, packet_info *pinfo, proto_tree *tree)
+handle_rlcmac(uint32_t frame_nr, tvbuff_t *payload_tvb, packet_info *pinfo, proto_tree *tree)
 {
 
 	int sub_handle;
 	RlcMacPrivateData_t rlcmac_data = {0};
 	tvbuff_t *data_tvb;
-	guint data_block_bits, data_block_offsets[2];
-	guint num_calls;
-	gboolean is_uplink;
+	unsigned data_block_bits, data_block_offsets[2];
+	unsigned num_calls;
+	bool is_uplink;
 
 	if (pinfo->p2p_dir == P2P_DIR_SENT) {
 		is_uplink = 1;
@@ -762,8 +765,8 @@ handle_rlcmac(guint32 frame_nr, tvbuff_t *payload_tvb, packet_info *pinfo, proto
 	rlcmac_data.frame_number = frame_nr;
 
 	tvb_len_get_mcs_and_fmt(tvb_reported_length(payload_tvb), is_uplink,
-				(guint *) &rlcmac_data.block_format,
-				(guint8 *) &rlcmac_data.mcs);
+				(unsigned *) &rlcmac_data.block_format,
+				(uint8_t *) &rlcmac_data.mcs);
 
 	switch (rlcmac_data.block_format) {
 	case RLCMAC_HDR_TYPE_1:
@@ -803,27 +806,27 @@ handle_rlcmac(guint32 frame_nr, tvbuff_t *payload_tvb, packet_info *pinfo, proto
 	}
 }
 
-/* dissect a GSMTAP header and hand payload off to respective dissector */
+/* dissect a GSMTAP v2 header and hand payload off to respective dissector */
 static int
-dissect_gsmtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
+dissect_gsmtap_v2(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
 {
 	int sub_handle, sub_handle_idx = 0, len, offset = 0;
 	proto_item *ti;
 	proto_tree *gsmtap_tree = NULL;
 	tvbuff_t *payload_tvb, *l1h_tvb = NULL;
-	guint8 hdr_len, type, sub_type, timeslot, subslot;
-	guint16 arfcn;
-	guint32 frame_nr;
+	uint8_t hdr_len, type, sub_type, timeslot, subslot;
+	uint16_t arfcn;
+	uint32_t frame_nr;
 
 	len = tvb_reported_length(tvb);
 
-	hdr_len = tvb_get_guint8(tvb, offset + 1) <<2;
-	type = tvb_get_guint8(tvb, offset + 2);
-	timeslot = tvb_get_guint8(tvb, offset + 3);
+	hdr_len = tvb_get_uint8(tvb, offset + 1) <<2;
+	type = tvb_get_uint8(tvb, offset + 2);
+	timeslot = tvb_get_uint8(tvb, offset + 3);
 	arfcn = tvb_get_ntohs(tvb, offset + 4);
 	frame_nr = tvb_get_ntohl(tvb, offset + 8);
-	sub_type = tvb_get_guint8(tvb, offset + 12);
-	subslot = tvb_get_guint8(tvb, offset + 14);
+	sub_type = tvb_get_uint8(tvb, offset + 12);
+	subslot = tvb_get_uint8(tvb, offset + 14);
 
 	/* In case of a SACCH, there is a two-byte L1 header in front
 	 * of the packet (see TS 04.04) */
@@ -876,9 +879,9 @@ dissect_gsmtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _
 	conversation_set_elements_by_id(pinfo, CONVERSATION_GSMTAP, (timeslot << 3) | subslot);
 
 	if (tree) {
-		guint8 channel;
+		uint8_t channel;
 		const char *channel_str;
-		channel = tvb_get_guint8(tvb, offset+12);
+		channel = tvb_get_uint8(tvb, offset+12);
 		if (type == GSMTAP_TYPE_TETRA_I1)
 			channel_str = val_to_str(channel, gsmtap_tetra_channels, "Unknown: %d");
 		else if (type == GSMTAP_TYPE_GMR1_UM)
@@ -890,9 +893,9 @@ dissect_gsmtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _
 			"GSM TAP Header, ARFCN: %u (%s), TS: %u, Channel: %s (%u)",
 			arfcn & GSMTAP_ARFCN_MASK,
 			arfcn & GSMTAP_ARFCN_F_UPLINK ? "Uplink" : "Downlink",
-			tvb_get_guint8(tvb, offset+3),
+			tvb_get_uint8(tvb, offset+3),
 			channel_str,
-			tvb_get_guint8(tvb, offset+14));
+			tvb_get_uint8(tvb, offset+14));
 		gsmtap_tree = proto_item_add_subtree(ti, ett_gsmtap);
 		proto_tree_add_item(gsmtap_tree, hf_gsmtap_version,
 				    tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -1041,7 +1044,7 @@ dissect_gsmtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _
 		sub_handle = GSMTAP_SUB_SNDCP;
 		break;
 	case GSMTAP_TYPE_TETRA_I1:
-		handle_tetra(tvb_get_guint8(tvb, offset+12), payload_tvb, pinfo, tree);
+		handle_tetra(tvb_get_uint8(tvb, offset+12), payload_tvb, pinfo, tree);
 		return tvb_captured_length(tvb);
 	case GSMTAP_TYPE_WMX_BURST:
 		switch (sub_type) {
@@ -1177,6 +1180,30 @@ dissect_gsmtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _
 	return tvb_captured_length(tvb);
 }
 
+static int
+dissect_gsmtap(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void* data _U_)
+{
+	uint8_t version;
+	proto_tree *gsmtap_tree;
+	proto_item *ti, *tf;
+
+	version = tvb_get_uint8(tvb, 0);
+
+	if (version == 2) {
+		return dissect_gsmtap_v2(tvb, pinfo, tree, data);
+	}
+
+	/* Unknown GSMTAP version */
+	ti = proto_tree_add_protocol_format(tree, proto_gsmtap, tvb, 0, 1, "GSMTAP, unknown version (%u)", version);
+	col_set_str(pinfo->cinfo, COL_PROTOCOL, "GSMTAP");
+	col_clear(pinfo->cinfo, COL_INFO);
+	col_add_fstr(pinfo->cinfo, COL_INFO, "Unknown GSMTAP version (%u)", version);
+	gsmtap_tree = proto_item_add_subtree(ti, ett_gsmtap);
+	tf = proto_tree_add_item(gsmtap_tree, hf_gsmtap_version, tvb, 0, 1, ENC_BIG_ENDIAN);
+	expert_add_info(pinfo, tf, &ei_gsmtap_unknown_gsmtap_version);
+	return 1;
+}
+
 void
 proto_register_gsmtap(void)
 {
@@ -1239,13 +1266,20 @@ proto_register_gsmtap(void)
 		{ &hf_ptcch_padding, { "Spare Padding", "gsmtap.ptcch.padding",
 		  FT_BYTES, SEP_SPACE, NULL, 0, NULL, HFILL } },
 	};
-	static gint *ett[] = {
+	static int *ett[] = {
 		&ett_gsmtap
 	};
+	static ei_register_info ei[] = {
+		{ &ei_gsmtap_unknown_gsmtap_version, { "gsmtap.version.invalid", PI_PROTOCOL, PI_WARN, "Unknown protocol version", EXPFILL }},
+	};
+
+	expert_module_t* expert_gsmtap;
 
 	proto_gsmtap = proto_register_protocol("GSM Radiotap", "GSMTAP", "gsmtap");
 	proto_register_field_array(proto_gsmtap, hf, array_length(hf));
 	proto_register_subtree_array(ett, array_length(ett));
+	expert_gsmtap = expert_register_protocol(proto_gsmtap);
+	expert_register_field_array(expert_gsmtap, ei, array_length(ei));
 
 	gsmtap_dissector_table = register_dissector_table("gsmtap.type",
 						"GSMTAP type", proto_gsmtap, FT_UINT8, BASE_HEX);

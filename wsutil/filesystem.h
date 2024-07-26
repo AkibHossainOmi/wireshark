@@ -81,9 +81,19 @@ WS_DLL_PUBLIC char *get_executable_path(const char *filename);
 WS_DLL_PUBLIC const char *get_plugins_dir(void);
 
 /*
+ * Append VERSION_MAJOR.VERSION_MINOR to the plugin dir.
+ */
+WS_DLL_PUBLIC const char *get_plugins_dir_with_version(void);
+
+/*
  * Get the personal plugin dir.
  */
 WS_DLL_PUBLIC const char *get_plugins_pers_dir(void);
+
+/*
+ * Append VERSION_MAJOR.VERSION_MINOR to the plugin personal dir.
+ */
+WS_DLL_PUBLIC const char *get_plugins_pers_dir_with_version(void);
 
 /*
  * Get the directory in which extcap hooks are stored; this must not be called
@@ -349,7 +359,14 @@ WS_DLL_PUBLIC int test_for_directory(const char *);
 WS_DLL_PUBLIC int test_for_fifo(const char *);
 
 /*
- * Check, if file is existing.
+ * Given a pathname, return true if the attempt to "stat()" the file
+ * succeeds, and it turns out to be a regular file. "stat()" follows
+ * links, so returns true if the pathname is a link to a regular file.
+ */
+WS_DLL_PUBLIC bool test_for_regular_file(const char *);
+
+/*
+ * Check if a file exists.
  */
 WS_DLL_PUBLIC bool file_exists(const char *fname);
 

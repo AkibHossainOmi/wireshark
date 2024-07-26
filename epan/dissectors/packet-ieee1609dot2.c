@@ -1,7 +1,7 @@
 /* Do not modify this file. Changes will be overwritten.                      */
 /* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-ieee1609dot2.c                                                      */
-/* asn2wrs.py -L -p ieee1609dot2 -c ./ieee1609dot2.cnf -s ./packet-ieee1609dot2-template -D . -O ../.. IEEE1609dot2BaseTypes.asn Ieee1609Dot2CrlBaseTypes.asn Ieee1609Dot2Crl.asn Ieee1609Dot2.asn IEEE1609dot12.asn */
+/* asn2wrs.py -q -L -p ieee1609dot2 -c ./ieee1609dot2.cnf -s ./packet-ieee1609dot2-template -D . -O ../.. IEEE1609dot2BaseTypes.asn Ieee1609Dot2CrlBaseTypes.asn Ieee1609Dot2Crl.asn Ieee1609Dot2.asn IEEE1609dot12.asn */
 
 /* packet-IEEE1609dot2.c
  * Routines for IEEE 1609.2
@@ -41,7 +41,7 @@ void proto_reg_handoff_ieee1609dot2(void);
 
 /* Initialize the protocol and registered fields */
 int proto_ieee1609dot2;
-dissector_handle_t proto_ieee1609dot2_handle = NULL;
+dissector_handle_t proto_ieee1609dot2_handle;
 static int hf_ieee1609dot2_SecuredCrl_PDU;        /* SecuredCrl */
 static int hf_ieee1609dot2_Ieee1609Dot2Data_PDU;  /* Ieee1609Dot2Data */
 static int hf_ieee1609dot2_SequenceOfUint8_item;  /* Uint8 */
@@ -296,127 +296,127 @@ static int hf_ieee1609dot2_EndEntityType_enrol;
 
 /* Initialize the subtree pointers */
 static int ett_ieee1609dot2_ssp;
-static gint ett_ieee1609dot2_SequenceOfUint8;
-static gint ett_ieee1609dot2_SequenceOfUint16;
-static gint ett_ieee1609dot2_SequenceOfHashedId3;
-static gint ett_ieee1609dot2_ValidityPeriod;
-static gint ett_ieee1609dot2_Duration;
-static gint ett_ieee1609dot2_GeographicRegion;
-static gint ett_ieee1609dot2_CircularRegion;
-static gint ett_ieee1609dot2_RectangularRegion;
-static gint ett_ieee1609dot2_SequenceOfRectangularRegion;
-static gint ett_ieee1609dot2_PolygonalRegion;
-static gint ett_ieee1609dot2_TwoDLocation;
-static gint ett_ieee1609dot2_IdentifiedRegion;
-static gint ett_ieee1609dot2_SequenceOfIdentifiedRegion;
-static gint ett_ieee1609dot2_CountryAndRegions;
-static gint ett_ieee1609dot2_CountryAndSubregions;
-static gint ett_ieee1609dot2_RegionAndSubregions;
-static gint ett_ieee1609dot2_SequenceOfRegionAndSubregions;
-static gint ett_ieee1609dot2_ThreeDLocation;
-static gint ett_ieee1609dot2_Signature;
-static gint ett_ieee1609dot2_EcdsaP256Signature;
-static gint ett_ieee1609dot2_EcdsaP384Signature;
-static gint ett_ieee1609dot2_EcsigP256Signature;
-static gint ett_ieee1609dot2_EccP256CurvePoint;
-static gint ett_ieee1609dot2_T_uncompressedP256;
-static gint ett_ieee1609dot2_EccP384CurvePoint;
-static gint ett_ieee1609dot2_T_uncompressedP384;
-static gint ett_ieee1609dot2_EciesP256EncryptedKey;
-static gint ett_ieee1609dot2_EcencP256EncryptedKey;
-static gint ett_ieee1609dot2_EncryptionKey;
-static gint ett_ieee1609dot2_PublicEncryptionKey;
-static gint ett_ieee1609dot2_BasePublicEncryptionKey;
-static gint ett_ieee1609dot2_PublicVerificationKey;
-static gint ett_ieee1609dot2_SymmetricEncryptionKey;
-static gint ett_ieee1609dot2_PsidSsp;
-static gint ett_ieee1609dot2_SequenceOfPsidSsp;
-static gint ett_ieee1609dot2_ServiceSpecificPermissions;
-static gint ett_ieee1609dot2_PsidSspRange;
-static gint ett_ieee1609dot2_SequenceOfPsidSspRange;
-static gint ett_ieee1609dot2_SspRange;
-static gint ett_ieee1609dot2_BitmapSspRange;
-static gint ett_ieee1609dot2_SequenceOfOctetString;
-static gint ett_ieee1609dot2_GroupLinkageValue;
-static gint ett_ieee1609dot2_SequenceOfLinkageSeed;
-static gint ett_ieee1609dot2_CrlContents;
-static gint ett_ieee1609dot2_CrlPriorityInfo;
-static gint ett_ieee1609dot2_TypeSpecificCrlContents;
-static gint ett_ieee1609dot2_ToBeSignedHashIdCrl;
-static gint ett_ieee1609dot2_SequenceOfHashBasedRevocationInfo;
-static gint ett_ieee1609dot2_HashBasedRevocationInfo;
-static gint ett_ieee1609dot2_ToBeSignedLinkageValueCrl;
-static gint ett_ieee1609dot2_SequenceOfJMaxGroup;
-static gint ett_ieee1609dot2_JMaxGroup;
-static gint ett_ieee1609dot2_SequenceOfLAGroup;
-static gint ett_ieee1609dot2_LAGroup;
-static gint ett_ieee1609dot2_SequenceOfIMaxGroup;
-static gint ett_ieee1609dot2_IMaxGroup;
-static gint ett_ieee1609dot2_SequenceOfIndividualRevocation;
-static gint ett_ieee1609dot2_IndividualRevocation;
-static gint ett_ieee1609dot2_SequenceOfGroupCrlEntry;
-static gint ett_ieee1609dot2_GroupCrlEntry;
-static gint ett_ieee1609dot2_ToBeSignedLinkageValueCrlWithAlgIdentifier;
-static gint ett_ieee1609dot2_SequenceOfGroupSingleSeedCrlEntry;
-static gint ett_ieee1609dot2_GroupSingleSeedCrlEntry;
-static gint ett_ieee1609dot2_SecuredCrl;
-static gint ett_ieee1609dot2_SecuredCrlContent;
-static gint ett_ieee1609dot2_CrlSignedData;
-static gint ett_ieee1609dot2_CrlToBeSignedData;
-static gint ett_ieee1609dot2_CrlSignedDataPayload;
-static gint ett_ieee1609dot2_Ieee1609Dot2CrlData;
-static gint ett_ieee1609dot2_Ieee1609Dot2CrlContent;
-static gint ett_ieee1609dot2_Ieee1609Dot2Data;
-static gint ett_ieee1609dot2_Ieee1609Dot2Content;
-static gint ett_ieee1609dot2_SignedData;
-static gint ett_ieee1609dot2_ToBeSignedData;
-static gint ett_ieee1609dot2_SignedDataPayload;
-static gint ett_ieee1609dot2_HashedData;
-static gint ett_ieee1609dot2_HeaderInfo;
-static gint ett_ieee1609dot2_MissingCrlIdentifier;
-static gint ett_ieee1609dot2_ContributedExtensionBlocks;
-static gint ett_ieee1609dot2_ContributedExtensionBlock;
-static gint ett_ieee1609dot2_T_extns;
-static gint ett_ieee1609dot2_SignerIdentifier;
-static gint ett_ieee1609dot2_EncryptedData;
-static gint ett_ieee1609dot2_RecipientInfo;
-static gint ett_ieee1609dot2_SequenceOfRecipientInfo;
-static gint ett_ieee1609dot2_SymmRecipientInfo;
-static gint ett_ieee1609dot2_PKRecipientInfo;
-static gint ett_ieee1609dot2_EncryptedDataEncryptionKey;
-static gint ett_ieee1609dot2_SymmetricCiphertext;
-static gint ett_ieee1609dot2_One28BitCcmCiphertext;
-static gint ett_ieee1609dot2_SequenceOfCertificate;
-static gint ett_ieee1609dot2_CertificateBase;
-static gint ett_ieee1609dot2_IssuerIdentifier;
-static gint ett_ieee1609dot2_ToBeSignedCertificate;
-static gint ett_ieee1609dot2_T_flags;
-static gint ett_ieee1609dot2_CertificateId;
-static gint ett_ieee1609dot2_LinkageData;
-static gint ett_ieee1609dot2_EndEntityType;
-static gint ett_ieee1609dot2_PsidGroupPermissions;
-static gint ett_ieee1609dot2_SequenceOfPsidGroupPermissions;
-static gint ett_ieee1609dot2_SubjectPermissions;
-static gint ett_ieee1609dot2_VerificationKeyIndicator;
-static gint ett_ieee1609dot2_SequenceOfAppExtensions;
-static gint ett_ieee1609dot2_AppExtension;
-static gint ett_ieee1609dot2_SequenceOfCertIssueExtensions;
-static gint ett_ieee1609dot2_CertIssueExtension;
-static gint ett_ieee1609dot2_T_permissions;
-static gint ett_ieee1609dot2_SequenceOfCertRequestExtensions;
-static gint ett_ieee1609dot2_CertRequestExtension;
-static gint ett_ieee1609dot2_T_permissions_01;
+static int ett_ieee1609dot2_SequenceOfUint8;
+static int ett_ieee1609dot2_SequenceOfUint16;
+static int ett_ieee1609dot2_SequenceOfHashedId3;
+static int ett_ieee1609dot2_ValidityPeriod;
+static int ett_ieee1609dot2_Duration;
+static int ett_ieee1609dot2_GeographicRegion;
+static int ett_ieee1609dot2_CircularRegion;
+static int ett_ieee1609dot2_RectangularRegion;
+static int ett_ieee1609dot2_SequenceOfRectangularRegion;
+static int ett_ieee1609dot2_PolygonalRegion;
+static int ett_ieee1609dot2_TwoDLocation;
+static int ett_ieee1609dot2_IdentifiedRegion;
+static int ett_ieee1609dot2_SequenceOfIdentifiedRegion;
+static int ett_ieee1609dot2_CountryAndRegions;
+static int ett_ieee1609dot2_CountryAndSubregions;
+static int ett_ieee1609dot2_RegionAndSubregions;
+static int ett_ieee1609dot2_SequenceOfRegionAndSubregions;
+static int ett_ieee1609dot2_ThreeDLocation;
+static int ett_ieee1609dot2_Signature;
+static int ett_ieee1609dot2_EcdsaP256Signature;
+static int ett_ieee1609dot2_EcdsaP384Signature;
+static int ett_ieee1609dot2_EcsigP256Signature;
+static int ett_ieee1609dot2_EccP256CurvePoint;
+static int ett_ieee1609dot2_T_uncompressedP256;
+static int ett_ieee1609dot2_EccP384CurvePoint;
+static int ett_ieee1609dot2_T_uncompressedP384;
+static int ett_ieee1609dot2_EciesP256EncryptedKey;
+static int ett_ieee1609dot2_EcencP256EncryptedKey;
+static int ett_ieee1609dot2_EncryptionKey;
+static int ett_ieee1609dot2_PublicEncryptionKey;
+static int ett_ieee1609dot2_BasePublicEncryptionKey;
+static int ett_ieee1609dot2_PublicVerificationKey;
+static int ett_ieee1609dot2_SymmetricEncryptionKey;
+static int ett_ieee1609dot2_PsidSsp;
+static int ett_ieee1609dot2_SequenceOfPsidSsp;
+static int ett_ieee1609dot2_ServiceSpecificPermissions;
+static int ett_ieee1609dot2_PsidSspRange;
+static int ett_ieee1609dot2_SequenceOfPsidSspRange;
+static int ett_ieee1609dot2_SspRange;
+static int ett_ieee1609dot2_BitmapSspRange;
+static int ett_ieee1609dot2_SequenceOfOctetString;
+static int ett_ieee1609dot2_GroupLinkageValue;
+static int ett_ieee1609dot2_SequenceOfLinkageSeed;
+static int ett_ieee1609dot2_CrlContents;
+static int ett_ieee1609dot2_CrlPriorityInfo;
+static int ett_ieee1609dot2_TypeSpecificCrlContents;
+static int ett_ieee1609dot2_ToBeSignedHashIdCrl;
+static int ett_ieee1609dot2_SequenceOfHashBasedRevocationInfo;
+static int ett_ieee1609dot2_HashBasedRevocationInfo;
+static int ett_ieee1609dot2_ToBeSignedLinkageValueCrl;
+static int ett_ieee1609dot2_SequenceOfJMaxGroup;
+static int ett_ieee1609dot2_JMaxGroup;
+static int ett_ieee1609dot2_SequenceOfLAGroup;
+static int ett_ieee1609dot2_LAGroup;
+static int ett_ieee1609dot2_SequenceOfIMaxGroup;
+static int ett_ieee1609dot2_IMaxGroup;
+static int ett_ieee1609dot2_SequenceOfIndividualRevocation;
+static int ett_ieee1609dot2_IndividualRevocation;
+static int ett_ieee1609dot2_SequenceOfGroupCrlEntry;
+static int ett_ieee1609dot2_GroupCrlEntry;
+static int ett_ieee1609dot2_ToBeSignedLinkageValueCrlWithAlgIdentifier;
+static int ett_ieee1609dot2_SequenceOfGroupSingleSeedCrlEntry;
+static int ett_ieee1609dot2_GroupSingleSeedCrlEntry;
+static int ett_ieee1609dot2_SecuredCrl;
+static int ett_ieee1609dot2_SecuredCrlContent;
+static int ett_ieee1609dot2_CrlSignedData;
+static int ett_ieee1609dot2_CrlToBeSignedData;
+static int ett_ieee1609dot2_CrlSignedDataPayload;
+static int ett_ieee1609dot2_Ieee1609Dot2CrlData;
+static int ett_ieee1609dot2_Ieee1609Dot2CrlContent;
+static int ett_ieee1609dot2_Ieee1609Dot2Data;
+static int ett_ieee1609dot2_Ieee1609Dot2Content;
+static int ett_ieee1609dot2_SignedData;
+static int ett_ieee1609dot2_ToBeSignedData;
+static int ett_ieee1609dot2_SignedDataPayload;
+static int ett_ieee1609dot2_HashedData;
+static int ett_ieee1609dot2_HeaderInfo;
+static int ett_ieee1609dot2_MissingCrlIdentifier;
+static int ett_ieee1609dot2_ContributedExtensionBlocks;
+static int ett_ieee1609dot2_ContributedExtensionBlock;
+static int ett_ieee1609dot2_T_extns;
+static int ett_ieee1609dot2_SignerIdentifier;
+static int ett_ieee1609dot2_EncryptedData;
+static int ett_ieee1609dot2_RecipientInfo;
+static int ett_ieee1609dot2_SequenceOfRecipientInfo;
+static int ett_ieee1609dot2_SymmRecipientInfo;
+static int ett_ieee1609dot2_PKRecipientInfo;
+static int ett_ieee1609dot2_EncryptedDataEncryptionKey;
+static int ett_ieee1609dot2_SymmetricCiphertext;
+static int ett_ieee1609dot2_One28BitCcmCiphertext;
+static int ett_ieee1609dot2_SequenceOfCertificate;
+static int ett_ieee1609dot2_CertificateBase;
+static int ett_ieee1609dot2_IssuerIdentifier;
+static int ett_ieee1609dot2_ToBeSignedCertificate;
+static int ett_ieee1609dot2_T_flags;
+static int ett_ieee1609dot2_CertificateId;
+static int ett_ieee1609dot2_LinkageData;
+static int ett_ieee1609dot2_EndEntityType;
+static int ett_ieee1609dot2_PsidGroupPermissions;
+static int ett_ieee1609dot2_SequenceOfPsidGroupPermissions;
+static int ett_ieee1609dot2_SubjectPermissions;
+static int ett_ieee1609dot2_VerificationKeyIndicator;
+static int ett_ieee1609dot2_SequenceOfAppExtensions;
+static int ett_ieee1609dot2_AppExtension;
+static int ett_ieee1609dot2_SequenceOfCertIssueExtensions;
+static int ett_ieee1609dot2_CertIssueExtension;
+static int ett_ieee1609dot2_T_permissions;
+static int ett_ieee1609dot2_SequenceOfCertRequestExtensions;
+static int ett_ieee1609dot2_CertRequestExtension;
+static int ett_ieee1609dot2_T_permissions_01;
 
 static dissector_table_t unsecured_data_subdissector_table;
 static dissector_table_t ssp_subdissector_table;
 
 typedef struct ieee1609_private_data {
   tvbuff_t *unsecured_data;
-  guint64 psidssp; // psid for Service Specific Permissions
+  uint64_t psidssp; // psid for Service Specific Permissions
 } ieee1609_private_data_t;
 
 void
-ieee1609dot2_set_next_default_psid(packet_info *pinfo, guint32 psid)
+ieee1609dot2_set_next_default_psid(packet_info *pinfo, uint32_t psid)
 {
   p_add_proto_data(wmem_file_scope(), pinfo, proto_ieee1609dot2, 0, GUINT_TO_POINTER(psid));
 }
@@ -427,13 +427,12 @@ ieee1609dot2_set_next_default_psid(packet_info *pinfo, guint32 psid)
 static int dissect_ieee1609dot2_Ieee1609Dot2Data(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_);
 
 
-#define MAX_RECURSION_DEPTH 100 // Arbitrarily chosen.
 
 
 static int
 dissect_ieee1609dot2_Uint8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 255U, NULL, FALSE);
+                                                            0U, 255U, NULL, false);
 
   return offset;
 }
@@ -443,7 +442,7 @@ dissect_ieee1609dot2_Uint8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _
 static int
 dissect_ieee1609dot2_Uint16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 65535U, NULL, FALSE);
+                                                            0U, 65535U, NULL, false);
 
   return offset;
 }
@@ -453,7 +452,7 @@ dissect_ieee1609dot2_Uint16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 static int
 dissect_ieee1609dot2_Uint32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 4294967295U, NULL, FALSE);
+                                                            0U, 4294967295U, NULL, false);
 
   return offset;
 }
@@ -463,7 +462,7 @@ dissect_ieee1609dot2_Uint32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 static int
 dissect_ieee1609dot2_Uint64(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer_64b(tvb, offset, actx, tree, hf_index,
-                                                            0U, G_GUINT64_CONSTANT(18446744073709551615), NULL, FALSE);
+                                                            0U, UINT64_C(18446744073709551615), NULL, false);
 
   return offset;
 }
@@ -499,7 +498,7 @@ dissect_ieee1609dot2_SequenceOfUint16(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 static int
 dissect_ieee1609dot2_Opaque(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       NO_BOUND, NO_BOUND, FALSE, NULL);
+                                       NO_BOUND, NO_BOUND, false, NULL);
 
   return offset;
 }
@@ -509,7 +508,7 @@ dissect_ieee1609dot2_Opaque(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 static int
 dissect_ieee1609dot2_HashedId3(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       3, 3, FALSE, NULL);
+                                       3, 3, false, NULL);
 
   return offset;
 }
@@ -532,7 +531,7 @@ dissect_ieee1609dot2_SequenceOfHashedId3(tvbuff_t *tvb _U_, int offset _U_, asn1
 static int
 dissect_ieee1609dot2_HashedId8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       8, 8, FALSE, NULL);
+                                       8, 8, false, NULL);
 
   return offset;
 }
@@ -542,7 +541,7 @@ dissect_ieee1609dot2_HashedId8(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *ac
 static int
 dissect_ieee1609dot2_HashedId10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       10, 10, FALSE, NULL);
+                                       10, 10, false, NULL);
 
   return offset;
 }
@@ -552,7 +551,7 @@ dissect_ieee1609dot2_HashedId10(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_ieee1609dot2_HashedId32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       32, 32, FALSE, NULL);
+                                       32, 32, false, NULL);
 
   return offset;
 }
@@ -562,7 +561,7 @@ dissect_ieee1609dot2_HashedId32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *a
 static int
 dissect_ieee1609dot2_HashedId48(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       48, 48, FALSE, NULL);
+                                       48, 48, false, NULL);
 
   return offset;
 }
@@ -637,7 +636,7 @@ dissect_ieee1609dot2_ValidityPeriod(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 static int
 dissect_ieee1609dot2_NinetyDegreeInt(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            -900000000, 900000001U, NULL, FALSE);
+                                                            -900000000, 900000001U, NULL, false);
 
   return offset;
 }
@@ -656,7 +655,7 @@ dissect_ieee1609dot2_Latitude(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_ieee1609dot2_OneEightyDegreeInt(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            -1799999999, 1800000001U, NULL, FALSE);
+                                                            -1799999999, 1800000001U, NULL, false);
 
   return offset;
 }
@@ -737,7 +736,7 @@ static int
 dissect_ieee1609dot2_PolygonalRegion(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_ieee1609dot2_PolygonalRegion, PolygonalRegion_sequence_of,
-                                                  3, NO_BOUND, FALSE);
+                                                  3, NO_BOUND, false);
 
   return offset;
 }
@@ -902,7 +901,7 @@ dissect_ieee1609dot2_ThreeDLocation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       32, 32, FALSE, NULL);
+                                       32, 32, false, NULL);
 
   return offset;
 }
@@ -979,7 +978,7 @@ dissect_ieee1609dot2_EcdsaP256Signature(tvbuff_t *tvb _U_, int offset _U_, asn1_
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_48(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       48, 48, FALSE, NULL);
+                                       48, 48, false, NULL);
 
   return offset;
 }
@@ -1096,7 +1095,7 @@ static const value_string ieee1609dot2_SymmAlgorithm_vals[] = {
 static int
 dissect_ieee1609dot2_SymmAlgorithm(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_enumerated(tvb, offset, actx, tree, hf_index,
-                                     1, NULL, TRUE, 1, NULL);
+                                     1, NULL, true, 1, NULL);
 
   return offset;
 }
@@ -1113,7 +1112,7 @@ static const value_string ieee1609dot2_HashAlgorithm_vals[] = {
 static int
 dissect_ieee1609dot2_HashAlgorithm(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_enumerated(tvb, offset, actx, tree, hf_index,
-                                     1, NULL, TRUE, 2, NULL);
+                                     1, NULL, true, 2, NULL);
 
   return offset;
 }
@@ -1123,7 +1122,7 @@ dissect_ieee1609dot2_HashAlgorithm(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_16(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       16, 16, FALSE, NULL);
+                                       16, 16, false, NULL);
 
   return offset;
 }
@@ -1348,7 +1347,7 @@ const val64_string ieee1609dot2_Psid_vals[] = {
 static int
 dissect_ieee1609dot2_Psid(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer_64b_no_ub(tvb, offset, actx, tree, hf_index,
-                                                            0U, NO_BOUND, NULL, FALSE);
+                                                            0U, NO_BOUND, NULL, false);
 
   return offset;
 }
@@ -1358,7 +1357,7 @@ dissect_ieee1609dot2_Psid(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 static int
 dissect_ieee1609dot2_T_psPsid(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer_64b_no_ub(tvb, offset, actx, tree, hf_index,
-                                               0U, NO_BOUND, &((ieee1609_private_data_t*)actx->private_data)->psidssp, FALSE);
+                                               0U, NO_BOUND, &((ieee1609_private_data_t*)actx->private_data)->psidssp, false);
 
 
   return offset;
@@ -1372,12 +1371,12 @@ dissect_ieee1609dot2_T_opaque(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
   ieee1609_private_data_t *my_private_data = (ieee1609_private_data_t*)actx->private_data;
 
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       0, NO_BOUND, FALSE, &ssp);
+                                       0, NO_BOUND, false, &ssp);
   if (ssp) {
     // Create subtree
     proto_tree *subtree = proto_item_add_subtree(actx->created_item, ett_ieee1609dot2_ssp);
     /* Call next dissector here */
-    dissector_try_uint(ssp_subdissector_table, (guint32) my_private_data->psidssp, ssp, actx->pinfo, subtree);
+    dissector_try_uint(ssp_subdissector_table, (uint32_t) my_private_data->psidssp, ssp, actx->pinfo, subtree);
   }
 
   return offset;
@@ -1388,7 +1387,7 @@ dissect_ieee1609dot2_T_opaque(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_ieee1609dot2_BitmapSsp(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       0, 31, FALSE, NULL);
+                                       0, 31, false, NULL);
 
   return offset;
 }
@@ -1448,7 +1447,7 @@ dissect_ieee1609dot2_SequenceOfPsidSsp(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_0_MAX(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       0, NO_BOUND, FALSE, NULL);
+                                       0, NO_BOUND, false, NULL);
 
   return offset;
 }
@@ -1462,7 +1461,7 @@ static int
 dissect_ieee1609dot2_SequenceOfOctetString(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_ieee1609dot2_SequenceOfOctetString, SequenceOfOctetString_sequence_of,
-                                                  0, NO_BOUND, FALSE);
+                                                  0, NO_BOUND, false);
 
   return offset;
 }
@@ -1472,7 +1471,7 @@ dissect_ieee1609dot2_SequenceOfOctetString(tvbuff_t *tvb _U_, int offset _U_, as
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_1_32(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       1, 32, FALSE, NULL);
+                                       1, 32, false, NULL);
 
   return offset;
 }
@@ -1549,7 +1548,7 @@ dissect_ieee1609dot2_SequenceOfPsidSspRange(tvbuff_t *tvb _U_, int offset _U_, a
 static int
 dissect_ieee1609dot2_SubjectAssurance(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       1, 1, FALSE, NULL);
+                                       1, 1, false, NULL);
 
   return offset;
 }
@@ -1577,7 +1576,7 @@ dissect_ieee1609dot2_IValue(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx 
 static int
 dissect_ieee1609dot2_Hostname(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_UTF8String(tvb, offset, actx, tree, hf_index,
-                                          0, 255, FALSE);
+                                          0, 255, false);
 
   return offset;
 }
@@ -1587,7 +1586,7 @@ dissect_ieee1609dot2_Hostname(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *act
 static int
 dissect_ieee1609dot2_LinkageValue(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       9, 9, FALSE, NULL);
+                                       9, 9, false, NULL);
 
   return offset;
 }
@@ -1597,7 +1596,7 @@ dissect_ieee1609dot2_LinkageValue(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t 
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       4, 4, FALSE, NULL);
+                                       4, 4, false, NULL);
 
   return offset;
 }
@@ -1607,7 +1606,7 @@ dissect_ieee1609dot2_OCTET_STRING_SIZE_4(tvbuff_t *tvb _U_, int offset _U_, asn1
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_9(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       9, 9, FALSE, NULL);
+                                       9, 9, false, NULL);
 
   return offset;
 }
@@ -1632,7 +1631,7 @@ dissect_ieee1609dot2_GroupLinkageValue(tvbuff_t *tvb _U_, int offset _U_, asn1_c
 static int
 dissect_ieee1609dot2_LaId(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       2, 2, FALSE, NULL);
+                                       2, 2, false, NULL);
 
   return offset;
 }
@@ -1642,7 +1641,7 @@ dissect_ieee1609dot2_LaId(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U
 static int
 dissect_ieee1609dot2_LinkageSeed(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       16, 16, FALSE, NULL);
+                                       16, 16, false, NULL);
 
   return offset;
 }
@@ -1670,7 +1669,7 @@ static const value_string ieee1609dot2_ExtId_vals[] = {
 static int
 dissect_ieee1609dot2_ExtId(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 255U, NULL, FALSE);
+                                                            0U, 255U, NULL, false);
 
   return offset;
 }
@@ -1756,7 +1755,7 @@ static int
 dissect_ieee1609dot2_SequenceOfIndividualRevocation(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_ieee1609dot2_SequenceOfIndividualRevocation, SequenceOfIndividualRevocation_sequence_of,
-                                                  0, NO_BOUND, FALSE);
+                                                  0, NO_BOUND, false);
 
   return offset;
 }
@@ -2065,15 +2064,15 @@ dissect_ieee1609dot2_CrlSignedDataPayload(tvbuff_t *tvb _U_, int offset _U_, asn
 
 static int
 dissect_ieee1609dot2_T_hiPsid(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  guint64 psid;
+  uint64_t psid;
   ieee1609_private_data_t *my_private_data = (ieee1609_private_data_t*)actx->private_data;
 
   offset = dissect_oer_constrained_integer_64b_no_ub(tvb, offset, actx, tree, hf_index,
-                                                            0U, NO_BOUND, &psid, FALSE);
+                                                            0U, NO_BOUND, &psid, false);
   if ((my_private_data != NULL) && (my_private_data->unsecured_data != NULL)) {
     /* Call next dissector here */
-    ieee1609dot2_set_next_default_psid(actx->pinfo, (guint32)psid);
-    dissector_try_uint(unsecured_data_subdissector_table, (guint32) psid, my_private_data->unsecured_data, actx->pinfo, tree);
+    ieee1609dot2_set_next_default_psid(actx->pinfo, (uint32_t)psid);
+    dissector_try_uint(unsecured_data_subdissector_table, (uint32_t) psid, my_private_data->unsecured_data, actx->pinfo, tree);
     my_private_data->unsecured_data = NULL;
   }
 
@@ -2107,7 +2106,7 @@ static const value_string ieee1609dot2_CertificateType_vals[] = {
 static int
 dissect_ieee1609dot2_CertificateType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_enumerated(tvb, offset, actx, tree, hf_index,
-                                     2, NULL, TRUE, 0, NULL);
+                                     2, NULL, true, 0, NULL);
 
   return offset;
 }
@@ -2159,7 +2158,7 @@ dissect_ieee1609dot2_LinkageData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_1_64(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       1, 64, FALSE, NULL);
+                                       1, 64, false, NULL);
 
   return offset;
 }
@@ -2231,7 +2230,7 @@ static int * const EndEntityType_bits[] = {
 static int
 dissect_ieee1609dot2_EndEntityType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, EndEntityType_bits, 2, NULL, NULL);
+                                     8, 8, false, EndEntityType_bits, 2, NULL, NULL);
 
   return offset;
 }
@@ -2297,7 +2296,7 @@ static int * const T_flags_bits[] = {
 static int
 dissect_ieee1609dot2_T_flags(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_bit_string(tvb, offset, actx, tree, hf_index,
-                                     8, 8, FALSE, T_flags_bits, 1, NULL, NULL);
+                                     8, 8, false, T_flags_bits, 1, NULL, NULL);
 
   return offset;
 }
@@ -2335,7 +2334,7 @@ static int
 dissect_ieee1609dot2_SequenceOfAppExtensions(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_ieee1609dot2_SequenceOfAppExtensions, SequenceOfAppExtensions_sequence_of,
-                                                  1, NO_BOUND, FALSE);
+                                                  1, NO_BOUND, false);
 
   return offset;
 }
@@ -2395,7 +2394,7 @@ static int
 dissect_ieee1609dot2_SequenceOfCertIssueExtensions(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_ieee1609dot2_SequenceOfCertIssueExtensions, SequenceOfCertIssueExtensions_sequence_of,
-                                                  1, NO_BOUND, FALSE);
+                                                  1, NO_BOUND, false);
 
   return offset;
 }
@@ -2455,7 +2454,7 @@ static int
 dissect_ieee1609dot2_SequenceOfCertRequestExtensions(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_ieee1609dot2_SequenceOfCertRequestExtensions, SequenceOfCertRequestExtensions_sequence_of,
-                                                  1, NO_BOUND, FALSE);
+                                                  1, NO_BOUND, false);
 
   return offset;
 }
@@ -2528,7 +2527,7 @@ static const value_string ieee1609dot2_PduFunctionalType_vals[] = {
 static int
 dissect_ieee1609dot2_PduFunctionalType(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 255U, NULL, FALSE);
+                                                            0U, 255U, NULL, false);
 
   return offset;
 }
@@ -2544,7 +2543,7 @@ static const value_string ieee1609dot2_HeaderInfoContributorId_vals[] = {
 static int
 dissect_ieee1609dot2_HeaderInfoContributorId(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_integer(tvb, offset, actx, tree, hf_index,
-                                                            0U, 255U, NULL, FALSE);
+                                                            0U, 255U, NULL, false);
 
   return offset;
 }
@@ -2567,7 +2566,7 @@ static int
 dissect_ieee1609dot2_T_extns(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_ieee1609dot2_T_extns, T_extns_sequence_of,
-                                                  1, NO_BOUND, FALSE);
+                                                  1, NO_BOUND, false);
 
   return offset;
 }
@@ -2596,7 +2595,7 @@ static int
 dissect_ieee1609dot2_ContributedExtensionBlocks(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_constrained_sequence_of(tvb, offset, actx, tree, hf_index,
                                                   ett_ieee1609dot2_ContributedExtensionBlocks, ContributedExtensionBlocks_sequence_of,
-                                                  1, NO_BOUND, FALSE);
+                                                  1, NO_BOUND, false);
 
   return offset;
 }
@@ -2695,11 +2694,11 @@ dissect_ieee1609dot2_T_unsecuredData(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx
   ieee1609_private_data_t *my_private_data = (ieee1609_private_data_t*)actx->private_data;
 
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       NO_BOUND, NO_BOUND, FALSE, &my_private_data->unsecured_data);
+                                       NO_BOUND, NO_BOUND, false, &my_private_data->unsecured_data);
 
   if (my_private_data->unsecured_data) {
     // psid may also be provided in HeaderInfo
-    guint32 psid = GPOINTER_TO_UINT(p_get_proto_data(wmem_file_scope(), actx->pinfo, proto_ieee1609dot2, 0));
+    uint32_t psid = GPOINTER_TO_UINT(p_get_proto_data(wmem_file_scope(), actx->pinfo, proto_ieee1609dot2, 0));
     if (psid) {
       /* Call next dissector here */
       dissector_try_uint(unsecured_data_subdissector_table, psid, my_private_data->unsecured_data, actx->pinfo, tree);
@@ -2835,7 +2834,7 @@ dissect_ieee1609dot2_PreSharedKeyRecipientInfo(tvbuff_t *tvb _U_, int offset _U_
 static int
 dissect_ieee1609dot2_OCTET_STRING_SIZE_12(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
   offset = dissect_oer_octet_string(tvb, offset, actx, tree, hf_index,
-                                       12, 12, FALSE, NULL);
+                                       12, 12, false, NULL);
 
   return offset;
 }
@@ -3024,18 +3023,15 @@ static const oer_sequence_t Ieee1609Dot2Data_sequence[] = {
 
 static int
 dissect_ieee1609dot2_Ieee1609Dot2Data(tvbuff_t *tvb _U_, int offset _U_, asn1_ctx_t *actx _U_, proto_tree *tree _U_, int hf_index _U_) {
-  const int proto_id = GPOINTER_TO_INT(wmem_list_frame_data(wmem_list_tail(actx->pinfo->layers)));
-  const unsigned cycle_size = 6;
-  unsigned recursion_depth = p_get_proto_depth(actx->pinfo, proto_id);
-
-  DISSECTOR_ASSERT(recursion_depth <= MAX_RECURSION_DEPTH);
-  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth + cycle_size);
-
+  // Ieee1609Dot2Data -> Ieee1609Dot2Content -> SignedData -> ToBeSignedData -> SignedDataPayload -> Ieee1609Dot2Data
+  actx->pinfo->dissection_depth += 5;
+  increment_dissection_depth(actx->pinfo);
   actx->private_data = (void*)wmem_new0(actx->pinfo->pool, ieee1609_private_data_t);
   offset = dissect_oer_sequence(tvb, offset, actx, tree, hf_index,
                                    ett_ieee1609dot2_Ieee1609Dot2Data, Ieee1609Dot2Data_sequence);
 
-  p_set_proto_depth(actx->pinfo, proto_id, recursion_depth);
+  actx->pinfo->dissection_depth -= 5;
+  decrement_dissection_depth(actx->pinfo);
   return offset;
 }
 
@@ -3044,14 +3040,14 @@ dissect_ieee1609dot2_Ieee1609Dot2Data(tvbuff_t *tvb _U_, int offset _U_, asn1_ct
 static int dissect_SecuredCrl_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
   int offset = 0;
   asn1_ctx_t asn1_ctx;
-  asn1_ctx_init(&asn1_ctx, ASN1_ENC_OER, TRUE, pinfo);
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_OER, true, pinfo);
   offset = dissect_ieee1609dot2_SecuredCrl(tvb, offset, &asn1_ctx, tree, hf_ieee1609dot2_SecuredCrl_PDU);
   return offset;
 }
 static int dissect_Ieee1609Dot2Data_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
   int offset = 0;
   asn1_ctx_t asn1_ctx;
-  asn1_ctx_init(&asn1_ctx, ASN1_ENC_OER, TRUE, pinfo);
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_OER, true, pinfo);
   offset = dissect_ieee1609dot2_Ieee1609Dot2Data(tvb, offset, &asn1_ctx, tree, hf_ieee1609dot2_Ieee1609Dot2Data_PDU);
   return offset;
 }
@@ -3059,9 +3055,9 @@ static int dissect_Ieee1609Dot2Data_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U
 
 
 static void
-ieee1609dot2_NinetyDegreeInt_fmt(gchar *s, guint32 v)
+ieee1609dot2_NinetyDegreeInt_fmt(char *s, uint32_t v)
 {
-  gint32 lat = (gint32)v;
+  int32_t lat = (int32_t)v;
   if (lat == 900000001) {
     snprintf(s, ITEM_LABEL_LENGTH, "unavailable(%d)", lat);
   } else {
@@ -3075,9 +3071,9 @@ ieee1609dot2_NinetyDegreeInt_fmt(gchar *s, guint32 v)
 }
 
 static void
-ieee1609dot2_OneEightyDegreeInt_fmt(gchar *s, guint32 v)
+ieee1609dot2_OneEightyDegreeInt_fmt(char *s, uint32_t v)
 {
-  gint32 lng = (gint32)v;
+  int32_t lng = (int32_t)v;
   if (lng == 1800000001) {
     snprintf(s, ITEM_LABEL_LENGTH, "unavailable(%d)", lng);
   } else {
@@ -3092,7 +3088,7 @@ ieee1609dot2_OneEightyDegreeInt_fmt(gchar *s, guint32 v)
 
 
 static void
-ieee1609dot2_Time32_fmt(gchar *s, guint32 v)
+ieee1609dot2_Time32_fmt(char *s, uint32_t v)
 {
   time_t secs = v + 1072915200 - 5;
   struct tm *tm = gmtime(&secs);
@@ -3102,10 +3098,10 @@ ieee1609dot2_Time32_fmt(gchar *s, guint32 v)
 }
 
 static void
-ieee1609dot2_Time64_fmt(gchar *s, guint64 v)
+ieee1609dot2_Time64_fmt(char *s, uint64_t v)
 {
   time_t secs = v / 1000000 + 1072915200 - 5;
-  guint32 usecs = v % 1000000;
+  uint32_t usecs = v % 1000000;
   struct tm *tm = gmtime(&secs);
   snprintf(s, ITEM_LABEL_LENGTH, "%u-%02u-%02u %02u:%02u:%02u.%06u (%" PRIu64 ")",
     tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec, usecs, v
@@ -4120,7 +4116,7 @@ void proto_register_ieee1609dot2(void) {
   };
 
   /* List of subtrees */
-  static gint *ett[] = {
+  static int *ett[] = {
     &ett_ieee1609dot2_SequenceOfUint8,
     &ett_ieee1609dot2_SequenceOfUint16,
     &ett_ieee1609dot2_SequenceOfHashedId3,

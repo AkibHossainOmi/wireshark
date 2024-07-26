@@ -44,19 +44,20 @@
 #include "ui/failure_message.h"
 #include "wsutil/version_info.h"
 
-static int opt_verbose = 0;
-static int opt_debug_level = 0; /* currently up to 2 */
-static int opt_flex = 0;
-static int opt_lemon = 0;
-static int opt_syntax_tree = 0;
-static int opt_timer = 0;
+static int opt_verbose;
+static int opt_debug_level; /* currently up to 2 */
+static int opt_flex;
+static int opt_lemon;
+static int opt_syntax_tree;
+static int opt_return_vals;
+static int opt_timer;
 static long opt_optimize = 1;
-static int opt_show_types = 0;
-static int opt_dump_refs = 0;
-static int opt_dump_macros = 0;
+static int opt_show_types;
+static int opt_dump_refs;
+static int opt_dump_macros;
 
-static gint64 elapsed_expand = 0;
-static gint64 elapsed_compile = 0;
+static int64_t elapsed_expand;
+static int64_t elapsed_compile;
 
 /*
  * Report an error in command-line arguments.
@@ -108,6 +109,7 @@ print_usage(int status)
     fprintf(fp, "  -s, --syntax        print syntax tree\n");
     fprintf(fp, "  -m  --macros        print saved macros\n");
     fprintf(fp, "  -t, --timer         print elapsed compilation time\n");
+    fprintf(fp, "  -r  --return-vals   return field values for the tree root\n");
     fprintf(fp, "  -0, --optimize=0    do not optimize (check syntax)\n");
     fprintf(fp, "      --types         show field value types\n");
     /* NOTE: References are loaded during runtime and dftest only does compilation.
@@ -151,7 +153,7 @@ print_macros(void)
 static void
 print_warnings(dfilter_t *df)
 {
-    guint i;
+    unsigned i;
     GPtrArray *deprecated;
     int count = 0;
 
@@ -188,7 +190,7 @@ expand_filter(const char *text)
 {
     char *expanded = NULL;
     df_error_t *err = NULL;
-    gint64 start;
+    int64_t start;
 
     start = g_get_monotonic_time();
     expanded = dfilter_expand(text, &err);
@@ -200,13 +202,13 @@ expand_filter(const char *text)
     return expanded;
 }
 
-static gboolean
+static bool
 compile_filter(const char *text, dfilter_t **dfp)
 {
     unsigned df_flags = 0;
-    gboolean ok;
+    bool ok;
     df_error_t *df_err = NULL;
-    gint64 start;
+    int64_t start;
 
     if (opt_optimize > 0)
         df_flags |= DF_OPTIMIZE;
@@ -216,6 +218,8 @@ compile_filter(const char *text, dfilter_t **dfp)
         df_flags |= DF_DEBUG_FLEX;
     if (opt_lemon)
         df_flags |= DF_DEBUG_LEMON;
+    if (opt_return_vals)
+        df_flags |= DF_RETURN_VALUES;
 
     start = g_get_monotonic_time();
     ok = dfilter_compile_full(text, dfp, &df_err, df_flags, "dftest");
@@ -278,7 +282,7 @@ main(int argc, char **argv)
 
     ws_init_version_info("DFTest", NULL, NULL);
 
-    const char *optstring = "hvdDflsmtV0";
+    const char *optstring = "hvdDflsmrtV0";
     static struct ws_option long_options[] = {
         { "help",     ws_no_argument,   0,  'h' },
         { "version",  ws_no_argument,   0,  'v' },
@@ -289,6 +293,7 @@ main(int argc, char **argv)
         { "macros",   ws_no_argument,   0,  'm' },
         { "timer",    ws_no_argument,   0,  't' },
         { "verbose",  ws_no_argument,   0,  'V' },
+        { "return-vals", ws_no_argument,   0,  'r' },
         { "optimize", ws_required_argument, 0, 1000 },
         { "types",    ws_no_argument,   0, 2000 },
         { "refs",     ws_no_argument,   0, 3000 },
@@ -334,6 +339,9 @@ main(int argc, char **argv)
                 break;
             case 't':
                 opt_timer = 1;
+                break;
+            case 'r':
+                opt_return_vals = 1;
                 break;
             case '0':
                 opt_optimize = 0;
@@ -420,13 +428,13 @@ main(int argc, char **argv)
      * dissection-time handlers for file-type-dependent blocks can
      * register using the file type/subtype value for the file type.
      */
-    wtap_init(TRUE);
+    wtap_init(true);
 
     /* Register all dissectors; we must do this before checking for the
        "-g" flag, as the "-g" flag dumps a list of fields registered
        by the dissectors, and we must do it before we read the preferences,
        in case any dissectors register preferences. */
-    if (!epan_init(NULL, NULL, TRUE))
+    if (!epan_init(NULL, NULL, true))
         goto out;
 
     /* Load libwireshark settings from the current profile. */

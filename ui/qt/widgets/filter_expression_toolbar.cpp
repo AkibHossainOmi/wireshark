@@ -181,7 +181,7 @@ WiresharkMimeData * FilterExpressionToolBar::createMimeData(QString name, int po
 
 void FilterExpressionToolBar::onActionMoved(QAction* action, int oldPos, int newPos)
 {
-    gchar* err = NULL;
+    char* err = NULL;
     if (oldPos == newPos)
         return;
 
@@ -237,7 +237,7 @@ void FilterExpressionToolBar::onFilterDropped(QString description, QString filte
         return;
 
     filter_expression_new(qUtf8Printable(description),
-            qUtf8Printable(filter), qUtf8Printable(description), TRUE);
+            qUtf8Printable(filter), qUtf8Printable(description), true);
 
     save_migrated_uat("Display expressions", &prefs.filter_expressions_old);
     filterExpressionsChanged();
@@ -356,16 +356,14 @@ QMenu * FilterExpressionToolBar::findParentMenu(const QStringList tree, void *fe
             /* Searching existing main menus */
             foreach(QAction * entry, data->toolbar->actions())
             {
-                QWidget * widget = data->toolbar->widgetForAction(entry);
-                QToolButton * tb = qobject_cast<QToolButton *>(widget);
-                if (tb && tb->menu() && tb->text().compare(tree.at(0).trimmed()) == 0)
-                    return findParentMenu(tree.mid(1), fed_data, tb->menu());
+                if (entry->text().compare(tree.at(0).trimmed()) == 0)
+                    return findParentMenu(tree.mid(1), fed_data, entry->menu());
             }
         }
         else if (parent)
         {
             QString menuName = tree.at(0).trimmed();
-            /* Iterate to see, if we next have to jump into another submenu */
+            /* Iterate to see if we next have to jump into another submenu */
             foreach(QAction *entry, parent->actions())
             {
                 if (entry->menu() && entry->text().compare(menuName) == 0)
@@ -382,16 +380,18 @@ QMenu * FilterExpressionToolBar::findParentMenu(const QStringList tree, void *fe
 
         /* No menu has been found, create one */
         QString parentName = tree.at(0).trimmed();
-        QToolButton * menuButton = new QToolButton();
-        menuButton->setText(parentName);
-        menuButton->setPopupMode(QToolButton::MenuButtonPopup);
-        QMenu * parentMenu = new QMenu(menuButton);
+        QMenu * parentMenu = new QMenu(data->toolbar);
         parentMenu->installEventFilter(data->toolbar);
         parentMenu->setProperty(dfe_menu_, QVariant::fromValue(true));
-        menuButton->setMenu(parentMenu);
-        // Required for QToolButton::MenuButtonPopup.
-        connect(menuButton, &QToolButton::pressed, menuButton, &QToolButton::showMenu);
-        data->toolbar->addWidget(menuButton);
+        QAction *menuAction = new QAction(data->toolbar);
+        menuAction->setText(parentName);
+        menuAction->setMenu(parentMenu);
+        // QToolButton::MenuButtonPopup means that pressing the button text
+        // itself doesn't open the menu, only pressing the downwards pointing
+        // triangle does. This is difficult to change for the auto created
+        // QToolButton inside the QToolBar. But only auto created tool buttons
+        // will show up in the extension menu at narrow widths (#19887.)
+        data->toolbar->addAction(menuAction);
 
         return findParentMenu(tree.mid(1), fed_data, parentMenu);
     }
@@ -407,7 +407,7 @@ bool FilterExpressionToolBar::filter_expression_add_action(const void *key _U_, 
     struct filter_expression_data* data = (filter_expression_data*)user_data;
 
     if (!fe->enabled)
-        return FALSE;
+        return false;
 
     QString label = QString(fe->label);
 
@@ -449,7 +449,7 @@ bool FilterExpressionToolBar::filter_expression_add_action(const void *key _U_, 
 
     connect(dfb_action, &QAction::triggered, data->toolbar, &FilterExpressionToolBar::filterClicked);
     data->actions_added = true;
-    return FALSE;
+    return false;
 }
 
 void FilterExpressionToolBar::filterClicked()

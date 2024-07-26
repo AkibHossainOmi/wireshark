@@ -1,9 +1,9 @@
 %top {
 /* Include this before everything else, for various large-file definitions */
 #include "config.h"
-#include <wireshark.h>
-
 #define WS_LOG_DOMAIN LOG_DOMAIN_UAT
+
+#include <wireshark.h>
 
 /* #define DEBUG_UAT_LOAD 1 */
 }
@@ -473,7 +473,7 @@ uat_load(uat_t *uat, const char *filename, char **errx)
 }
 
 bool
-uat_load_str(uat_t *uat, char *entry, char **err)
+uat_load_str(uat_t *uat, const char *entry, char **err)
 {
 	yyscan_t scanner;
 	uat_load_scanner_state_t state;

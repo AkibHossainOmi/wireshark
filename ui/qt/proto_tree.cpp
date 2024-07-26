@@ -26,6 +26,7 @@
 #include <ui/qt/show_packet_bytes_dialog.h>
 #include <ui/qt/filter_action.h>
 #include <ui/qt/follow_stream_action.h>
+#include <ui/qt/io_graph_action.h>
 #include <ui/all_files_wildcard.h>
 #include <ui/alert_box.h>
 #include <ui/urls.h>
@@ -174,7 +175,7 @@ void ProtoTree::ctxCopySelectedInfo()
     case ProtoTree::Value:
         {
             epan_dissect_t *edt = cap_file_ ? cap_file_->edt : edt_;
-            gchar* field_str = get_node_field_value(finfo.fieldInfo(), edt);
+            char* field_str = get_node_field_value(finfo.fieldInfo(), edt);
             clip.append(field_str);
             g_free(field_str);
         }
@@ -216,7 +217,7 @@ void ProtoTree::ctxOpenUrlWiki()
 
         if (ret != QMessageBox::Yes) return;
 
-        url = QString(WS_WIKI_URL("%1")).arg(proto_abbrev);
+        url = QString(WS_WIKI_URL("Protocols/%1")).arg(proto_abbrev);
     }
     else
     {
@@ -334,7 +335,10 @@ void ProtoTree::contextMenuEvent(QContextMenuEvent *event)
         ctx_menu->addSeparator();
     }
 
+    ctx_menu->addMenu(IOGraphAction::createMenu(finfo->headerInfo(), ctx_menu));
+
     submenu = ctx_menu->addMenu(tr("Copy"));
+    submenu->setToolTipsVisible(true);
     submenu->addAction(tr("All Visible Items"), this, SLOT(ctxCopyVisibleItems()));
     action = submenu->addAction(tr("All Visible Selected Tree Items"), this, SLOT(ctxCopyVisibleItems()));
     action->setProperty("selected_tree", QVariant::fromValue(true));
@@ -464,7 +468,7 @@ void ProtoTree::setMonospaceFont(const QFont &mono_font)
     update();
 }
 
-void ProtoTree::foreachTreeNode(proto_node *node, gpointer proto_tree_ptr)
+void ProtoTree::foreachTreeNode(proto_node *node, void *proto_tree_ptr)
 {
     ProtoTree *tree_view = static_cast<ProtoTree *>(proto_tree_ptr);
     ProtoTreeModel *model = qobject_cast<ProtoTreeModel *>(tree_view->model());
@@ -482,6 +486,7 @@ void ProtoTree::foreachTreeNode(proto_node *node, gpointer proto_tree_ptr)
     proto_tree_children_foreach(node, foreachTreeNode, proto_tree_ptr);
 }
 
+// NOLINTNEXTLINE(misc-no-recursion)
 void ProtoTree::foreachExpand(const QModelIndex &index = QModelIndex()) {
 
     // Restore expanded state. (Note QModelIndex() refers to the root node)
@@ -494,6 +499,7 @@ void ProtoTree::foreachExpand(const QModelIndex &index = QModelIndex()) {
             if (node && node->isValid() && tree_expanded(node->protoNode()->finfo->tree_type)) {
                 expand(childIndex);
             }
+            // We recurse here, but we're limited by tree depth checks in epan
             foreachExpand(childIndex);
         }
     }
@@ -575,7 +581,7 @@ void ProtoTree::syncExpanded(const QModelIndex &index) {
      * are thus presumably leaf nodes and cannot be expanded.
      */
     if (finfo.treeType() != -1) {
-        tree_expanded_set(finfo.treeType(), TRUE);
+        tree_expanded_set(finfo.treeType(), true);
     }
 }
 
@@ -588,7 +594,7 @@ void ProtoTree::syncCollapsed(const QModelIndex &index) {
      * are thus presumably leaf nodes and cannot be collapsed.
      */
     if (finfo.treeType() != -1) {
-        tree_expanded_set(finfo.treeType(), FALSE);
+        tree_expanded_set(finfo.treeType(), false);
     }
 }
 
@@ -639,7 +645,7 @@ void ProtoTree::collapseSubtrees()
 void ProtoTree::expandAll()
 {
     for (int i = 0; i < num_tree_types; i++) {
-        tree_expanded_set(i, TRUE);
+        tree_expanded_set(i, true);
     }
     QTreeView::expandAll();
     updateContentWidth();
@@ -648,7 +654,7 @@ void ProtoTree::expandAll()
 void ProtoTree::collapseAll()
 {
     for (int i = 0; i < num_tree_types; i++) {
-        tree_expanded_set(i, FALSE);
+        tree_expanded_set(i, false);
     }
     QTreeView::collapseAll();
     updateContentWidth();
@@ -780,6 +786,7 @@ void ProtoTree::restoreSelectedField()
     autoScrollTo(cur_index);
 }
 
+// NOLINTNEXTLINE(misc-no-recursion)
 QString ProtoTree::traverseTree(const QModelIndex & travTree, int identLevel) const
 {
     QString result = "";
@@ -796,6 +803,7 @@ QString ProtoTree::traverseTree(const QModelIndex & travTree, int identLevel) co
             int children = proto_tree_model_->rowCount(travTree);
             identLevel++;
             for (int child = 0; child < children; child++)
+                // We recurse here, but we're limited by tree depth checks in epan
                 result += traverseTree(proto_tree_model_->index(child, 0, travTree), identLevel);
         }
     }

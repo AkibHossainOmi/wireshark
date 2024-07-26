@@ -12,7 +12,7 @@
 
 /*
  * The generated Ui_LograyMainWindow::setupUi() can grow larger than our configured limit,
- * so turn off -Wframe-larger-than= for ui_main_window.h.
+ * so turn off -Wframe-larger-than= for ui_logray_main_window.h.
  */
 DIAG_OFF(frame-larger-than=)
 #include <ui_logray_main_window.h>
@@ -70,6 +70,7 @@ DIAG_ON(frame-larger-than=)
 #include <ui/qt/widgets/filter_expression_toolbar.h>
 
 #include <ui/qt/utils/color_utils.h>
+#include <ui/qt/utils/profile_switcher.h>
 #include <ui/qt/utils/qt_ui_utils.h>
 #include <ui/qt/utils/stock_icon.h>
 #include <ui/qt/utils/variant_pointer.h>
@@ -91,7 +92,7 @@ DIAG_ON(frame-larger-than=)
 //menu_recent_file_write_all
 
 // If we ever add support for multiple windows this will need to be replaced.
-static LograyMainWindow *gbl_cur_main_window_ = NULL;
+static LograyMainWindow *gbl_cur_main_window_;
 
 static void plugin_if_mainwindow_apply_filter(GHashTable * data_set)
 {
@@ -114,9 +115,9 @@ static void plugin_if_mainwindow_preference(GHashTable * data_set)
     const char * pref_value;
 
 DIAG_OFF_CAST_AWAY_CONST
-    if (g_hash_table_lookup_extended(data_set, "pref_module", NULL, (gpointer *)&module_name) &&
-        g_hash_table_lookup_extended(data_set, "pref_key", NULL, (gpointer *)&pref_name) &&
-        g_hash_table_lookup_extended(data_set, "pref_value", NULL, (gpointer *)&pref_value))
+    if (g_hash_table_lookup_extended(data_set, "pref_module", NULL, (void * *)&module_name) &&
+        g_hash_table_lookup_extended(data_set, "pref_key", NULL, (void * *)&pref_name) &&
+        g_hash_table_lookup_extended(data_set, "pref_value", NULL, (void * *)&pref_value))
     {
         unsigned int changed_flags = prefs_store_ext(module_name, pref_name, pref_value);
         if (changed_flags) {
@@ -132,7 +133,7 @@ static void plugin_if_mainwindow_gotoframe(GHashTable * data_set)
     if (!gbl_cur_main_window_ || !data_set)
         return;
 
-    gpointer framenr;
+    void *framenr;
 
     if (g_hash_table_lookup_extended(data_set, "frame_nr", NULL, &framenr)) {
         if (GPOINTER_TO_UINT(framenr) != 0)
@@ -210,7 +211,7 @@ static void plugin_if_mainwindow_get_ws_info(GHashTable * data_set)
         }
         else {
             ws_info->cf_framenr = 0;
-            ws_info->frame_passed_dfilter = FALSE;
+            ws_info->frame_passed_dfilter = false;
         }
     }
     else
@@ -218,7 +219,7 @@ static void plugin_if_mainwindow_get_ws_info(GHashTable * data_set)
         /* Initialise the other ws_info structure values */
         ws_info->cf_count = 0;
         ws_info->cf_framenr = 0;
-        ws_info->frame_passed_dfilter = FALSE;
+        ws_info->frame_passed_dfilter = false;
     }
 }
 
@@ -288,7 +289,7 @@ static void mainwindow_add_toolbar(const iface_toolbar *toolbar_entry)
     }
 }
 
-static void mainwindow_remove_toolbar(const gchar *menu_title)
+static void mainwindow_remove_toolbar(const char *menu_title)
 {
     if (gbl_cur_main_window_ && menu_title)
     {
@@ -296,16 +297,22 @@ static void mainwindow_remove_toolbar(const gchar *menu_title)
     }
 }
 
-QMenu* LograyMainWindow::findOrAddMenu(QMenu *parent_menu, QString& menu_text) {
-    QList<QAction *> actions = parent_menu->actions();
-    QList<QAction *>::const_iterator i;
-    for (i = actions.constBegin(); i != actions.constEnd(); ++i) {
-        if ((*i)->text()==menu_text) {
-            return (*i)->menu();
+QMenu* LograyMainWindow::findOrAddMenu(QMenu *parent_menu, const QStringList& menu_parts) {
+    for (auto const & menu_text : menu_parts) {
+        bool found = false;
+        for (auto const & action : parent_menu->actions()) {
+            if (action->text() == menu_text.trimmed()) {
+                parent_menu = action->menu();
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            // If we get here the menu entry was not found, add a sub menu
+            parent_menu = parent_menu->addMenu(menu_text.trimmed());
         }
     }
-    // If we get here there menu entry was not found, add a sub menu
-    return parent_menu->addMenu(menu_text);
+    return parent_menu;
 }
 
 LograyMainWindow::LograyMainWindow(QWidget *parent) :
@@ -331,10 +338,9 @@ LograyMainWindow::LograyMainWindow(QWidget *parent) :
 #endif
 {
     if (!gbl_cur_main_window_) {
-        connect(mainApp, SIGNAL(openStatCommandDialog(QString, const char*, void*)),
-                this, SLOT(openStatCommandDialog(QString, const char*, void*)));
-        connect(mainApp, SIGNAL(openTapParameterDialog(QString, const QString, void*)),
-                this, SLOT(openTapParameterDialog(QString, const QString, void*)));
+        connect(mainApp, &MainApplication::openStatCommandDialog, this, &LograyMainWindow::openStatCommandDialog);
+        connect(mainApp, &MainApplication::openTapParameterDialog,
+                this, [=](const QString cfg_str, const QString arg, void *userdata) {openTapParameterDialog(cfg_str, arg, userdata);});
     }
     gbl_cur_main_window_ = this;
 #ifdef HAVE_LIBPCAP
@@ -368,36 +374,36 @@ LograyMainWindow::LograyMainWindow(QWidget *parent) :
 
     qRegisterMetaType<FilterAction::Action>("FilterAction::Action");
     qRegisterMetaType<FilterAction::ActionType>("FilterAction::ActionType");
-    connect(this, SIGNAL(filterAction(QString, FilterAction::Action, FilterAction::ActionType)),
-            this, SLOT(queuedFilterAction(QString, FilterAction::Action, FilterAction::ActionType)),
-            Qt::QueuedConnection);
+    connect(this, &LograyMainWindow::filterAction, this, &LograyMainWindow::queuedFilterAction, Qt::QueuedConnection);
 
     //To prevent users use features before initialization complete
     //Otherwise unexpected problems may occur
     setFeaturesEnabled(false);
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(setFeaturesEnabled()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(applyGlobalCommandLineOptions()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(zoomText()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(initViewColorizeMenu()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(addStatsPluginsToMenu()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(addDynamicMenus()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(addPluginIFStructures()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(initConversationMenus()));
-    connect(mainApp, SIGNAL(appInitialized()), this, SLOT(initFollowStreamMenus()));
+    connect(mainApp, &MainApplication::appInitialized, this, [this]() { setFeaturesEnabled(); });
+    connect(mainApp, &MainApplication::appInitialized, this, &LograyMainWindow::applyGlobalCommandLineOptions);
+    connect(mainApp, &MainApplication::appInitialized, this, &LograyMainWindow::zoomText);
+    connect(mainApp, &MainApplication::appInitialized, this, &LograyMainWindow::initViewColorizeMenu);
+    connect(mainApp, &MainApplication::appInitialized, this, &LograyMainWindow::addStatsPluginsToMenu);
+    connect(mainApp, &MainApplication::appInitialized, this, &LograyMainWindow::addDynamicMenus);
+    connect(mainApp, &MainApplication::appInitialized, this, &LograyMainWindow::addPluginIFStructures);
+    connect(mainApp, &MainApplication::appInitialized, this, &LograyMainWindow::initConversationMenus);
+    connect(mainApp, &MainApplication::appInitialized, this, &LograyMainWindow::initFollowStreamMenus);
+    connect(mainApp, &MainApplication::appInitialized, this,
+            [=]() { addDisplayFilterTranslationActions(main_ui_->menuEditCopy); });
 
-    connect(mainApp, SIGNAL(profileChanging()), this, SLOT(saveWindowGeometry()));
-    connect(mainApp, SIGNAL(preferencesChanged()), this, SLOT(layoutPanes()));
-    connect(mainApp, SIGNAL(preferencesChanged()), this, SLOT(layoutToolbars()));
-    connect(mainApp, SIGNAL(preferencesChanged()), this, SLOT(updatePreferenceActions()));
-    connect(mainApp, SIGNAL(preferencesChanged()), this, SLOT(zoomText()));
-    connect(mainApp, SIGNAL(preferencesChanged()), this, SLOT(updateTitlebar()));
+    connect(mainApp, &MainApplication::profileChanging, this, &LograyMainWindow::saveWindowGeometry);
+    connect(mainApp, &MainApplication::preferencesChanged, this, &LograyMainWindow::layoutPanes);
+    connect(mainApp, &MainApplication::preferencesChanged, this, &LograyMainWindow::layoutToolbars);
+    connect(mainApp, &MainApplication::preferencesChanged, this, &LograyMainWindow::updatePreferenceActions);
+    connect(mainApp, &MainApplication::preferencesChanged, this, &LograyMainWindow::zoomText);
+    connect(mainApp, &MainApplication::preferencesChanged, this, &LograyMainWindow::updateTitlebar);
 
-    connect(mainApp, SIGNAL(updateRecentCaptureStatus(const QString &, qint64, bool)), this, SLOT(updateRecentCaptures()));
-    connect(mainApp, SIGNAL(preferencesChanged()), this, SLOT(updateRecentCaptures()));
+    connect(mainApp, &MainApplication::updateRecentCaptureStatus, this, &LograyMainWindow::updateRecentCaptures);
+    connect(mainApp, &MainApplication::preferencesChanged, this, &LograyMainWindow::updateRecentCaptures);
     updateRecentCaptures();
 
 #if defined(HAVE_SOFTWARE_UPDATE) && defined(Q_OS_WIN)
-    connect(mainApp, SIGNAL(softwareUpdateRequested()), this, SLOT(softwareUpdateRequested()),
+    connect(mainApp, &MainApplication::softwareUpdateRequested, this, &LograyMainWindow::softwareUpdateRequested,
         Qt::BlockingQueuedConnection);
 #endif
 
@@ -406,12 +412,13 @@ LograyMainWindow::LograyMainWindow(QWidget *parent) :
     funnel_statistics_ = new FunnelStatistics(this, capture_file_);
     connect(df_combo_box_, &QComboBox::editTextChanged, funnel_statistics_, &FunnelStatistics::displayFilterTextChanged);
     connect(funnel_statistics_, &FunnelStatistics::setDisplayFilter, this, &LograyMainWindow::setDisplayFilter);
-    connect(funnel_statistics_, SIGNAL(openCaptureFile(QString, QString)),
-            this, SLOT(openCaptureFile(QString, QString)));
+    connect(funnel_statistics_, &FunnelStatistics::openCaptureFile, this,
+            [=](QString cf_path, QString filter) { openCaptureFile(cf_path, filter); });
+
+    connect(df_combo_box_, &QComboBox::editTextChanged, this, &LograyMainWindow::updateDisplayFilterTranslationActions);
 
     file_set_dialog_ = new FileSetDialog(this);
-    connect(file_set_dialog_, SIGNAL(fileSetOpenCaptureFile(QString)),
-            this, SLOT(openCaptureFile(QString)));
+    connect(file_set_dialog_, &FileSetDialog::fileSetOpenCaptureFile, this, [=](QString cf_path) { openCaptureFile(cf_path); });
 
     initMainToolbarIcons();
 
@@ -428,15 +435,13 @@ LograyMainWindow::LograyMainWindow(QWidget *parent) :
     main_ui_->displayFilterToolBar->addWidget(filter_expression_toolbar_);
 
     main_ui_->goToFrame->hide();
-    connect(main_ui_->goToFrame, SIGNAL(visibilityChanged(bool)),
-            main_ui_->actionGoGoToPacket, SLOT(setChecked(bool)));
+    connect(main_ui_->goToFrame, &AccordionFrame::visibilityChanged, main_ui_->actionGoGoToPacket, &QAction::setChecked);
 
     // XXX For some reason the cursor is drawn funny with an input mask set
     // https://bugreports.qt-project.org/browse/QTBUG-7174
 
     main_ui_->searchFrame->hide();
-    connect(main_ui_->searchFrame, SIGNAL(visibilityChanged(bool)),
-            main_ui_->actionEditFindPacket, SLOT(setChecked(bool)));
+    connect(main_ui_->searchFrame, &SearchFrame::visibilityChanged, main_ui_->actionEditFindPacket, &QAction::setChecked);
 
     main_ui_->addressEditorFrame->hide();
     main_ui_->columnEditorFrame->hide();
@@ -483,7 +488,7 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
 #ifdef HAVE_SOFTWARE_UPDATE
     QAction *update_sep = main_ui_->menuHelp->insertSeparator(main_ui_->actionHelpAbout);
     main_ui_->menuHelp->insertAction(update_sep, update_action_);
-    connect(update_action_, SIGNAL(triggered()), this, SLOT(checkForUpdates()));
+    connect(update_action_, &QAction::triggered, this, &LograyMainWindow::checkForUpdates);
 #endif
     master_split_.setObjectName("splitterMaster");
     extra_split_.setObjectName("splitterExtra");
@@ -495,18 +500,19 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
     empty_pane_.setVisible(false);
 
     packet_list_ = new PacketList(&master_split_);
-    connect(packet_list_, SIGNAL(framesSelected(QList<int>)), this, SLOT(setMenusForSelectedPacket()));
-    connect(packet_list_, SIGNAL(framesSelected(QList<int>)), this, SIGNAL(framesSelected(QList<int>)));
+    connect(packet_list_, &PacketList::framesSelected, this, &LograyMainWindow::setMenusForSelectedPacket);
+    connect(packet_list_, &PacketList::framesSelected, this, &LograyMainWindow::framesSelected);
 
     QAction *action = main_ui_->menuPacketComment->addAction(tr("Add New Comment…"));
     connect(action, &QAction::triggered, this, &LograyMainWindow::addPacketComment);
     action->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
-    connect(main_ui_->menuPacketComment, SIGNAL(aboutToShow()), this, SLOT(setEditCommentsMenu()));
+    connect(main_ui_->menuPacketComment, &QMenu::aboutToShow, this, &LograyMainWindow::setEditCommentsMenu);
 
     proto_tree_ = new ProtoTree(&master_split_);
     proto_tree_->installEventFilter(this);
 
     packet_list_->setProtoTree(proto_tree_);
+    packet_list_->setProfileSwitcher(profile_switcher_);
     packet_list_->installEventFilter(this);
 
     main_stack_ = main_ui_->mainStack;
@@ -544,40 +550,27 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
     setTabOrder(df_combo_box_->lineEdit(), packet_list_);
     setTabOrder(packet_list_, proto_tree_);
 
-    connect(&capture_file_, SIGNAL(captureEvent(CaptureEvent)),
-            this, SLOT(captureEventHandler(CaptureEvent)));
-    connect(&capture_file_, SIGNAL(captureEvent(CaptureEvent)),
-            mainApp, SLOT(captureEventHandler(CaptureEvent)));
-    connect(&capture_file_, SIGNAL(captureEvent(CaptureEvent)),
-            main_ui_->statusBar, SLOT(captureEventHandler(CaptureEvent)));
+    connect(&capture_file_, &CaptureFile::captureEvent, this, &LograyMainWindow::captureEventHandler);
+    connect(&capture_file_, &CaptureFile::captureEvent, mainApp, &WiresharkApplication::captureEventHandler);
+    connect(&capture_file_, &CaptureFile::captureEvent, main_ui_->statusBar, &MainStatusBar::captureEventHandler);
+    connect(&capture_file_, &CaptureFile::captureEvent, profile_switcher_, &ProfileSwitcher::captureEventHandler);
 
-    connect(mainApp, SIGNAL(freezePacketList(bool)),
-            packet_list_, SLOT(freezePacketList(bool)));
-    connect(mainApp, SIGNAL(columnsChanged()),
-            packet_list_, SLOT(columnsChanged()));
-    connect(mainApp, SIGNAL(preferencesChanged()),
-            packet_list_, SLOT(preferencesChanged()));
-    connect(mainApp, SIGNAL(recentPreferencesRead()),
-            this, SLOT(applyRecentPaneGeometry()));
-    connect(mainApp, SIGNAL(recentPreferencesRead()),
-            this, SLOT(updateRecentActions()));
-    connect(mainApp, SIGNAL(packetDissectionChanged()),
-            this, SLOT(redissectPackets()), Qt::QueuedConnection);
+    connect(mainApp, &MainApplication::freezePacketList, packet_list_, &PacketList::freezePacketList);
+    connect(mainApp, &MainApplication::columnsChanged, packet_list_, &PacketList::columnsChanged);
+    connect(mainApp, &MainApplication::colorsChanged, packet_list_, &PacketList::colorsChanged);
+    connect(mainApp, &MainApplication::preferencesChanged, packet_list_, &PacketList::preferencesChanged);
+    connect(mainApp, &MainApplication::recentPreferencesRead, this, &LograyMainWindow::applyRecentPaneGeometry);
+    connect(mainApp, &MainApplication::recentPreferencesRead, this, &LograyMainWindow::updateRecentActions);
+    connect(mainApp, &MainApplication::packetDissectionChanged, this, &LograyMainWindow::redissectPackets, Qt::QueuedConnection);
 
-    connect(mainApp, SIGNAL(checkDisplayFilter()),
-            this, SLOT(checkDisplayFilter()));
-    connect(mainApp, SIGNAL(fieldsChanged()),
-            this, SLOT(fieldsChanged()));
-    connect(mainApp, SIGNAL(reloadLuaPlugins()),
-            this, SLOT(reloadLuaPlugins()));
+    connect(mainApp, &MainApplication::checkDisplayFilter, this, &LograyMainWindow::checkDisplayFilter);
+    connect(mainApp, &MainApplication::fieldsChanged, this, &LograyMainWindow::fieldsChanged);
+    connect(mainApp, &MainApplication::reloadLuaPlugins, this, &LograyMainWindow::reloadLuaPlugins);
 
-    connect(main_ui_->mainStack, SIGNAL(currentChanged(int)),
-            this, SLOT(mainStackChanged(int)));
+    connect(main_ui_->mainStack, &QStackedWidget::currentChanged, this, &LograyMainWindow::mainStackChanged);
 
-    connect(welcome_page_, SIGNAL(startCapture(QStringList)),
-            this, SLOT(startCapture(QStringList)));
-    connect(welcome_page_, SIGNAL(recentFileActivated(QString)),
-            this, SLOT(openCaptureFile(QString)));
+    connect(welcome_page_, &WelcomePage::startCapture, this, [this](QStringList) { startCapture(); });
+    connect(welcome_page_, &WelcomePage::recentFileActivated, this, [this](QString cfile) { openCaptureFile(cfile); });
 
     connect(main_ui_->addressEditorFrame, &AddressEditorFrame::redissectPackets,
             this, &LograyMainWindow::redissectPackets);
@@ -600,10 +593,8 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
     connect(this, &LograyMainWindow::setCaptureFile,
             proto_tree_, &ProtoTree::setCaptureFile);
 
-    connect(mainApp, SIGNAL(zoomMonospaceFont(QFont)),
-            packet_list_, SLOT(setMonospaceFont(QFont)));
-    connect(mainApp, SIGNAL(zoomMonospaceFont(QFont)),
-            proto_tree_, SLOT(setMonospaceFont(QFont)));
+    connect(mainApp, &MainApplication::zoomMonospaceFont, packet_list_, &PacketList::setMonospaceFont);
+    connect(mainApp, &MainApplication::zoomMonospaceFont, proto_tree_, &ProtoTree::setMonospaceFont);
 
     connectFileMenuActions();
     connectEditMenuActions();
@@ -612,28 +603,21 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
     connectCaptureMenuActions();
     connectAnalyzeMenuActions();
     connectStatisticsMenuActions();
+    connectToolsMenuActions();
     connectHelpMenuActions();
 
-    connect(packet_list_, SIGNAL(packetDissectionChanged()),
-            this, SLOT(redissectPackets()));
-    connect(packet_list_, SIGNAL(showColumnPreferences(QString)),
-            this, SLOT(showPreferencesDialog(QString)));
-    connect(packet_list_, SIGNAL(showProtocolPreferences(QString)),
-            this, SLOT(showPreferencesDialog(QString)));
+    connect(packet_list_, &PacketList::packetDissectionChanged, this, &LograyMainWindow::redissectPackets);
+    connect(packet_list_, &PacketList::showColumnPreferences, this, &LograyMainWindow::showPreferencesDialog);
+    connect(packet_list_, &PacketList::showProtocolPreferences, this, &LograyMainWindow::showPreferencesDialog);
     connect(packet_list_, SIGNAL(editProtocolPreference(preference*, pref_module*)),
             main_ui_->preferenceEditorFrame, SLOT(editPreference(preference*, pref_module*)));
-    connect(packet_list_, SIGNAL(editColumn(int)), this, SLOT(showColumnEditor(int)));
-    connect(main_ui_->columnEditorFrame, SIGNAL(columnEdited()),
-            packet_list_, SLOT(columnsChanged()));
-    connect(packet_list_, SIGNAL(doubleClicked(QModelIndex)),
-            this, SLOT(openPacketDialog()));
-    connect(packet_list_, SIGNAL(packetListScrolled(bool)),
-            main_ui_->actionGoAutoScroll, SLOT(setChecked(bool)));
+    connect(packet_list_, &PacketList::editColumn, this, &LograyMainWindow::showColumnEditor);
+    connect(main_ui_->columnEditorFrame, &ColumnEditorFrame::columnEdited, packet_list_, &PacketList::columnsChanged);
+    connect(packet_list_, &QAbstractItemView::doubleClicked, this, [=](const QModelIndex &){ openPacketDialog(); });
+    connect(packet_list_, &PacketList::packetListScrolled, main_ui_->actionGoAutoScroll, &QAction::setChecked);
 
-    connect(proto_tree_, SIGNAL(openPacketInNewWindow(bool)),
-            this, SLOT(openPacketDialog(bool)));
-    connect(proto_tree_, SIGNAL(showProtocolPreferences(QString)),
-            this, SLOT(showPreferencesDialog(QString)));
+    connect(proto_tree_, &ProtoTree::openPacketInNewWindow, this, &LograyMainWindow::openPacketDialog);
+    connect(proto_tree_, &ProtoTree::showProtocolPreferences, this, &LograyMainWindow::showPreferencesDialog);
     connect(proto_tree_, SIGNAL(editProtocolPreference(preference*, pref_module*)),
             main_ui_->preferenceEditorFrame, SLOT(editPreference(preference*, pref_module*)));
 
@@ -655,16 +639,13 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
 #ifdef HAVE_LIBPCAP
     QTreeWidget *iface_tree = findChild<QTreeWidget *>("interfaceTree");
     if (iface_tree) {
-        connect(iface_tree, SIGNAL(itemSelectionChanged()),
-                this, SLOT(interfaceSelectionChanged()));
+        connect(iface_tree, &QTreeWidget::itemSelectionChanged, this, &LograyMainWindow::interfaceSelectionChanged);
     }
-    connect(main_ui_->welcomePage, SIGNAL(captureFilterSyntaxChanged(bool)),
-            this, SLOT(captureFilterSyntaxChanged(bool)));
+    connect(main_ui_->welcomePage, &WelcomePage::captureFilterSyntaxChanged,
+            this, &LograyMainWindow::captureFilterSyntaxChanged);
 
-    connect(this, SIGNAL(showExtcapOptions(QString&, bool)),
-            this, SLOT(showExtcapOptionsDialog(QString&, bool)));
-    connect(this->welcome_page_, SIGNAL(showExtcapOptions(QString&, bool)),
-            this, SLOT(showExtcapOptionsDialog(QString&, bool)));
+    connect(this, &LograyMainWindow::showExtcapOptions, this, &LograyMainWindow::showExtcapOptionsDialog);
+    connect(this->welcome_page_, &WelcomePage::showExtcapOptions, this, &LograyMainWindow::showExtcapOptionsDialog);
 
 #endif // HAVE_LIBPCAP
 
@@ -695,7 +676,7 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
     main_ui_->actionHelpMPText2pcap->setToolTip(gchar_free_to_qstring(topic_action_url(LOCALPAGE_MAN_TEXT2PCAP)));
     main_ui_->actionHelpMPTShark->setToolTip(gchar_free_to_qstring(topic_action_url(LOCALPAGE_MAN_TSHARK)));
 
-    main_ui_->actionHelpContents->setToolTip(gchar_free_to_qstring(topic_action_url(ONLINEPAGE_USERGUIDE)));
+    main_ui_->actionHelpContents->setToolTip(gchar_free_to_qstring(topic_action_url(HELP_CONTENT)));
     main_ui_->actionHelpWebsite->setToolTip(gchar_free_to_qstring(topic_action_url(ONLINEPAGE_HOME)));
     main_ui_->actionHelpFAQ->setToolTip(gchar_free_to_qstring(topic_action_url(ONLINEPAGE_FAQ)));
     main_ui_->actionHelpAsk->setToolTip(gchar_free_to_qstring(topic_action_url(ONLINEPAGE_ASK)));
@@ -709,11 +690,14 @@ main_ui_->goToLineEdit->setValidator(goToLineQiv);
 LograyMainWindow::~LograyMainWindow()
 {
     disconnect(main_ui_->mainStack, 0, 0, 0);
+    if (previous_focus_ != nullptr) {
+        disconnect(previous_focus_, &QWidget::destroyed, this, &LograyMainWindow::resetPreviousFocus);
+    }
 
 #ifndef Q_OS_MAC
     // Below dialogs inherit GeometryStateDialog
     // For reasons described in geometry_state_dialog.h no parent is set when
-    // instantiating the dialogs and as a resul objects are not automatically
+    // instantiating the dialogs and as a result objects are not automatically
     // freed by its parent. Free then here explicitly to avoid leak and numerous
     // Valgrind complaints.
     delete file_set_dialog_;
@@ -777,8 +761,8 @@ void LograyMainWindow::addInterfaceToolbar(const iface_toolbar *toolbar_entry)
     menu->insertAction(before, action);
 
     InterfaceToolbar *interface_toolbar = new InterfaceToolbar(this, toolbar_entry);
-    connect(mainApp, SIGNAL(appInitialized()), interface_toolbar, SLOT(interfaceListChanged()));
-    connect(mainApp, SIGNAL(localInterfaceListChanged()), interface_toolbar, SLOT(interfaceListChanged()));
+    connect(mainApp, &MainApplication::appInitialized, interface_toolbar, &InterfaceToolbar::interfaceListChanged);
+    connect(mainApp, &MainApplication::localInterfaceListChanged, interface_toolbar, &InterfaceToolbar::interfaceListChanged);
 
     QToolBar *toolbar = new QToolBar(this);
     toolbar->addWidget(interface_toolbar);
@@ -797,7 +781,7 @@ void LograyMainWindow::addInterfaceToolbar(const iface_toolbar *toolbar_entry)
     menu->menuAction()->setVisible(true);
 }
 
-void LograyMainWindow::removeInterfaceToolbar(const gchar *menu_title)
+void LograyMainWindow::removeInterfaceToolbar(const char *menu_title)
 {
     QMenu *menu = main_ui_->menuInterfaceToolbars;
     QAction *action = NULL;
@@ -826,6 +810,23 @@ void LograyMainWindow::removeInterfaceToolbar(const gchar *menu_title)
     menu->menuAction()->setVisible(!menu->actions().isEmpty());
 }
 
+void LograyMainWindow::updateStyleSheet()
+{
+#ifdef Q_OS_MAC
+    // TODO: The event type QEvent::ApplicationPaletteChange is not sent to all child widgets.
+    // Workaround this by doing it manually for all AccordionFrame.
+    main_ui_->addressEditorFrame->updateStyleSheet();
+    main_ui_->columnEditorFrame->updateStyleSheet();
+    main_ui_->filterExpressionFrame->updateStyleSheet();
+    main_ui_->goToFrame->updateStyleSheet();
+    main_ui_->preferenceEditorFrame->updateStyleSheet();
+    main_ui_->searchFrame->updateStyleSheet();
+
+    df_combo_box_->updateStyleSheet();
+    welcome_page_->updateStyleSheets();
+#endif
+}
+
 bool LograyMainWindow::eventFilter(QObject *obj, QEvent *event) {
 
     // The user typed some text. Start filling in a filter.
@@ -849,6 +850,7 @@ bool LograyMainWindow::event(QEvent *event)
     switch (event->type()) {
     case QEvent::ApplicationPaletteChange:
         initMainToolbarIcons();
+        updateStyleSheet();
         break;
     default:
         break;
@@ -1005,10 +1007,10 @@ void LograyMainWindow::dropEvent(QDropEvent *event)
     if (cf_merge_files_to_tempfile(this, global_capture_opts.temp_dir, &tmpname, static_cast<int>(local_files.size()),
                                    in_filenames,
                                    wtap_pcapng_file_type_subtype(),
-                                   FALSE) == CF_OK) {
+                                   false) == CF_OK) {
         /* Merge succeeded; close the currently-open file and try
            to open the merged capture file. */
-        openCaptureFile(tmpname, QString(), WTAP_TYPE_AUTO, TRUE);
+        openCaptureFile(tmpname, QString(), WTAP_TYPE_AUTO, true);
     }
 
     g_free(tmpname);
@@ -1117,7 +1119,7 @@ void LograyMainWindow::saveWindowGeometry()
 // Our event loop becomes nested whenever we call update_progress_dlg, which
 // includes several places in file.c. The GTK+ UI stays out of trouble by
 // showing a modal progress dialog. We attempt to do the equivalent below by
-// disabling parts of the main window. At a minumum the ProgressFrame in the
+// disabling parts of the main window. At a minimum the ProgressFrame in the
 // main status bar must remain accessible.
 //
 // We might want to do this any time the main status bar progress frame is
@@ -1159,7 +1161,7 @@ void LograyMainWindow::mergeCaptureFile()
     if (prefs.gui_ask_unsaved) {
         if (cf_has_unsaved_data(capture_file_.capFile())) {
             QMessageBox msg_dialog;
-            gchar *display_basename;
+            char *display_basename;
             int response;
 
             msg_dialog.setIcon(QMessageBox::Question);
@@ -1229,17 +1231,17 @@ void LograyMainWindow::mergeCaptureFile()
             /* chronological order */
             in_filenames[0] = g_strdup(capture_file_.capFile()->filename);
             in_filenames[1] = qstring_strdup(file_name);
-            merge_status = cf_merge_files_to_tempfile(this, global_capture_opts.temp_dir, &tmpname, 2, in_filenames, file_type, FALSE);
+            merge_status = cf_merge_files_to_tempfile(this, global_capture_opts.temp_dir, &tmpname, 2, in_filenames, file_type, false);
         } else if (merge_dlg.mergeType() <= 0) {
             /* prepend file */
             in_filenames[0] = qstring_strdup(file_name);
             in_filenames[1] = g_strdup(capture_file_.capFile()->filename);
-            merge_status = cf_merge_files_to_tempfile(this, global_capture_opts.temp_dir, &tmpname, 2, in_filenames, file_type, TRUE);
+            merge_status = cf_merge_files_to_tempfile(this, global_capture_opts.temp_dir, &tmpname, 2, in_filenames, file_type, true);
         } else {
             /* append file */
             in_filenames[0] = g_strdup(capture_file_.capFile()->filename);
             in_filenames[1] = qstring_strdup(file_name);
-            merge_status = cf_merge_files_to_tempfile(this, global_capture_opts.temp_dir, &tmpname, 2, in_filenames, file_type, TRUE);
+            merge_status = cf_merge_files_to_tempfile(this, global_capture_opts.temp_dir, &tmpname, 2, in_filenames, file_type, true);
         }
 
         g_free(in_filenames[0]);
@@ -1255,9 +1257,9 @@ void LograyMainWindow::mergeCaptureFile()
 
         /* Try to open the merged capture file. */
         // XXX - Just free rfcode and call
-        // openCaptureFile(tmpname, read_filter, WTAP_TYPE_AUTO, TRUE);
+        // openCaptureFile(tmpname, read_filter, WTAP_TYPE_AUTO, true);
         CaptureFile::globalCapFile()->window = this;
-        if (cf_open(CaptureFile::globalCapFile(), tmpname, WTAP_TYPE_AUTO, TRUE /* temporary file */, &err) != CF_OK) {
+        if (cf_open(CaptureFile::globalCapFile(), tmpname, WTAP_TYPE_AUTO, true /* temporary file */, &err) != CF_OK) {
             /* We couldn't open it; fail. */
             CaptureFile::globalCapFile()->window = NULL;
             dfilter_free(rfcode);
@@ -1270,7 +1272,7 @@ void LograyMainWindow::mergeCaptureFile()
            previous read filter attached to "cf"). */
         cf_set_rfcode(CaptureFile::globalCapFile(), rfcode);
 
-        switch (cf_read(CaptureFile::globalCapFile(), /*reloading=*/FALSE)) {
+        switch (cf_read(CaptureFile::globalCapFile(), /*reloading=*/false)) {
 
         case CF_READ_OK:
         case CF_READ_ERROR:
@@ -1315,7 +1317,7 @@ void LograyMainWindow::importCaptureFile() {
 
 bool LograyMainWindow::saveCaptureFile(capture_file *cf, bool dont_reopen) {
     QString file_name;
-    gboolean discard_comments;
+    bool discard_comments;
 
     if (cf->is_tempfile) {
         /* This is a temporary capture file, so saving it means saving
@@ -1325,7 +1327,7 @@ bool LograyMainWindow::saveCaptureFile(capture_file *cf, bool dont_reopen) {
            probably pcapng, which supports comments and, if it's
            not pcapng, let the user decide what they want to do
            if they've added comments. */
-        return saveAsCaptureFile(cf, FALSE, dont_reopen);
+        return saveAsCaptureFile(cf, false, dont_reopen);
     } else {
         if (cf->unsaved_changes) {
             cf_write_status_t status;
@@ -1344,7 +1346,7 @@ bool LograyMainWindow::saveCaptureFile(capture_file *cf, bool dont_reopen) {
             case SAVE:
                 /* The file can be saved in the specified format as is;
                    just drive on and save in the format they selected. */
-                discard_comments = FALSE;
+                discard_comments = false;
                 break;
 
             case SAVE_WITHOUT_COMMENTS:
@@ -1352,7 +1354,7 @@ bool LograyMainWindow::saveCaptureFile(capture_file *cf, bool dont_reopen) {
                    but it can be saved without the comments, and the user
                    said "OK, discard the comments", so save it in the
                    format they specified without the comments. */
-                discard_comments = TRUE;
+                discard_comments = true;
                 break;
 
             case SAVE_IN_ANOTHER_FORMAT:
@@ -1360,7 +1362,7 @@ bool LograyMainWindow::saveCaptureFile(capture_file *cf, bool dont_reopen) {
                    support comments, and the user said not to delete the
                    comments.  Do a "Save As" so the user can select
                    one of those formats and choose a file name. */
-                return saveAsCaptureFile(cf, TRUE, dont_reopen);
+                return saveAsCaptureFile(cf, true, dont_reopen);
 
             case CANCELLED:
                 /* The user said "forget it".  Just return. */
@@ -1428,8 +1430,8 @@ bool LograyMainWindow::saveAsCaptureFile(capture_file *cf, bool must_support_com
     int file_type;
     wtap_compression_type compression_type;
     cf_write_status_t status;
-    gchar   *dirname;
-    gboolean discard_comments = FALSE;
+    char    *dirname;
+    bool discard_comments = false;
 
     if (!cf) {
         return false;
@@ -1446,7 +1448,7 @@ bool LograyMainWindow::saveAsCaptureFile(capture_file *cf, bool must_support_com
         case SAVE:
             /* The file can be saved in the specified format as is;
                just drive on and save in the format they selected. */
-            discard_comments = FALSE;
+            discard_comments = false;
             break;
 
         case SAVE_WITHOUT_COMMENTS:
@@ -1454,7 +1456,7 @@ bool LograyMainWindow::saveAsCaptureFile(capture_file *cf, bool must_support_com
                but it can be saved without the comments, and the user
                said "OK, discard the comments", so save it in the
                format they specified without the comments. */
-            discard_comments = TRUE;
+            discard_comments = true;
             break;
 
         case SAVE_IN_ANOTHER_FORMAT:
@@ -1464,7 +1466,7 @@ bool LograyMainWindow::saveAsCaptureFile(capture_file *cf, bool must_support_com
                formats that don't support comments trimmed from it,
                so run the dialog again, to let the user decide
                whether to save in one of those formats or give up. */
-            must_support_comments = TRUE;
+            must_support_comments = true;
             continue;
 
         case CANCELLED:
@@ -1484,11 +1486,6 @@ bool LograyMainWindow::saveAsCaptureFile(capture_file *cf, bool must_support_com
             return false;
 	}
         compression_type = save_as_dlg.compressionType();
-
-#ifdef Q_OS_WIN
-        // the Windows dialog does not fixup extensions, do it manually here.
-        fileAddExtension(file_name, file_type, compression_type);
-#endif // Q_OS_WIN
 
 //#ifndef _WIN32
 //        /* If the file exists and it's user-immutable or not writable,
@@ -1551,7 +1548,7 @@ void LograyMainWindow::exportSelectedPackets() {
     wtap_compression_type compression_type;
     packet_range_t range;
     cf_write_status_t status;
-    gchar   *dirname;
+    char    *dirname;
     bool discard_comments = false;
 
     if (!capture_file_.capFile())
@@ -1559,8 +1556,8 @@ void LograyMainWindow::exportSelectedPackets() {
 
     /* Init the packet range */
     packet_range_init(&range, capture_file_.capFile());
-    range.process_filtered = TRUE;
-    range.include_dependents = TRUE;
+    range.process_filtered = true;
+    range.include_dependents = true;
 
     QList<int> rows = packet_list_->selectedRows(true);
 
@@ -1580,7 +1577,7 @@ void LograyMainWindow::exportSelectedPackets() {
         case SAVE:
             /* The file can be saved in the specified format as is;
                just drive on and save in the format they selected. */
-            discard_comments = FALSE;
+            discard_comments = false;
             break;
 
         case SAVE_WITHOUT_COMMENTS:
@@ -1588,7 +1585,7 @@ void LograyMainWindow::exportSelectedPackets() {
                but it can be saved without the comments, and the user
                said "OK, discard the comments", so save it in the
                format they specified without the comments. */
-            discard_comments = TRUE;
+            discard_comments = true;
             break;
 
         case SAVE_IN_ANOTHER_FORMAT:
@@ -1616,7 +1613,7 @@ void LograyMainWindow::exportSelectedPackets() {
          */
         if (files_identical(capture_file_.capFile()->filename, qUtf8Printable(file_name))) {
             QMessageBox msg_box;
-            gchar *display_basename = g_filename_display_basename(qUtf8Printable(file_name));
+            char *display_basename = g_filename_display_basename(qUtf8Printable(file_name));
 
             msg_box.setIcon(QMessageBox::Critical);
             msg_box.setText(QString(tr("Unable to export to \"%1\".").arg(display_basename)));
@@ -1640,10 +1637,6 @@ void LograyMainWindow::exportSelectedPackets() {
             goto cleanup;
 	}
         compression_type = esp_dlg.compressionType();
-#ifdef Q_OS_WIN
-        // the Windows dialog does not fixup extensions, do it manually here.
-        fileAddExtension(file_name, file_type, compression_type);
-#endif // Q_OS_WIN
 
 //#ifndef _WIN32
 //        /* If the file exists and it's user-immutable or not writable,
@@ -1705,110 +1698,6 @@ void LograyMainWindow::exportDissections(export_type_e export_type) {
     ed_dlg->setAttribute(Qt::WA_DeleteOnClose);
     ed_dlg->show();
 }
-
-#ifdef Q_OS_WIN
-/*
- * Ensure that:
- *
- * If the file is to be compressed:
- *
- *    if there is a set of extensions used by the file type to be used,
- *    the file name has one of those extensions followed by the extension
- *    for the compression type to be used;
- *
- *    otherwise, the file name has the extension for the compression type
- *    to be used;
- *
- * otherwise:
- *
- *    if there is a set of extensions used by the file type to be used,
- *    the file name has one of those extensions.
- */
-void LograyMainWindow::fileAddExtension(QString &file_name, int file_type, wtap_compression_type compression_type) {
-    QString file_name_lower;
-    GSList  *extensions_list;
-    const char *compressed_file_extension;
-    gboolean add_extension_for_file_type;
-
-    /* Lower-case the file name, so the extension matching is case-insensitive. */
-    file_name_lower = file_name.toLower();
-
-    /* Get a list of all extensions used for this file type; don't
-       include the ones with compression type extensions, as we
-       only want to check for the extension for the compression
-       type we'll be using. */
-    extensions_list = wtap_get_file_extensions_list(file_type, FALSE);
-
-    /* Get the extension for the compression type we'll be using;
-       NULL is returned if the type isn't supported or compression
-       is not being done. */
-    compressed_file_extension = wtap_compression_type_extension(compression_type);
-
-    if (extensions_list != NULL) {
-        GSList *extension;
-
-        /* This file type has one or more extensions.
-           Start out assuming we need to add the default one. */
-        add_extension_for_file_type = TRUE;
-
-        /* OK, see if the file has one of those extensions, followed
-           by the appropriate compression type extension if it's to be
-           compressed. */
-        for (extension = extensions_list; extension != NULL;
-             extension = g_slist_next(extension)) {
-            QString file_suffix = QString(".") + (char *)extension->data;
-            if (compressed_file_extension != NULL)
-                file_suffix += QString(".") + compressed_file_extension;
-            if (file_name_lower.endsWith(file_suffix)) {
-                /*
-                 * The file name has one of the extensions for this file
-                 * type, followed by a compression type extension if
-                 * appropriate, so we don't need to add an extension for
-                 * the file type or the compression type.
-                 */
-                add_extension_for_file_type = FALSE;
-                break;
-            }
-        }
-    } else {
-        /* We have no extensions for this file type.  Just check
-           to see if we need to add an extension for the compressed
-           file type.
-
-           Start out assuming we do. */
-        add_extension_for_file_type = TRUE;
-        if (compressed_file_extension != NULL) {
-            QString file_suffix = QString(".") + compressed_file_extension;
-            if (file_name_lower.endsWith(file_suffix)) {
-                /*
-                 * The file name has the appropriate compressed file extension,
-                 * so we don't need to add an extension for the compression
-                 * type.
-                 */
-                add_extension_for_file_type = FALSE;
-            }
-        }
-    }
-
-    /*
-     * If we need to add an extension for the file type or compressed
-     * file type, do so.
-     */
-    if (add_extension_for_file_type) {
-        if (wtap_default_file_extension(file_type) != NULL) {
-            /* This file type has a default extension; append it. */
-            file_name += QString(".") + wtap_default_file_extension(file_type);
-        }
-        if (compression_type != WTAP_UNCOMPRESSED) {
-            /*
-             * The file is to be compressed, so append the extension for
-             * its compression type.
-             */
-            file_name += QString(".") + compressed_file_extension;
-        }
-    }
-}
-#endif // Q_OS_WIN
 
 bool LograyMainWindow::testCaptureFileClose(QString before_what, FileCloseContext context) {
     bool capture_in_progress = false;
@@ -1882,7 +1771,7 @@ bool LograyMainWindow::testCaptureFileClose(QString before_what, FileCloseContex
                 }
             } else {
                 // No capture in progress and not a tempfile, so this is not unsaved packets
-                gchar *display_basename = g_filename_display_basename(capture_file_.capFile()->filename);
+                char *display_basename = g_filename_display_basename(capture_file_.capFile()->filename);
                 question = tr("Do you want to save the changes you've made to the capture file \"%1\"%2?").arg(display_basename, before_what);
                 infotext = tr("Your changes will be lost if you don't save them.");
                 g_free(display_basename);
@@ -1967,7 +1856,13 @@ bool LograyMainWindow::testCaptureFileClose(QString before_what, FileCloseContex
              */
             discard_button->setFocus();
 #endif
-
+            /*
+             * On Windows, if multiple Wireshark processes are open, another
+             * application has focus, and "Close all [Wireshark] windows" is
+             * chosen from the taskbar, we need to activate the window to
+             * at least flash the taskbar (#16309).
+             */
+            activateWindow();
             msg_dialog.exec();
             /* According to the Qt doc:
              * when using QMessageBox with custom buttons, exec() function returns an opaque value.
@@ -2085,7 +1980,7 @@ void LograyMainWindow::findTextCodecs() {
         // annoying to properly place IBM00858 and IBM00924 in the middle of
         // code page numbers not zero padded to 5 digits.
         // We could manipulate the key further to have more commonly used
-        // charsets earlier. IANA MIB ordering would be unxpected:
+        // charsets earlier. IANA MIB ordering would be unexpected:
         // https://www.iana.org/assignments/character-sets/character-sets.xml
         // For data about use in HTTP (other protocols can be quite different):
         // https://w3techs.com/technologies/overview/character_encoding
@@ -2118,11 +2013,10 @@ void LograyMainWindow::initMainToolbarIcons()
     main_ui_->actionCaptureRestart->setIcon(StockIcon("x-capture-restart-circle"));
     main_ui_->actionCaptureOptions->setIcon(StockIcon("x-capture-options"));
 
-    // Menu icons are disabled in main_window.ui for these items.
+    // Menu icons are disabled in logray_main_window.ui for these File-> items.
     main_ui_->actionFileOpen->setIcon(StockIcon("document-open"));
     main_ui_->actionFileSave->setIcon(StockIcon("x-capture-file-save"));
     main_ui_->actionFileClose->setIcon(StockIcon("x-capture-file-close"));
-    main_ui_->actionViewReload->setIcon(StockIcon("x-capture-file-reload"));
 
     main_ui_->actionEditFindPacket->setIcon(StockIcon("edit-find"));
     main_ui_->actionGoPreviousPacket->setIcon(StockIcon("go-previous"));
@@ -2149,6 +2043,7 @@ void LograyMainWindow::initMainToolbarIcons()
     main_ui_->actionViewZoomOut->setIcon(StockIcon("zoom-out"));
     main_ui_->actionViewNormalSize->setIcon(StockIcon("zoom-original"));
     main_ui_->actionViewResizeColumns->setIcon(StockIcon("x-resize-columns"));
+    main_ui_->actionViewReload->setIcon(StockIcon("x-capture-file-reload"));
 
     main_ui_->actionNewDisplayFilterExpression->setIcon(StockIcon("list-add"));
 }
@@ -2181,7 +2076,7 @@ void LograyMainWindow::initShowHideMainWidgets()
     /* Initially hide the additional toolbars menus */
     main_ui_->menuAdditionalToolbars->menuAction()->setVisible(false);
 
-    connect(show_hide_actions_, SIGNAL(triggered(QAction*)), this, SLOT(showHideMainWidgets(QAction*)));
+    connect(show_hide_actions_, &QActionGroup::triggered, this, &LograyMainWindow::showHideMainWidgets);
 }
 
 void LograyMainWindow::initTimeDisplayFormatMenu()
@@ -2208,7 +2103,7 @@ void LograyMainWindow::initTimeDisplayFormatMenu()
         time_display_actions_->addAction(tda);
     }
 
-    connect(time_display_actions_, SIGNAL(triggered(QAction*)), this, SLOT(setTimestampFormat(QAction*)));
+    connect(time_display_actions_, &QActionGroup::triggered, this, &LograyMainWindow::setTimestampFormat);
 }
 
 void LograyMainWindow::initTimePrecisionFormatMenu()
@@ -2236,7 +2131,7 @@ void LograyMainWindow::initTimePrecisionFormatMenu()
         time_precision_actions_->addAction(tpa);
     }
 
-    connect(time_precision_actions_, SIGNAL(triggered(QAction*)), this, SLOT(setTimestampPrecision(QAction*)));
+    connect(time_precision_actions_, &QActionGroup::triggered, this, &LograyMainWindow::setTimestampPrecision);
 }
 
 // Menu items which will be disabled when we freeze() and whose state will
@@ -2277,8 +2172,8 @@ void LograyMainWindow::initConversationMenus()
         ConversationAction *conv_action = new ConversationAction(main_ui_->menuConversationFilter, conv_filter);
         main_ui_->menuConversationFilter->addAction(conv_action);
 
-        connect(this, SIGNAL(packetInfoChanged(_packet_info*)), conv_action, SLOT(setPacketInfo(_packet_info*)));
-        connect(conv_action, SIGNAL(triggered()), this, SLOT(applyConversationFilter()), Qt::QueuedConnection);
+        connect(this, &LograyMainWindow::packetInfoChanged, conv_action, &ConversationAction::setPacketInfo);
+        connect(conv_action, &ConversationAction::triggered, this, &LograyMainWindow::applyConversationFilter, Qt::QueuedConnection);
 
         // Packet list context menu items
         packet_list_->conversationMenu()->addAction(conv_action);
@@ -2292,15 +2187,15 @@ void LograyMainWindow::initConversationMenus()
             conv_action->setIcon(cc_action->icon());
             conv_action->setColorNumber(i++);
             submenu->addAction(conv_action);
-            connect(this, SIGNAL(packetInfoChanged(_packet_info*)), conv_action, SLOT(setPacketInfo(_packet_info*)));
-            connect(conv_action, SIGNAL(triggered()), this, SLOT(colorizeActionTriggered()));
+            connect(this, &LograyMainWindow::packetInfoChanged, conv_action, &ConversationAction::setPacketInfo);
+            connect(conv_action, &ConversationAction::triggered, this, &LograyMainWindow::colorizeActionTriggered);
         }
 
         conv_action = new ConversationAction(submenu, conv_filter);
         conv_action->setText(main_ui_->actionViewColorizeNewColoringRule->text());
         submenu->addAction(conv_action);
-        connect(this, SIGNAL(packetInfoChanged(_packet_info*)), conv_action, SLOT(setPacketInfo(_packet_info*)));
-        connect(conv_action, SIGNAL(triggered()), this, SLOT(colorizeActionTriggered()));
+        connect(this, &LograyMainWindow::packetInfoChanged, conv_action, &ConversationAction::setPacketInfo);
+        connect(conv_action, &ConversationAction::triggered, this, &LograyMainWindow::colorizeActionTriggered);
 
         // Proto tree conversation menu is filled in in ProtoTree::contextMenuEvent.
         // We should probably do that here.
@@ -2315,15 +2210,15 @@ void LograyMainWindow::initConversationMenus()
         colorize_action->setIcon(cc_action->icon());
         colorize_action->setColorNumber(i++);
         proto_tree_->colorizeMenu()->addAction(colorize_action);
-        connect(this, SIGNAL(fieldFilterChanged(QByteArray)), colorize_action, SLOT(setFieldFilter(QByteArray)));
-        connect(colorize_action, SIGNAL(triggered()), this, SLOT(colorizeActionTriggered()));
+        connect(this, &LograyMainWindow::fieldFilterChanged, colorize_action, &ColorizeAction::setFieldFilter);
+        connect(colorize_action, &ColorizeAction::triggered, this, &LograyMainWindow::colorizeActionTriggered);
     }
 
     colorize_action = new ColorizeAction(proto_tree_->colorizeMenu());
     colorize_action->setText(main_ui_->actionViewColorizeNewColoringRule->text());
     proto_tree_->colorizeMenu()->addAction(colorize_action);
-    connect(this, SIGNAL(fieldFilterChanged(QByteArray)), colorize_action, SLOT(setFieldFilter(QByteArray)));
-    connect(colorize_action, SIGNAL(triggered()), this, SLOT(colorizeActionTriggered()));
+    connect(this, &LograyMainWindow::fieldFilterChanged, colorize_action, &ColorizeAction::setFieldFilter);
+    connect(colorize_action, &ColorizeAction::triggered, this, &LograyMainWindow::colorizeActionTriggered);
 }
 
 bool LograyMainWindow::addFollowStreamMenuItem(const void *key _U_, void *value, void *userdata)
@@ -2369,7 +2264,7 @@ bool LograyMainWindow::addFollowStreamMenuItem(const void *key _U_, void *value,
     connect(follow_action, &QAction::triggered, window,
             [window, follow]() { window->openFollowStreamDialog(get_follow_proto_id(follow)); },
             Qt::QueuedConnection);
-    return FALSE;
+    return false;
 }
 
 void LograyMainWindow::initFollowStreamMenus()
@@ -2712,28 +2607,29 @@ void LograyMainWindow::addMenuActions(QList<QAction *> &actions, int menu_group)
                             main_ui_->actionStatistics_REGISTER_STAT_GROUP_UNSORTED,
                             action);
             break;
-//        case REGISTER_TOOLS_GROUP_UNSORTED:
-//        {
-//            // Allow the creation of submenus. Mimics the behavor of
-//            // ui/gtk/main_menubar.c:add_menu_item_to_main_menubar
-//            // and GtkUIManager.
-//            //
-//            // For now we limit the insanity to the "Tools" menu.
-//            QStringList menu_path = action->text().split('/');
-//            QMenu *cur_menu = main_ui_->menuTools;
-//            while (menu_path.length() > 1) {
-//                QString menu_title = menu_path.takeFirst();
-//                QMenu *submenu = cur_menu->findChild<QMenu *>(menu_title.toLower(), Qt::FindDirectChildrenOnly);
-//                if (!submenu) {
-//                    submenu = cur_menu->addMenu(menu_title);
-//                    submenu->setObjectName(menu_title.toLower());
-//                }
-//                cur_menu = submenu;
-//            }
-//            action->setText(menu_path.last());
-//            cur_menu->addAction(action);
-//            break;
-//        }
+        case REGISTER_TOOLS_GROUP_UNSORTED:
+        {
+            main_ui_->menuTools->show(); // Remove this if we ever add any built-in tools.
+            // Allow the creation of submenus. Mimics the behaviour of
+            // ui/gtk/main_menubar.c:add_menu_item_to_main_menubar
+            // and GtkUIManager.
+            //
+            // For now we limit the insanity to the "Tools" menu.
+            QStringList menu_path = action->text().split('/');
+            QMenu *cur_menu = main_ui_->menuTools;
+            while (menu_path.length() > 1) {
+                QString menu_title = menu_path.takeFirst();
+                QMenu *submenu = cur_menu->findChild<QMenu *>(menu_title.toLower(), Qt::FindDirectChildrenOnly);
+                if (!submenu) {
+                    submenu = cur_menu->addMenu(menu_title);
+                    submenu->setObjectName(menu_title.toLower());
+                }
+                cur_menu = submenu;
+            }
+            action->setText(menu_path.last());
+            cur_menu->addAction(action);
+            break;
+        }
         default:
             // Skip packet items.
             return;
@@ -2743,9 +2639,9 @@ void LograyMainWindow::addMenuActions(QList<QAction *> &actions, int menu_group)
         // distinguish various types of actions. Setting their objectName
         // seems to work OK.
         if (action->objectName() == TapParameterDialog::actionName()) {
-            connect(action, SIGNAL(triggered(bool)), this, SLOT(openTapParameterDialog()));
+            connect(action, &QAction::triggered, this, [=]() { openTapParameterDialog(); });
         } else if (action->objectName() == FunnelStatistics::actionName()) {
-            connect(action, SIGNAL(triggered(bool)), funnel_statistics_, SLOT(funnelActionTriggered()));
+            connect(action, &QAction::triggered, funnel_statistics_, &FunnelStatistics::funnelActionTriggered);
         }
     }
 }
@@ -2758,20 +2654,26 @@ void LograyMainWindow::removeMenuActions(QList<QAction *> &actions, int menu_gro
         case REGISTER_LOG_STAT_GROUP_UNSORTED:
             main_ui_->menuStatistics->removeAction(action);
             break;
-//        case REGISTER_TOOLS_GROUP_UNSORTED:
-//        {
-//            // Allow removal of submenus.
-//            // For now we limit the insanity to the "Tools" menu.
-//            QStringList menu_path = action->text().split('/');
-//            QMenu *cur_menu = main_ui_->menuTools;
-//            while (menu_path.length() > 1) {
-//                QString menu_title = menu_path.takeFirst();
-//                QMenu *submenu = cur_menu->findChild<QMenu *>(menu_title.toLower(), Qt::FindDirectChildrenOnly);
-//                cur_menu = submenu;
-//            }
-//            cur_menu->removeAction(action);
-//            break;
-//        }
+        case REGISTER_TOOLS_GROUP_UNSORTED:
+        {
+            // Allow removal of submenus.
+            // For now we limit the insanity to the "Tools" menu.
+            QStringList menu_path = action->text().split('/');
+            QMenu *cur_menu = main_ui_->menuTools;
+            while (menu_path.length() > 1) {
+                QString menu_title = menu_path.takeFirst();
+                QMenu *submenu = cur_menu->findChild<QMenu *>(menu_title.toLower(), Qt::FindDirectChildrenOnly);
+                cur_menu = submenu;
+            }
+            cur_menu->removeAction(action);
+            // Remove empty submenus.
+            while (cur_menu != main_ui_->menuTools) {
+                QMenu *empty_menu = (cur_menu->isEmpty() ? cur_menu : NULL);
+                cur_menu = dynamic_cast<QMenu *>(cur_menu->parent());
+                delete empty_menu;
+            }
+            break;
+        }
         default:
 //            qDebug() << "FIX: Remove" << action->text() << "from the menu";
             break;
@@ -2802,7 +2704,7 @@ void LograyMainWindow::reloadDynamicMenus()
     mainApp->clearRemovedMenuGroupItems();
 }
 
-void LograyMainWindow::externalMenuHelper(ext_menu_t * menu, QMenu  * subMenu, gint depth)
+void LograyMainWindow::externalMenuHelper(ext_menu_t * menu, QMenu  * subMenu, int depth)
 {
     QAction * itemAction = Q_NULLPTR;
     ext_menubar_t * item = Q_NULLPTR;

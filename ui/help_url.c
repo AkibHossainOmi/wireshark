@@ -27,8 +27,8 @@
 /*
  * Open the help dialog and show a specific HTML help page.
  */
-gchar *
-user_guide_url(const gchar *page) {
+char *
+user_guide_url(const char *page) {
     GString *url = g_string_new("");
 
 #if defined(_WIN32)
@@ -61,10 +61,10 @@ user_guide_url(const gchar *page) {
     return g_string_free(url, FALSE);
 }
 
-gchar *
+char *
 topic_action_url(topic_action_e action)
 {
-    gchar *url;
+    char *url;
 
     switch(action) {
     /* pages online at www.wireshark.org */
@@ -103,9 +103,6 @@ topic_action_url(topic_action_e action)
         break;
     case(ONLINEPAGE_SECURITY):
         url = g_strdup(WS_WIKI_URL("Security"));
-        break;
-    case(ONLINEPAGE_CHIMNEY):
-        url = g_strdup(WS_WIKI_URL("CaptureSetup/Offloading#chimney"));
         break;
 
     /* local manual pages */

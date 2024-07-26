@@ -11,14 +11,17 @@
  */
 
 #include "config.h"
+#define WS_LOG_DOMAIN "sinsp-span"
 
 #include <stddef.h>
 #include <stdint.h>
 
 #include <glib.h>
 
+#include <epan/dfilter/dfilter-translator.h>
 #include <epan/wmem_scopes.h>
 
+#include <wsutil/array.h>
 #include <wsutil/unicode-utils.h>
 
 #ifdef _MSC_VER
@@ -41,14 +44,14 @@ typedef struct ss_plugin_info ss_plugin_info;
 
 #include "sinsp-span.h"
 
-#include <sinsp.h>
+#include <libsinsp/sinsp.h>
 
 typedef struct sinsp_source_info_t {
     sinsp_plugin *source;
     std::vector<const filter_check_info *> syscall_filter_checks;
     std::vector<const filtercheck_field_info *> syscall_filter_fields;
-    std::vector<gen_event_filter_check *> syscall_event_filter_checks;  // Same size as syscall_filter_fields
-    std::vector<sinsp_syscall_category_e> field_to_category;            // Same size as syscall_filter_fields
+    std::vector<std::unique_ptr<sinsp_filter_check>> syscall_event_filter_checks;   // Same size as syscall_filter_fields
+    std::vector<sinsp_syscall_category_e> field_to_category;                        // Same size as syscall_filter_fields
     sinsp_evt *evt;
     uint8_t *evt_storage;
     size_t evt_storage_size;
@@ -291,29 +294,29 @@ const filtercheck_field_info proc_lineage_event_fields[] = {
 };
 
 void add_arg_event(uint32_t arg_number,
-        sinsp_filter_factory* filter_factory,
+        sinsp_span_t *sinsp_span,
         sinsp_source_info_t *ssi,
         sinsp_syscall_category_e args_syscall_category) {
 
-    if (arg_number >= sizeof(args_event_fields) / sizeof(args_event_fields[0])) {
+    if (arg_number >= array_length(args_event_fields)) {
         ws_error("falco event has too many arguments (%" PRIu32 ")", arg_number);
     }
 
     std::string fname = "evt.arg[" + std::to_string(arg_number) + "]";
 
     const filtercheck_field_info *ffi = &args_event_fields[arg_number];
-    gen_event_filter_check *gefc = filter_factory->new_filtercheck(fname.c_str());
-    if (!gefc) {
+    std::unique_ptr<sinsp_filter_check> sfc = sinsp_span->filter_checks.new_filter_check_from_fldname(fname.c_str(), &sinsp_span->inspector, true);
+    if (!sfc) {
         ws_error("cannot find expected Falco field evt.arg");
     }
-    gefc->parse_field_name(fname.c_str(), true, false);
+    sfc->parse_field_name(fname.c_str(), true, false);
     ssi->field_to_category.push_back(args_syscall_category);
-    ssi->syscall_event_filter_checks.push_back(gefc);
+    ssi->syscall_event_filter_checks.push_back(std::move(sfc));
     ssi->syscall_filter_fields.push_back(ffi);
 }
 
-void create_args_source(sinsp_source_info_t *ssi,
-    sinsp_filter_factory* filter_factory,
+void create_args_source(sinsp_span_t *sinsp_span,
+    sinsp_source_info_t *ssi,
     const filter_check_info* fci) {
     g_args_fci.m_name = "args";
     sinsp_syscall_category_e args_syscall_category = filtercheck_name_to_category(g_args_fci.m_name);
@@ -321,7 +324,7 @@ void create_args_source(sinsp_source_info_t *ssi,
     g_args_fci = *fci;
 
     for (uint32_t i = 0; i < 32; i++) {
-        add_arg_event(i, filter_factory, ssi, args_syscall_category);
+        add_arg_event(i, sinsp_span, ssi, args_syscall_category);
     }
     ssi->syscall_filter_checks.push_back(&g_args_fci);
 }
@@ -334,14 +337,14 @@ void add_lineage_field(std::string basefname,
         sinsp_syscall_category_e args_syscall_category) {
     std::string fname = basefname + "[" + std::to_string(ancestor_number) + "]";
     const filtercheck_field_info *ffi = &proc_lineage_event_fields[(ancestor_number - 1) * N_PROC_LINEAGE_ENTRY_FIELDS + field_number];
-    gen_event_filter_check *gefc = filter_factory->new_filtercheck(fname.c_str());
-    if (!gefc) {
+    std::unique_ptr<sinsp_filter_check> sfc = filter_factory->new_filtercheck(fname.c_str());
+    if (!sfc) {
         ws_error("cannot find expected Falco field evt.arg");
     }
 
-    gefc->parse_field_name(fname.c_str(), true, false);
+    sfc->parse_field_name(fname.c_str(), true, false);
     ssi->field_to_category.push_back(args_syscall_category);
-    ssi->syscall_event_filter_checks.push_back(gefc);
+    ssi->syscall_event_filter_checks.push_back(std::move(sfc));
     ssi->syscall_filter_fields.push_back(ffi);
 }
 
@@ -350,7 +353,7 @@ void add_lineage_events(uint32_t ancestor_number,
         sinsp_source_info_t *ssi,
         sinsp_syscall_category_e args_syscall_category) {
 
-    if (ancestor_number >= sizeof(proc_lineage_event_fields) / sizeof(proc_lineage_event_fields[0]) / N_PROC_LINEAGE_ENTRY_FIELDS) {
+    if (ancestor_number >= array_length(proc_lineage_event_fields) / N_PROC_LINEAGE_ENTRY_FIELDS) {
         ws_error("falco lineage mismatch (%" PRIu32 ")", ancestor_number);
     }
 
@@ -384,7 +387,7 @@ bool skip_field(const filtercheck_field_info *ffi) {
 }
 
 /*
- * We want the flexibility to decide the deiplay order of the fields in the UI, since
+ * We want the flexibility to decide the display order of the fields in the UI, since
  * the order in which they are defined in filterchecks.{cpp,h} is not necessarily the one we want.
  */
 void reorder_syscall_fields(std::vector<const filter_check_info*>* all_syscall_fields) {
@@ -403,7 +406,6 @@ void reorder_syscall_fields(std::vector<const filter_check_info*>* all_syscall_f
 void create_sinsp_syscall_source(sinsp_span_t *sinsp_span, sinsp_source_info_t **ssi_ptr) {
     sinsp_source_info_t *ssi = new sinsp_source_info_t();
 
-    std::shared_ptr<gen_event_filter_factory> factory(new sinsp_filter_factory(NULL, sinsp_span->filter_checks));
     sinsp_filter_factory filter_factory(&sinsp_span->inspector, sinsp_span->filter_checks);
     std::vector<const filter_check_info*> all_syscall_fields;
 
@@ -420,7 +422,7 @@ void create_sinsp_syscall_source(sinsp_span_t *sinsp_span, sinsp_source_info_t *
             // This creates a meta-filtercheck for the events arguments and it register its fields.
             // We do it before the process filtercheck because we want to have it exactly in the position
             // after event and before process.
-            create_args_source(ssi, &filter_factory, fci);
+            create_args_source(sinsp_span, ssi, fci);
         } else if (fci->m_name == "fd") {
             // This creates a meta-filtercheck for process lineage.
             // We do it before the fd filtercheck because we want it to be between the proc and fd trees.
@@ -437,8 +439,8 @@ void create_sinsp_syscall_source(sinsp_span_t *sinsp_span, sinsp_source_info_t *
                     continue;
                 }
 
-                gen_event_filter_check *gefc = filter_factory.new_filtercheck(ffi->m_name);
-                if (!gefc) {
+                std::unique_ptr<sinsp_filter_check> sfc = filter_factory.new_filtercheck(ffi->m_name);
+                if (!sfc) {
                     continue;
                 }
                 if (strcmp(ffi->m_name, "evt.category") == 0) {
@@ -450,9 +452,9 @@ void create_sinsp_syscall_source(sinsp_span_t *sinsp_span, sinsp_source_info_t *
                 if (strcmp(ffi->m_name, "proc.pid") == 0) {
                     ssi->proc_id_idx = (uint16_t) ssi->syscall_filter_fields.size();
                 }
-                gefc->parse_field_name(ffi->m_name, true, false);
+                sfc->parse_field_name(ffi->m_name, true, false);
                 ssi->field_to_category.push_back(syscall_category);
-                ssi->syscall_event_filter_checks.push_back(gefc);
+                ssi->syscall_event_filter_checks.push_back(std::move(sfc));
                 ssi->syscall_filter_fields.push_back(ffi);
             }
         }
@@ -463,8 +465,8 @@ void create_sinsp_syscall_source(sinsp_span_t *sinsp_span, sinsp_source_info_t *
     ssi->evt = new sinsp_evt(&sinsp_span->inspector);
     ssi->evt_storage_size = 4096;
     ssi->evt_storage = (uint8_t *) g_malloc(ssi->evt_storage_size);
-    ssi->name = strdup(sinsp_syscall_event_source_name);
-    ssi->description = strdup(sinsp_syscall_event_source_name);
+    ssi->name = g_strdup(sinsp_syscall_event_source_name);
+    ssi->description = g_strdup(sinsp_syscall_event_source_name);
     *ssi_ptr = ssi;
     return;
 }
@@ -503,8 +505,8 @@ create_sinsp_plugin_source(sinsp_span_t *sinsp_span, const char* libname, sinsp_
     ssi->evt = new sinsp_evt(&sinsp_span->inspector);
     ssi->evt_storage_size = 4096;
     ssi->evt_storage = (uint8_t *) g_malloc(ssi->evt_storage_size);
-    ssi->name = strdup(ssi->source->name().c_str());
-    ssi->description = strdup(ssi->source->description().c_str());
+    ssi->name = g_strdup(ssi->source->name().c_str());
+    ssi->description = g_strdup(ssi->source->description().c_str());
     *ssi_ptr = ssi;
     return NULL;
 }
@@ -521,9 +523,9 @@ const char *get_sinsp_source_last_error(sinsp_source_info_t *ssi)
 {
     if (ssi->source) {
         if (ssi->last_error) {
-            free(ssi->last_error);
+            g_free(ssi->last_error);
         }
-        ssi->last_error = strdup(ssi->source->get_last_error().c_str());
+        ssi->last_error = g_strdup(ssi->source->get_last_error().c_str());
     }
     return ssi->last_error;
 }
@@ -661,6 +663,19 @@ char* get_evt_arg_name(void* sinp_evt_info, uint32_t arg_num) {
     return realinfo->params[arg_num].name;
 }
 
+// Ensure that our caches can index evt_num - 1
+static void ensure_cache_size(sinsp_span_t *sinsp_span, uint64_t evt_num)
+{
+    if (evt_num <= sinsp_span->sfe_ptrs.size()) {
+        // Not necessarily an error, e.g. if we're expanding to handle a frame number at EOF
+        return;
+    }
+    // XXX check for evt_num < 1?
+    sinsp_span->sfe_ptrs.resize(evt_num);
+    sinsp_span->sfe_lengths.resize(evt_num);
+    sinsp_span->sfe_infos.resize(evt_num);
+}
+
 void open_sinsp_capture(sinsp_span_t *sinsp_span, const char *filepath)
 {
     sinsp_span->sfe_slab = NULL;
@@ -687,14 +702,6 @@ void open_sinsp_capture(sinsp_span_t *sinsp_span, const char *filepath)
 static void add_syscall_event_to_cache(sinsp_span_t *sinsp_span, sinsp_source_info_t *ssi, sinsp_evt *evt)
 {
     uint64_t evt_num = evt->get_num();
-
-    // Fill in any gaps
-    if (evt_num > 1 && evt_num - 1 > sinsp_span->sfe_ptrs.size()) {
-        ws_debug("Filling syscall gap from %d to %u", (int) sinsp_span->sfe_ptrs.size(), (unsigned) evt_num - 1);
-        sinsp_span->sfe_ptrs.resize(evt_num - 1);
-        sinsp_span->sfe_lengths.resize(evt_num - 1);
-        sinsp_span->sfe_infos.resize(evt_num - 1);
-    }
 
     // libsinsp requires that events be processed in order so we cache our extracted
     // data during the first pass. We don't know how many fields we're going to extract
@@ -727,8 +734,8 @@ static void add_syscall_event_to_cache(sinsp_span_t *sinsp_span, sinsp_source_in
 
     // First check for internal events.
     // XXX We should skip this if "Show internal events" is enabled.
-    auto gefc = ssi->syscall_event_filter_checks[ssi->evt_category_idx];
-    if (!gefc->extract(evt, values, false) || values.size() < 1) {
+    auto sfc = ssi->syscall_event_filter_checks[ssi->evt_category_idx].get();
+    if (!sfc->extract(evt, values, false) || values.size() < 1) {
         return;
     }
     if (strcmp((const char *) values[0].ptr, "internal") == 0) {
@@ -736,9 +743,9 @@ static void add_syscall_event_to_cache(sinsp_span_t *sinsp_span, sinsp_source_in
     }
 
     for (size_t fc_idx = 0; fc_idx < ssi->syscall_event_filter_checks.size(); fc_idx++) {
-        gefc = ssi->syscall_event_filter_checks[fc_idx];
+        sfc = ssi->syscall_event_filter_checks[fc_idx].get();
         values.clear();
-        if (!gefc->extract(evt, values, false) || values.size() < 1) {
+        if (!sfc->extract(evt, values, false) || values.size() < 1) {
             continue;
         }
         auto ffi = ssi->syscall_filter_fields[fc_idx];
@@ -786,6 +793,11 @@ static void add_syscall_event_to_cache(sinsp_span_t *sinsp_span, sinsp_source_in
                 sfe->res.u64 = *(uint64_t *)values[0].ptr;
                 break;
             case PT_CHARBUF:
+                if (*values[0].ptr == '\0') {
+                    // XXX libsinsp 0.14.1 sometimes returns garbage / large length values for empty strings.
+                    // ws_warning("charbuf value length %u should be 0", values[0].len);
+                    values[0].len = 0;
+                }
                 if (values[0].len < SFE_SMALL_BUF_SIZE) {
                     // XXX We need to convert this to valid UTF-8
                     g_strlcpy(sfe->res.small_str, (const char *) values[0].ptr, SFE_SMALL_BUF_SIZE);
@@ -811,13 +823,11 @@ static void add_syscall_event_to_cache(sinsp_span_t *sinsp_span, sinsp_source_in
     }
 
     sinsp_span->sfe_slab_offset += sfe_idx;
-    sinsp_span->sfe_ptrs.push_back(sfe_block);
-    sinsp_span->sfe_lengths.push_back(sfe_idx);
-    sinsp_span->sfe_infos.push_back(evt->get_info());
 
-    if (sinsp_span->sfe_ptrs.size() < evt_num) {
-        ws_warning("Unable to fill cache to the proper size (%d vs %u)", (int) sinsp_span->sfe_ptrs.size(), (unsigned) evt_num);
-    }
+    ensure_cache_size(sinsp_span, evt_num);
+    sinsp_span->sfe_ptrs[evt_num - 1] = sfe_block;
+    sinsp_span->sfe_lengths[evt_num - 1] = sfe_idx;
+    sinsp_span->sfe_infos[evt_num - 1] = evt->get_info();
 
     return;
 }
@@ -876,9 +886,6 @@ bool extract_syscall_source_fields(sinsp_span_t *sinsp_span, sinsp_source_info_t
         return false;
     }
 
-    // libsinsp event numbers may or may not be contiguous. Make sure our event cache is at
-    // least as large as the current frame number. add_syscall_event_to_cache will fill in
-    // any gaps with null entries.
     while (frame_num > sinsp_span->sfe_ptrs.size()) {
         sinsp_evt *evt = NULL;
         try {
@@ -887,11 +894,13 @@ bool extract_syscall_source_fields(sinsp_span_t *sinsp_span, sinsp_source_info_t
             case SCAP_TIMEOUT:
             case SCAP_FILTERED_EVENT:
                 break;
+            case SCAP_UNEXPECTED_BLOCK:
+                ws_debug("Filling unexpected block gap from %d to %u", (int) sinsp_span->sfe_ptrs.size(), frame_num);
+                ensure_cache_size(sinsp_span, frame_num);
+                break;
             case SCAP_EOF:
-                ws_debug("Filling syscall EOF gap from %d to %u", (int) sinsp_span->sfe_ptrs.size(), frame_num);
-                sinsp_span->sfe_ptrs.resize(frame_num);
-                sinsp_span->sfe_lengths.resize(frame_num);
-                sinsp_span->sfe_infos.resize(frame_num);
+                ws_debug("Filling syscall EOF gap from %d to %u at %u", (int) sinsp_span->sfe_ptrs.size(), frame_num, (unsigned)sinsp_span->inspector.get_bytes_read());
+                ensure_cache_size(sinsp_span, frame_num);
                 break;
             case SCAP_SUCCESS:
                 add_syscall_event_to_cache(sinsp_span, ssi, evt);

@@ -65,12 +65,15 @@ fi
 # XXX: tar, since macOS 10.9, can uncompress xz'ed tarballs,
 # so perhaps we could get rid of this now?
 #
+# DO NOT UPDATE THIS TO A COMPROMISED VERSION; see
+#
+#    https://www.openwall.com/lists/oss-security/2024/03/29/4
+#
+#    https://access.redhat.com/security/cve/CVE-2024-3094
+#
+#    https://nvd.nist.gov/vuln/detail/CVE-2024-3094
+#
 XZ_VERSION=5.2.5
-
-#
-# Some packages need lzip to unpack their current source.
-#
-LZIP_VERSION=1.21
 
 #
 # CMake is required to do the build - and to build some of the
@@ -83,12 +86,13 @@ CMAKE_VERSION=${CMAKE_VERSION-3.21.4}
 # claimed to build faster than make.
 # Comment it out if you don't want it.
 #
-NINJA_VERSION=${NINJA_VERSION-1.10.2}
+NINJA_VERSION=${NINJA_VERSION-1.12.1}
+NINJA_SHA256=89a287444b5b3e98f88a945afa50ce937b8ffd1dcc59c555ad9b1baf855298c9
 
 #
 # The following libraries and tools are required even to build only TShark.
 #
-GETTEXT_VERSION=0.21
+GETTEXT_VERSION=0.22.5
 GLIB_VERSION=2.76.6
 if [ "$GLIB_VERSION" ]; then
     GLIB_MAJOR_VERSION="$( expr $GLIB_VERSION : '\([0-9][0-9]*\).*' )"
@@ -138,7 +142,8 @@ fi
 # the optional libraries are required by other optional libraries.
 #
 LIBSMI_VERSION=0.4.8
-GNUTLS_VERSION=3.8.3
+GNUTLS_VERSION=3.8.4
+GNUTLS_SHA256=2bea4e154794f3f00180fa2a5c51fe8b005ac7a31cd58bd44cdfa7f36ebc3a9b
 if [ "$GNUTLS_VERSION" ]; then
     #
     # We'll be building GnuTLS, so we may need some additional libraries.
@@ -161,13 +166,14 @@ if [ "$GNUTLS_VERSION" ]; then
     # Which requires libtasn1
     LIBTASN1_VERSION=4.19.0
 fi
-# Use 5.2.4, not 5.3, for now; lua_bitop.c hasn't been ported to 5.3
-# yet, and we need to check for compatibility issues (we'd want Lua
-# scripts to work with 5.1, 5.2, and 5.3, as long as they only use Lua
-# features present in all three versions)
-LUA_VERSION=5.2.4
+# lua_bitop.c has been ported to 5.3 and 5.4 so use the latest release.
+# We may still need to check for compatibility issues (we'd want Lua
+# scripts to work with 5.1 through 5.4, as long as they only use Lua
+# features present in all versions)
+LUA_VERSION=5.4.6
 SNAPPY_VERSION=1.1.10
 ZSTD_VERSION=1.5.5
+ZLIBNG_VERSION=2.1.6
 LIBXML2_VERSION=2.11.5
 LZ4_VERSION=1.9.4
 SBC_VERSION=2.0
@@ -188,10 +194,12 @@ fi
 BCG729_VERSION=1.1.1
 # libilbc 3.0.0 & later link with absiel, which is released under Apache 2.0
 ILBC_VERSION=2.0.2
+OPENCORE_AMR_VERSION=0.1.6
+OPENCORE_AMR_SHA256=483eb4061088e2b34b358e47540b5d495a96cd468e361050fae615b1809dc4a1
 OPUS_VERSION=1.4
 
 # Falco libs (libsinsp and libscap) and their dependencies. Unset for now.
-#FALCO_LIBS_VERSION=0.14.1
+#FALCO_LIBS_VERSION=0.17.1
 if [ "$FALCO_LIBS_VERSION" ] ; then
     JSONCPP_VERSION=1.9.5
     ONETBB_VERSION=2021.11.0
@@ -242,35 +250,35 @@ AUTOMAKE_VERSION=1.16.5
 LIBTOOL_VERSION=2.4.6
 
 install_curl() {
-    if [ "$CURL_VERSION" -a ! -f curl-$CURL_VERSION-done ] ; then
+    if [ "$CURL_VERSION" ] && [ ! -f "curl-$CURL_VERSION-done" ] ; then
         echo "Downloading, building, and installing curl:"
-        [ -f curl-$CURL_VERSION.tar.bz2 ] || curl --fail --location --remote-name https://curl.haxx.se/download/curl-$CURL_VERSION.tar.bz2
+        [ -f "curl-$CURL_VERSION.tar.bz2" ] || curl --fail --location --remote-name "https://curl.haxx.se/download/curl-$CURL_VERSION.tar.bz2"
         $no_build && echo "Skipping installation" && return
-        bzcat curl-$CURL_VERSION.tar.bz2 | tar xf -
-        cd curl-$CURL_VERSION
+        bzcat "curl-$CURL_VERSION.tar.bz2" | tar xf -
+        cd "curl-$CURL_VERSION"
         ./configure "${CONFIGURE_OPTS[@]}"
         make "${MAKE_BUILD_OPTS[@]}"
         $DO_MAKE_INSTALL
         cd ..
-        touch curl-$CURL_VERSION-done
+        touch "curl-$CURL_VERSION-done"
     fi
 }
 
 uninstall_curl() {
     if [ -n "$installed_curl_version" ] ; then
         echo "Uninstalling curl:"
-        cd curl-$installed_curl_version
+        cd "curl-$installed_curl_version"
         $DO_MAKE_UNINSTALL
         make distclean
         cd ..
-        rm curl-$installed_curl_version-done
+        rm "curl-$installed_curl_version-done"
 
-        if [ "$#" -eq 1 -a "$1" = "-r" ] ; then
+        if [ "$#" -eq 1 ] && [ "$1" = "-r" ] ; then
             #
             # Get rid of the previously downloaded and unpacked version.
             #
-            rm -rf curl-$installed_curl_version
-            rm -rf curl-$installed_curl_version.tar.bz2
+            rm -rf "curl-$installed_curl_version"
+            rm -rf "curl-$installed_curl_version.tar.bz2"
         fi
 
         installed_curl_version=""
@@ -278,7 +286,7 @@ uninstall_curl() {
 }
 
 install_xz() {
-    if [ "$XZ_VERSION" -a ! -f xz-$XZ_VERSION-done ] ; then
+    if [ "$XZ_VERSION" ] && [ ! -f xz-$XZ_VERSION-done ] ; then
         echo "Downloading, building, and installing xz:"
         [ -f xz-$XZ_VERSION.tar.bz2 ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" https://tukaani.org/xz/xz-$XZ_VERSION.tar.bz2
         $no_build && echo "Skipping installation" && return
@@ -301,54 +309,39 @@ install_xz() {
 uninstall_xz() {
     if [ -n "$installed_xz_version" ] ; then
         echo "Uninstalling xz:"
-        cd xz-$installed_xz_version
+        cd "xz-$installed_xz_version"
         $DO_MAKE_UNINSTALL
         make distclean
         cd ..
-        rm xz-$installed_xz_version-done
+        rm "xz-$installed_xz_version-done"
 
-        if [ "$#" -eq 1 -a "$1" = "-r" ] ; then
+        if [ "$#" -eq 1 ] && [ "$1" = "-r" ] ; then
             #
             # Get rid of the previously downloaded and unpacked version.
             #
-            rm -rf xz-$installed_xz_version
-            rm -rf xz-$installed_xz_version.tar.bz2
+            rm -rf "xz-$installed_xz_version"
+            rm -rf "xz-$installed_xz_version.tar.bz2"
         fi
 
         installed_xz_version=""
     fi
 }
 
-install_lzip() {
-    if [ "$LZIP_VERSION" -a ! -f lzip-$LZIP_VERSION-done ] ; then
-        echo "Downloading, building, and installing lzip:"
-        [ -f lzip-$LZIP_VERSION.tar.gz ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" https://download.savannah.gnu.org/releases/lzip/lzip-$LZIP_VERSION.tar.gz
-        $no_build && echo "Skipping installation" && return
-        gzcat lzip-$LZIP_VERSION.tar.gz | tar xf -
-        cd lzip-$LZIP_VERSION
-        ./configure "${CONFIGURE_OPTS[@]}"
-        make "${MAKE_BUILD_OPTS[@]}"
-        $DO_MAKE_INSTALL
-        cd ..
-        touch lzip-$LZIP_VERSION-done
-    fi
-}
-
 uninstall_lzip() {
     if [ -n "$installed_lzip_version" ] ; then
         echo "Uninstalling lzip:"
-        cd lzip-$installed_lzip_version
+        cd "lzip-$installed_lzip_version"
         $DO_MAKE_UNINSTALL
         make distclean
         cd ..
-        rm lzip-$installed_lzip_version-done
+        rm "lzip-$installed_lzip_version-done"
 
-        if [ "$#" -eq 1 -a "$1" = "-r" ] ; then
+        if [ "$#" -eq 1 ] && [ "$1" = "-r" ] ; then
             #
             # Get rid of the previously downloaded and unpacked version.
             #
-            rm -rf lzip-$installed_lzip_version
-            rm -rf lzip-$installed_lzip_version.tar.gz
+            rm -rf "lzip-$installed_lzip_version"
+            rm -rf "lzip-$installed_lzip_version.tar.gz"
         fi
 
         installed_lzip_version=""
@@ -358,18 +351,18 @@ uninstall_lzip() {
 uninstall_pcre() {
     if [ -n "$installed_pcre_version" ] ; then
         echo "Uninstalling leftover pcre:"
-        cd pcre-$installed_pcre_version
+        cd "pcre-$installed_pcre_version"
         $DO_MAKE_UNINSTALL
         make distclean
         cd ..
-        rm pcre-$installed_pcre_version-done
+        rm "pcre-$installed_pcre_version-done"
 
-        if [ "$#" -eq 1 -a "$1" = "-r" ] ; then
+        if [ "$#" -eq 1 ] && [ "$1" = "-r" ] ; then
             #
             # Get rid of the previously downloaded and unpacked version.
             #
-            rm -rf pcre-$installed_pcre_version
-            rm -rf pcre-$installed_pcre_version.tar.bz2
+            rm -rf "pcre-$installed_pcre_version"
+            rm -rf "pcre-$installed_pcre_version.tar.bz2"
         fi
 
         installed_pcre_version=""
@@ -377,7 +370,7 @@ uninstall_pcre() {
 }
 
 install_pcre2() {
-    if [ "$PCRE2_VERSION" -a ! -f "pcre2-$PCRE2_VERSION-done" ] ; then
+    if [ "$PCRE2_VERSION" ] && [ ! -f "pcre2-$PCRE2_VERSION-done" ] ; then
         echo "Downloading, building, and installing pcre2:"
         [ -f "pcre2-$PCRE2_VERSION.tar.bz2" ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" "https://github.com/PhilipHazel/pcre2/releases/download/pcre2-$PCRE2_VERSION/pcre2-10.39.tar.bz2"
         $no_build && echo "Skipping installation" && return
@@ -402,7 +395,7 @@ uninstall_pcre2() {
         while read -r ; do $DO_RM -v "$REPLY" ; done < <(cat "pcre2-$installed_pcre2_version/build_dir/install_manifest.txt"; echo)
         rm "pcre2-$installed_pcre2_version-done"
 
-        if [ "$#" -eq 1 -a "$1" = "-r" ] ; then
+        if [ "$#" -eq 1 ] && [ "$1" = "-r" ] ; then
             #
             # Get rid of the previously downloaded and unpacked version.
             #
@@ -517,7 +510,7 @@ uninstall_libtool() {
         echo "Uninstalling GNU libtool:"
         cd libtool-$installed_libtool_version
         $DO_MV "$installation_prefix/bin/glibtool" "$installation_prefix/bin/libtool"
-        $DO_MV "$installation_prefix/glibtoolize" "$installation_prefix/bin/libtoolize"
+        $DO_MV "$installation_prefix/bin/glibtoolize" "$installation_prefix/bin/libtoolize"
         $DO_MAKE_UNINSTALL
         make distclean
         cd ..
@@ -536,17 +529,18 @@ uninstall_libtool() {
 }
 
 install_ninja() {
-    if [ "$NINJA_VERSION" -a ! -f ninja-$NINJA_VERSION-done ] ; then
+    if [ "$NINJA_VERSION" ] && [ ! -f "ninja-$NINJA_VERSION-done" ] ; then
         echo "Downloading and installing Ninja:"
         #
         # Download the zipball, unpack it, and move the binary to
         # $installation_prefix/bin.
         #
-        [ -f ninja-mac-v$NINJA_VERSION.zip ] || curl "${CURL_LOCAL_NAME_OPTS[@]}" ninja-mac-v$NINJA_VERSION.zip https://github.com/ninja-build/ninja/releases/download/v$NINJA_VERSION/ninja-mac.zip
+        [ -f "ninja-mac-v$NINJA_VERSION.zip" ] || curl "${CURL_LOCAL_NAME_OPTS[@]}" "ninja-mac-v$NINJA_VERSION.zip" https://github.com/ninja-build/ninja/releases/download/v$NINJA_VERSION/ninja-mac.zip
+        echo "$NINJA_SHA256  ninja-mac-v$NINJA_VERSION.zip" | shasum --algorithm 256 --check
         $no_build && echo "Skipping installation" && return
-        unzip ninja-mac-v$NINJA_VERSION.zip
+        unzip "ninja-mac-v$NINJA_VERSION.zip"
         sudo mv ninja "$installation_prefix/bin"
-        touch ninja-$NINJA_VERSION-done
+        touch "ninja-$NINJA_VERSION-done"
     fi
 }
 
@@ -554,9 +548,9 @@ uninstall_ninja() {
     if [ -n "$installed_ninja_version" ]; then
         echo "Uninstalling Ninja:"
         $DO_RM "$installation_prefix/bin/ninja"
-        rm ninja-$installed_ninja_version-done
-        if [ "$#" -eq 1 -a "$1" = "-r" ] ; then
-            rm -f ninja-mac-v$installed_ninja_version.zip
+        rm "ninja-$installed_ninja_version-done"
+        if [ "$#" -eq 1 ] && [ "$1" = "-r" ] ; then
+            rm -f "ninja-mac-v$installed_ninja_version.zip"
         fi
 
         installed_ninja_version=""
@@ -780,110 +774,8 @@ install_gettext() {
         $no_build && echo "Skipping installation" && return
         gzcat gettext-$GETTEXT_VERSION.tar.gz | tar xf -
         cd gettext-$GETTEXT_VERSION
-
-        #
-        # This is annoying.
-        #
-        # GNU gettext's configuration script checks for the presence of an
-        # implementation of iconv().  Not only does it check whether iconv()
-        # is available, *but* it checks for certain behavior *not* specified
-        # by POSIX that the GNU implementation provides, namely that an
-        # attempt to convert the UTF-8 for the EURO SYMBOL chaaracter to
-        # ISO 8859-1 results in an error.
-        #
-        # macOS, prior to Sierra, provided the GNU iconv library (as it's
-        # a POSIX API).
-        #
-        # Sierra appears to have picked up an implementation from FreeBSD
-        # (that implementation originated with the CITRUS project:
-        #
-        #    http://citrus.bsdclub.org
-        #
-        # with additional work done to integrate it into NetBSD, and then
-        # adopted by FreeBSD with further work done).
-        #
-        # That implementation does *NOT* return an error in that case; instead,
-        # it transliterates the EURO SYMBOL to "EUR".
-        #
-        # Both behaviors conform to POSIX.
-        #
-        # This causes GNU gettext's configure script to conclude that it
-        # should not say iconv() is available.  That, unfortunately, causes
-        # the build to fail with a linking error when trying to build
-        # libtextstyle (a library for which we have no use, that is offered
-        # as a separate library by the GNU project:
-        #
-        #    https://www.gnu.org/software/gettext/libtextstyle/manual/libtextstyle.html
-        #
-        # and that is presumably bundled in GNU gettext because some gettext
-        # tool depends on it).  The failure appears to be due to:
-        #
-        #     libtextstyle's exported symbols file is generated from a
-        #     template and a script that passes through only symbols
-        #     that appear in a header file that declares the symbol
-        #     as extern;
-        #
-        #     one such header file declares iconv_ostream_create, but only
-        #     if HAVE_ICONV is defined.
-        #
-        #     the source file that defines iconv_ostream_create does so
-        #     only if HAVE_ICONV is defined;
-        #
-        #     the aforementioned script pays *NO ATTENTION* to #ifdefs,
-        #     so it will include iconv_ostream_create in the list of
-        #     symbols to export regardless of whether a working iconv()
-        #     was found;
-        #
-        #     the linker failing because it was told to export a symbol
-        #     that doesn't exist.
-        #
-        # This is a collection of multiple messes:
-        #
-        #    1) not all versions of iconv() defaulting to "return an error
-        #    if the target character set doesn't have a character that
-        #    corresponds to the source character" and not offering a way
-        #    to force that behavior;
-        #
-        #    2) either some parts of GNU gettext - and libraries bundled
-        #    with it, for some mysterious reason - depending on the GNU
-        #    behavior rather than assuming only what POSIX specifies, and
-        #    the configure script checking for the GNU behavior and not
-        #    setting HAVE_ICONV if it's not found;
-        #
-        #    3) the process for building the exported symbols file not
-        #    removing symbols that won't exist in the build due to
-        #    a "working" iconv() not being found;
-        #
-        #    4) the file that would define iconv_ostream_create() not
-        #    defining as an always-failing stub if HAVE_ICONV isn't
-        #    defined;
-        #
-        #    5) macOS's linker failing if a symbol is specified in an
-        #    exported symbols file but not found, while other linkers
-        #    just ignore it?  (I add this because I'm a bit surprised
-        #    that this has not been fixed, as I suspect it would fail
-        #    on FreeBSD and possibly NetBSD as well, as I think their
-        #    iconv()s also default to transliterating rather than failing
-        #    if an input character has no corresponding character in
-        #    the output encoding.)
-        #
-        # The Homebrew folks are aware of this and have reported it to
-        # Apple as a "feedback", for what that's worth:
-        #
-        #    https://github.com/Homebrew/homebrew-core/commit/af3b4da5a096db3d9ee885e99ed29b33dec1f1c4
-        #
-        # We adopt their fix, which is to run the configure script with
-        # "am_cv_func_iconv_works=y" as one of the arguments if it's
-        # running on Sonoma; in at least one test, doing so on Ventura
-        # caused the build to fail.
-        #
-        if [[ $DARWIN_MAJOR_VERSION -ge 23 ]]; then
-            workaround_arg="am_cv_func_iconv_works=y"
-        else
-            workaround_arg=
-        fi
         CFLAGS="$CFLAGS -D_FORTIFY_SOURCE=0 $VERSION_MIN_FLAGS $SDKFLAGS" LDFLAGS="$LDFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" \
-            ./configure "${CONFIGURE_OPTS[@]}" $workaround_arg
+            ./configure "${CONFIGURE_OPTS[@]}"
         make "${MAKE_BUILD_OPTS[@]}"
         $DO_MAKE_INSTALL
         cd ..
@@ -924,7 +816,7 @@ install_pkg_config() {
         $no_build && echo "Skipping installation" && return
         gzcat pkg-config-$PKG_CONFIG_VERSION.tar.gz | tar xf -
         cd pkg-config-$PKG_CONFIG_VERSION
-        ./configure "${CONFIGURE_OPTS[@]}" --with-internal-glib
+        CFLAGS="$CFLAGS -Wno-int-conversion" ./configure "${CONFIGURE_OPTS[@]}" --with-internal-glib
         make "${MAKE_BUILD_OPTS[@]}"
         $DO_MAKE_INSTALL
         cd ..
@@ -960,7 +852,7 @@ install_glib() {
         #
         # Starting with GLib 2.28.8, xz-compressed tarballs are available.
         #
-        [ -f glib-$GLIB_VERSION.tar.xz ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" https://download.gnome.org/sources/glib/$glib_dir/glib-$GLIB_VERSION.tar.xz
+        [ -f glib-$GLIB_VERSION.tar.xz ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" "https://download.gnome.org/sources/glib/$glib_dir/glib-$GLIB_VERSION.tar.xz"
         $no_build && echo "Skipping installation" && return
         xzcat glib-$GLIB_VERSION.tar.xz | tar xf -
         cd glib-$GLIB_VERSION
@@ -1107,7 +999,7 @@ EOF
                 #
                 #    https://bugzilla.gnome.org/show_bug.cgi?id=691608#c25
                 #
-                if grep -qs '#define.*MACOSX' $includedir/ffi/fficonfig.h
+                if grep -qs '#define.*MACOSX' "$includedir/ffi/fficonfig.h"
                 then
                     # It's defined, nothing to do
                     CFLAGS="$CFLAGS -Wno-format-nonliteral $VERSION_MIN_FLAGS $SDKFLAGS" CXXFLAGS="$CXXFLAGS -Wno-format-nonliteral $VERSION_MIN_FLAGS $SDKFLAGS" LDFLAGS="$LDFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" \
@@ -1464,9 +1356,9 @@ uninstall_libgcrypt() {
 install_gmp() {
     if [ "$GMP_VERSION" ] && [ ! -f "gmp-$GMP_VERSION-done" ] ; then
         echo "Downloading, building, and installing GMP:"
-        [ -f "gmp-$GMP_VERSION.tar.lz" ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" https://gmplib.org/download/gmp/gmp-$GMP_VERSION.tar.lz
+        [ -f "gmp-$GMP_VERSION.tar.xz" ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" https://gmplib.org/download/gmp/gmp-$GMP_VERSION.tar.xz
         $no_build && echo "Skipping installation" && return
-        lzip -c -d "gmp-$GMP_VERSION.tar.lz" | tar xf -
+        xzcat "gmp-$GMP_VERSION.tar.xz" | tar xf -
         cd "gmp-$GMP_VERSION"
         #
         # Create a fat binary: https://gmplib.org/manual/Notes-for-Package-Builds.html
@@ -1519,7 +1411,7 @@ uninstall_gmp() {
             # Get rid of the previously downloaded and unpacked version.
             #
             rm -rf "gmp-$installed_gmp_version"
-            rm -rf "gmp-$installed_gmp_version.tar.lz"
+            rm -rf "gmp-$installed_gmp_version.tar.xz"
         fi
 
         installed_gmp_version=""
@@ -1529,7 +1421,7 @@ uninstall_gmp() {
 install_libtasn1() {
     if [ "$LIBTASN1_VERSION" ] && [ ! -f "libtasn1-$LIBTASN1_VERSION-done" ] ; then
         echo "Downloading, building, and installing libtasn1:"
-        [ -f "libtasn1-$LIBTASN1_VERSION.tar.gz" ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" "https://ftpmirror.gnu.org/libtasn1/libtasn1-$LIBTASN1_VERSION.tar.gz"
+        [ -f "libtasn1-$LIBTASN1_VERSION.tar.gz" ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" "https://ftp.gnu.org/gnu/libtasn1/libtasn1-$LIBTASN1_VERSION.tar.gz"
         $no_build && echo "Skipping installation" && return
         gzcat "libtasn1-$LIBTASN1_VERSION.tar.gz" | tar xf -
         cd "libtasn1-$LIBTASN1_VERSION"
@@ -1679,20 +1571,10 @@ install_gnutls() {
         fi
 
         echo "Downloading, building, and installing GnuTLS:"
-        if [[ $GNUTLS_MAJOR_VERSION -ge 3 ]]
-        then
-            #
-            # Starting with GnuTLS 3.x, the tarballs are compressed with
-            # xz rather than bzip2.
-            #
-            [ -f gnutls-$GNUTLS_VERSION.tar.xz ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" "https://www.gnupg.org/ftp/gcrypt/gnutls/v$GNUTLS_MAJOR_VERSION.$GNUTLS_MINOR_VERSION/gnutls-$GNUTLS_VERSION.tar.xz"
-            $no_build && echo "Skipping installation" && return
-            xzcat gnutls-$GNUTLS_VERSION.tar.xz | tar xf -
-        else
-            [ -f gnutls-$GNUTLS_VERSION.tar.bz2 ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" "https://www.gnupg.org/ftp/gcrypt/gnutls/v$GNUTLS_MAJOR_VERSION.$GNUTLS_MINOR_VERSION/gnutls-$GNUTLS_VERSION.tar.bz2"
-            $no_build && echo "Skipping installation" && return
-            bzcat gnutls-$GNUTLS_VERSION.tar.bz2 | tar xf -
-        fi
+        [ -f gnutls-$GNUTLS_VERSION.tar.xz ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" "https://www.gnupg.org/ftp/gcrypt/gnutls/v$GNUTLS_MAJOR_VERSION.$GNUTLS_MINOR_VERSION/gnutls-$GNUTLS_VERSION.tar.xz"
+        echo "$GNUTLS_SHA256  gnutls-$GNUTLS_VERSION.tar.xz" | shasum --algorithm 256 --check
+        $no_build && echo "Skipping installation" && return
+        tar -xf gnutls-$GNUTLS_VERSION.tar.xz
         cd gnutls-$GNUTLS_VERSION
         CFLAGS="$CFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" CXXFLAGS="$CXXFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" LDFLAGS="$LDFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" \
             ./configure "${CONFIGURE_OPTS[@]}" --with-included-unistring --disable-guile
@@ -1882,7 +1764,47 @@ uninstall_zstd() {
         installed_zstd_version=""
     fi
 }
+#$ZLIBNG_VERSION
+install_zlibng() {
+    if [ "$ZLIBNG_VERSION" ] && [ ! -f zlib-ng-$ZLIBNG_VERSION-done ] ; then
+        echo "Downloading, building, and installing zlib-ng:"
+        [ -f $ZLIBNG_VERSION.tar.gz ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" https://github.com/zlib-ng/zlib-ng/archive/refs/tags/$ZLIBNG_VERSION.tar.gz
+        $no_build && echo "Skipping installation" && return
+        gzcat $ZLIBNG_VERSION.tar.gz | tar xf -
+        cd zlib-ng-$ZLIBNG_VERSION
+        mkdir build
+        cd build
+        "${DO_CMAKE[@]}" .. 
+        make "${MAKE_BUILD_OPTS[@]}"
+        $DO_MAKE_INSTALL
+        cd ../..
+        touch zlib-ng-$ZLIBNG_VERSION-done
+    fi
+}
 
+uninstall_zlibng() {
+    if [ -n "$installed_zstd_version" ] ; then
+        echo "Uninstalling zlibng:"
+        cd "zlib-ng-$installed_zlibng_version"
+        $DO_MAKE_UNINSTALL
+        #
+        # XXX not sure what to do here...
+        #
+        make clean
+        cd ..
+        rm "zlib-ng-$installed_zlibng_version-done"
+
+        if [ "$#" -eq 1 ] && [ "$1" = "-r" ] ; then
+            #
+            # Get rid of the previously downloaded and unpacked version.
+            #
+            rm -rf "zlib-ng-$installed_zlibng_version"
+            rm -rf "zlib-ng-$installed_zlibng_version.tar.gz"
+        fi
+
+        installed_zlibng_version=""
+    fi
+}
 install_libxml2() {
     if [ "$LIBXML2_VERSION" -a ! -f libxml2-$LIBXML2_VERSION-done ] ; then
         echo "Downloading, building, and installing libxml2:"
@@ -2461,6 +2383,44 @@ uninstall_ilbc() {
     fi
 }
 
+install_opencore_amr() {
+    if [ "$OPENCORE_AMR_VERSION" ] && [ ! -f opencore-amr-$OPENCORE_AMR_VERSION-done ] ; then
+        echo "Downloading, building, and installing opencore-amr:"
+        [ -f opencore-amr-$OPENCORE_AMR_VERSION.tar.gz ] || curl "${CURL_REMOTE_NAME_OPTS[@]}" https://downloads.sourceforge.net/project/opencore-amr/opencore-amr/opencore-amr-$OPENCORE_AMR_VERSION.tar.gz
+        echo "$OPENCORE_AMR_SHA256  opencore-amr-$OPENCORE_AMR_VERSION.tar.gz" | shasum --algorithm 256 --check
+        $no_build && echo "Skipping installation" && return
+        tar -xf opencore-amr-$OPENCORE_AMR_VERSION.tar.gz
+        cd opencore-amr-$OPENCORE_AMR_VERSION
+        CFLAGS="$CFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" CXXFLAGS="$CXXFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" LDFLAGS="$LDFLAGS $VERSION_MIN_FLAGS $SDKFLAGS" \
+            ./configure "${CONFIGURE_OPTS[@]}"
+        make "${MAKE_BUILD_OPTS[@]}"
+        $DO_MAKE_INSTALL
+        cd ..
+        touch opencore-amr-$OPENCORE_AMR_VERSION-done
+    fi
+}
+
+uninstall_opencore_amr() {
+    if [ -n "$installed_opencore_amr_version" ] ; then
+        echo "Uninstalling opencore-amr:"
+        cd "opencore-amr-$installed_opencore_amr_version"
+        $DO_MAKE_UNINSTALL
+        make distclean
+        cd ..
+        rm "opencore-amr-$installed_opencore_amr_version-done"
+
+        if [ "$#" -eq 1 ] && [ "$1" = "-r" ] ; then
+            #
+            # Get rid of the previously downloaded and unpacked version.
+            #
+            rm -rf "opencore-amr-$installed_opencore_amr_version"
+            rm -rf "opencore-amr-$installed_opencore_amr_version.tar.gz"
+        fi
+
+        installed_opencore_amr_version=""
+    fi
+}
+
 install_opus() {
     if [ "$OPUS_VERSION" -a ! -f opus-$OPUS_VERSION-done ] ; then
         echo "Downloading, building, and installing opus:"
@@ -2612,6 +2572,8 @@ install_falco_libs() {
         tar -xf "falco-libs-$FALCO_LIBS_VERSION.tar.gz"
         mv "libs-$FALCO_LIBS_VERSION" "falco-libs-$FALCO_LIBS_VERSION"
         cd "falco-libs-$FALCO_LIBS_VERSION"
+	patch -p1 < "${topdir}/tools/macos-setup-patches/falco-uthash_h-install.patch"
+	patch -p1 < "${topdir}/tools/macos-setup-patches/falco-include-dirs.patch"
         mkdir build_dir
         cd build_dir
         "${DO_CMAKE[@]}" -DBUILD_SHARED_LIBS=ON -DMINIMAL_BUILD=ON -DCREATE_TEST_TARGETS=OFF \
@@ -2620,9 +2582,6 @@ install_falco_libs() {
             ..
         make "${MAKE_BUILD_OPTS[@]}"
         $DO_MAKE_INSTALL
-        # Falco libs doesn't install uthash.
-        curl "${CURL_REMOTE_NAME_OPTS[@]}" https://raw.githubusercontent.com/troydhanson/uthash/v1.9.8/src/uthash.h
-        $DO_MV uthash.h "$installation_prefix"/include/falcosecurity/
         cd ../..
         touch "falco-libs-$FALCO_LIBS_VERSION-done"
     fi
@@ -2780,7 +2739,7 @@ install_minizip() {
         # support "make install", "make uninstall", or "make distclean",
         # and with a Makefile.am file that, if we do an autoreconf,
         # gives us a configure script, and a Makefile.in that, if we run
-        # the configure script, gives us a Makefile that supports ll of
+        # the configure script, gives us a Makefile that supports all of
         # those targets, and that installs a pkg-config .pc file for
         # minizip.
         #
@@ -2895,6 +2854,17 @@ install_all() {
             echo "Requested iLBC version is $ILBC_VERSION"
         fi
         uninstall_ilbc -r
+    fi
+
+    if [ -n "$installed_opencore_amr_version" ] \
+           && [ "$installed_opencore_amr_version" != "$OPENCORE_AMR_VERSION" ] ; then
+        echo "Installed opencore-amr version is $installed_opencore_amr_version"
+        if [ -z "$OPENCORE_AMR_VERSION" ] ; then
+            echo "opencore-amr is not requested"
+        else
+            echo "Requested opencore-amr version is $OPENCORE_AMR_VERSION"
+        fi
+        uninstall_opencore_amr -r
     fi
 
     if [ -n "$installed_opus_version" ] \
@@ -3048,6 +3018,16 @@ install_all() {
             echo "Requested zstd version is $ZSTD_VERSION"
         fi
         uninstall_zstd -r
+    fi
+
+    if [ -n "$installed_zlibng_version" ] && [ "$installed_zlibng_version" != "$ZLIBNG_VERSION" ] ; then
+        echo "Installed zlibng version is $installed_zlibng_version"
+        if [ -z "$ZLIBNG_VERSION" ] ; then
+            echo "zlibng is not requested"
+        else
+            echo "Requested zlibng version is $ZLIBNG_VERSION"
+        fi
+        uninstall_zlibng -r
     fi
 
     if [ -n "$installed_lua_version" -a \
@@ -3294,14 +3274,8 @@ install_all() {
         uninstall_pcre2 -r
     fi
 
-    if [ -n "$installed_lzip_version" -a \
-              "$installed_lzip_version" != "$LZIP_VERSION" ] ; then
-        echo "Installed lzip version is $installed_lzip_version"
-        if [ -z "$LZIP_VERSION" ] ; then
-            echo "lzip is not requested"
-        else
-            echo "Requested lzip version is $LZIP_VERSION"
-        fi
+    if [ -n "$installed_lzip_version" ] ; then
+        echo "Removing legacy install of lzip"
         uninstall_lzip -r
     fi
 
@@ -3395,11 +3369,9 @@ install_all() {
     install_curl
 
     #
-    # Now intall xz: it is the sole download format of glib later than 2.31.2.
+    # Now install xz: it is the sole download format of glib later than 2.31.2.
     #
     install_xz
-
-    install_lzip
 
     install_autoconf
 
@@ -3491,6 +3463,8 @@ install_all() {
 
     install_zstd
 
+    install_zlibng
+
     install_libxml2
 
     install_lz4
@@ -3516,6 +3490,8 @@ install_all() {
     install_bcg729
 
     install_ilbc
+
+    install_opencore_amr
 
     install_opus
 
@@ -3564,6 +3540,8 @@ uninstall_all() {
 
         uninstall_opus
 
+        uninstall_opencore_amr
+
         uninstall_ilbc
 
         uninstall_bcg729
@@ -3587,6 +3565,8 @@ uninstall_all() {
         uninstall_snappy
 
         uninstall_zstd
+
+        uninstall_zlibng
 
         uninstall_libxml2
 
@@ -3647,6 +3627,7 @@ uninstall_all() {
 
         uninstall_pcre
 
+        # Legacy, remove
         uninstall_lzip
 
         uninstall_xz
@@ -3656,10 +3637,10 @@ uninstall_all() {
 }
 
 # This script is meant to be run in the source root.  The following
-# code will attempt to get you there, but is not perfect (particulary
+# code will attempt to get you there, but is not perfect (particularly
 # if someone copies the script).
 
-topdir="$( pwd )/$( dirname $0 )/.."
+topdir="$( pwd )/$( dirname "$0" )/.."
 cd "$topdir"
 
 # Preference of the support libraries directory:
@@ -3833,6 +3814,7 @@ then
     installed_lua_version=$( ls lua-*-done 2>/dev/null | sed 's/lua-\(.*\)-done/\1/' )
     installed_snappy_version=$( ls snappy-*-done 2>/dev/null | sed 's/snappy-\(.*\)-done/\1/' )
     installed_zstd_version=$( ls zstd-*-done 2>/dev/null | sed 's/zstd-\(.*\)-done/\1/' )
+    installed_zlibng_version=$( ls zlibng-*-done 2>/dev/null | sed 's/zlibng-\(.*\)-done/\1/' )
     installed_libxml2_version=$( ls libxml2-*-done 2>/dev/null | sed 's/libxml2-\(.*\)-done/\1/' )
     installed_lz4_version=$( ls lz4-*-done 2>/dev/null | sed 's/lz4-\(.*\)-done/\1/' )
     installed_sbc_version=$( ls sbc-*-done 2>/dev/null | sed 's/sbc-\(.*\)-done/\1/' )
@@ -3846,6 +3828,7 @@ then
     installed_speexdsp_version=$( ls speexdsp-*-done 2>/dev/null | sed 's/speexdsp-\(.*\)-done/\1/' )
     installed_bcg729_version=$( ls bcg729-*-done 2>/dev/null | sed 's/bcg729-\(.*\)-done/\1/' )
     installed_ilbc_version=$( ls ilbc-*-done 2>/dev/null | sed 's/ilbc-\(.*\)-done/\1/' )
+    installed_opencore_amr_version=$( ls opencore-amr-*-done 2>/dev/null | sed 's/opencore-amr-\(.*\)-done/\1/' )
     installed_opus_version=$( ls opus-*-done 2>/dev/null | sed 's/opus-\(.*\)-done/\1/' )
     installed_python3_version=$( ls python3-*-done 2>/dev/null | sed 's/python3-\(.*\)-done/\1/' )
     installed_brotli_version=$( ls brotli-*-done 2>/dev/null | sed 's/brotli-\(.*\)-done/\1/' )
@@ -4010,7 +3993,7 @@ then
     #
     # Set the minimum OS version for which to build to the specified
     # minimum target OS version, so we don't, for example, end up using
-    # linker features supported by the OS verson on which we're building
+    # linker features supported by the OS version on which we're building
     # but not by the target version.
     #
     VERSION_MIN_FLAGS="-mmacosx-version-min=$min_osx_target"

@@ -7,8 +7,6 @@
  * SPDX-License-Identifier: GPL-2.0-or-later
  */
 
-#include <glib.h>
-
 #include <epan/tap.h>
 #include <epan/conversation.h>
 #include <epan/conversation_table.h>
@@ -587,6 +585,9 @@ void ConversationDataModel::doDataUpdate()
 
 int ConversationDataModel::columnCount(const QModelIndex &) const
 {
+    if(tap()=="tcp")
+        return CONV_TCP_EXT_NUM_COLUMNS;
+
     return CONV_NUM_COLUMNS;
 }
 
@@ -631,6 +632,15 @@ QVariant ConversationDataModel::headerData(int section, Qt::Orientation orientat
             return tr("Bits/s A " UTF8_RIGHTWARDS_ARROW " B"); break;
         case CONV_COLUMN_BPS_BA:
             return tr("Bits/s B " UTF8_RIGHTWARDS_ARROW " A"); break;
+        }
+        /* Extended conversations columns, e.g. TCP */
+        if(tap()=="tcp") {
+            switch (section) {
+            case CONV_TCP_EXT_COLUMN_A:
+                return tr("Flows"); break;
+            default :
+                ws_assert_not_reached(); break;
+            }
         }
     } else if (role == Qt::TextAlignmentRole) {
         if (section == CONV_COLUMN_SRC_ADDR || section == CONV_COLUMN_DST_ADDR)
@@ -703,7 +713,10 @@ QVariant ConversationDataModel::data(const QModelIndex &idx, int role) const
             return role == Qt::DisplayRole ? formatString((qlonglong)conv_item->tx_bytes + conv_item->rx_bytes) :
                 QVariant((qlonglong)conv_item->tx_bytes + conv_item->rx_bytes);
         case CONV_COLUMN_CONV_ID:
-            return (int) conv_item->conv_id;
+            if(conv_item->conv_id!=CONV_ID_UNSET) {
+                return (int) conv_item->conv_id;
+            }
+            break;
         case CONV_COLUMN_PACKETS_TOTAL:
         {
             qlonglong packets = 0;
@@ -724,7 +737,7 @@ QVariant ConversationDataModel::data(const QModelIndex &idx, int role) const
             /* Qt guarantees that this roundtrip conversion compares equally,
              * so filtering with equality will work as expected.
              * XXX: Perhaps the UNFORMATTED_DISPLAYDATA role shoud be split
-             * into one used for raw data export and comparisions with each
+             * into one used for raw data export and comparisons with each
              * other, and another for comparing with filters?
              */
             return role == Qt::DisplayRole ? rounded + "%" : QVariant(rounded.toDouble());
@@ -779,6 +792,18 @@ QVariant ConversationDataModel::data(const QModelIndex &idx, int role) const
             return bpsCalculated ? (role == Qt::DisplayRole ? gchar_free_to_qstring(format_size((int64_t)bps_ab, FORMAT_SIZE_UNIT_BITS_S, FORMAT_SIZE_PREFIX_SI)) : QVariant((qlonglong)bps_ab)): QVariant();
         case CONV_COLUMN_BPS_BA:
             return bpsCalculated ? (role == Qt::DisplayRole ? gchar_free_to_qstring(format_size((int64_t)bps_ba, FORMAT_SIZE_UNIT_BITS_S, FORMAT_SIZE_PREFIX_SI)) : QVariant((qlonglong)bps_ba)): QVariant();
+        }
+        /* Extended conversations columns, e.g. TCP */
+        if(tap()=="tcp") {
+            switch(idx.column()) {
+            case CONV_TCP_EXT_COLUMN_A:
+                {
+                qlonglong flows = (qlonglong)conv_item->ext_tcp.flows;
+                return role == Qt::DisplayRole ? QString("%L1").arg(flows) : (QVariant)flows; break;
+                }
+            default :
+                ws_assert_not_reached(); break;
+            }
         }
     } else if (role == Qt::ToolTipRole) {
         if (idx.column() == CONV_COLUMN_START || idx.column() == CONV_COLUMN_DURATION)
@@ -849,6 +874,7 @@ bool ConversationDataModel::showConversationId(int row) const
     if (conv_item && (conv_item->ctype == CONVERSATION_TCP ||
                       conv_item->ctype == CONVERSATION_UDP ||
                       conv_item->ctype == CONVERSATION_IP  ||
+                      conv_item->ctype == CONVERSATION_IPV6||
                       conv_item->ctype == CONVERSATION_ETH))
         return true;
     return false;

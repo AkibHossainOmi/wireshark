@@ -110,9 +110,9 @@ enum {
 static char prompt_str[SSH_READ_BLOCK_SIZE + 1];
 static int32_t prompt_len = -1;
 CISCO_SW_TYPE global_sw_type = CISCO_UNKNOWN;
-static bool send_output_quit = false;	/* IOS XE 17: send quit during output */
+static bool send_output_quit;	/* IOS XE 17: send quit during output */
 
-static struct ws_option longopts[] = {
+static const struct ws_option longopts[] = {
 	EXTCAP_BASE_OPTIONS,
 	{ "help", ws_no_argument, NULL, OPT_HELP},
 	{ "version", ws_no_argument, NULL, OPT_VERSION},
@@ -162,7 +162,7 @@ static char* interfaces_list_to_filter(GSList* interfaces, unsigned int remote_p
 		g_string_append_printf(filter, ", permit ip any any");
 	}
 
-	return g_string_free(filter, false);
+	return g_string_free(filter, FALSE);
 }
 
 static char* local_interfaces_to_filter(const unsigned int remote_port)
@@ -182,7 +182,7 @@ static int read_output_bytes_any(ssh_channel channel, int bytes, char* outbuf)
 	int total;
 	int bytes_read;
 
-	total = (bytes > 0 ? bytes : G_MAXINT);
+	total = (bytes > 0 ? bytes : INT_MAX);
 	bytes_read = 0;
 
 	while(ssh_channel_read_timeout(channel, &chr, 1, 0, CISCODUMP_READ_TIMEOUT_MSEC) > 0 && bytes_read < total) {
@@ -205,7 +205,7 @@ static int read_output_bytes(ssh_channel channel, int bytes, char* outbuf)
 	int total;
 	int bytes_read;
 
-	total = (bytes > 0 ? bytes : G_MAXINT);
+	total = (bytes > 0 ? bytes : INT_MAX);
 	bytes_read = 0;
 
 	while(ssh_channel_read_timeout(channel, &chr, 1, 0, CISCODUMP_READ_TIMEOUT_MSEC) > 0 && bytes_read < total) {
@@ -222,7 +222,7 @@ static int read_output_bytes(ssh_channel channel, int bytes, char* outbuf)
 /* Reads input to buffer and parses EOL
  *   If line is NULL, just received count of characters in len is calculated
  * It returns:
- *   READ_LINE_ERROR - any ssh error occured
+ *   READ_LINE_ERROR - any ssh error occurred
  *   READ_LINE_EOLN - EOLN found, line/len contains \0 terminated string
  *   READ_LINE_TIMEOUT - reading ended with timeout, line/len contains \0 terminate prompt
  *   READ_LINE_TOO_LONG - buffer is full with no EOLN nor PROMPT found, line is filled with NOT \0 terminated data
@@ -264,7 +264,7 @@ static int ssh_channel_read_line_timeout(ssh_channel channel, char *line, int *l
 
 /* Reads input to buffer and parses EOL or prompt_str PROMPT
  * It returns:
- *   READ_PROMPT_ERROR - any ssh error occured
+ *   READ_PROMPT_ERROR - any ssh error occurred
  *   READ_PROMPT_EOLN - EOLN found, line/len contains \0 terminated string
  *   READ_PROMPT_PROMPT - reading ended and it ends with PROMPT, line/len contains \0 terminate prompt
  *   READ_PROMPT_TOO_LONG - buffer is full with no EOLN nor PROMPT found, line is filled with NOT \0 terminated data

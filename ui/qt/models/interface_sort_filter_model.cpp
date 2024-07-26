@@ -12,8 +12,6 @@
 #include <ui/qt/models/interface_tree_cache_model.h>
 #include <ui/qt/models/interface_sort_filter_model.h>
 
-#include <glib.h>
-
 #include <epan/prefs.h>
 #include <ui/preference_utils.h>
 #include <ui/qt/utils/qt_ui_utils.h>
@@ -143,10 +141,7 @@ void InterfaceSortFilterModel::resetPreferenceData()
         }
     }
 
-#if 0
-    // Disabled until bug 13354 is fixed
     _filterHidden = ! prefs.gui_interfaces_show_hidden;
-#endif
 #ifdef HAVE_PCAP_REMOTE
     _remoteDisplay = prefs.gui_interfaces_remote_display;
 #endif

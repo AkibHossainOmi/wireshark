@@ -27,7 +27,7 @@ class TestDumpcapOptions:
     # XXX Should we generate individual test functions instead of looping?
     def test_dumpcap_invalid_chars(self, cmd_dumpcap, base_env):
         '''Invalid dumpcap parameters'''
-        for char_arg in 'CEFGHJKNOQRTUVWXYejloxz':
+        for char_arg in 'CEFGHJKNORTUVWXYejloxz':
             process = subprocesstest.run((cmd_dumpcap, '-' + char_arg), env=base_env)
             assert process.returncode == ExitCodes.COMMAND_LINE
 
@@ -110,7 +110,7 @@ class TestTsharkOptions:
         '''Valid tshark parameters requiring capture permissions'''
         # These options require dumpcap, but may fail with a pacp error
         # if WinPcap or Npcap are not present
-        valid_returns = [ExitCodes.OK, ExitCodes.PCAP_ERROR, ExitCodes.INVALID_CAPABILITY]
+        valid_returns = [ExitCodes.OK, ExitCodes.PCAP_ERROR, ExitCodes.INVALID_CAPABILITY, ExitCodes.INVALID_INTERFACE]
         for char_arg in 'DL':
             process = subprocesstest.run((cmd_tshark, '-' + char_arg), env=test_env)
             assert process.returncode in valid_returns

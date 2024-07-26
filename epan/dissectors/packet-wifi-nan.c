@@ -69,56 +69,59 @@ static expert_field ei_nan_elem_len_invalid;
 static expert_field ei_nan_unknown_attr_id;
 static expert_field ei_nan_unknown_op_class;
 static expert_field ei_nan_unknown_beacon_type;
+static expert_field ei_nan_invalid_channel_num_for_op_class;
+static expert_field ei_nan_invalid_channel_count;
 
-static gint ett_nan;
-static gint ett_attributes;
-static gint ett_map_control;
-static gint ett_type_status;
-static gint ett_time_bitmap_ctrl;
-static gint ett_non_nan_op_channel;
-static gint ett_non_nan_beacon;
-static gint ett_cluster_anchor_master_info;
-static gint ett_sda_service_ctr;
-static gint ett_sda_srf_ctr;
-static gint ett_sdea_ctr;
-static gint ett_sdea_range_limit;
-static gint ett_sdea_service_info;
-static gint ett_connection_cap_field;
-static gint ett_further_av_map_entry_ctrl;
-static gint ett_device_cap_map_id;
-static gint ett_device_cap_committed_dw;
-static gint ett_device_cap_supported_bands;
-static gint ett_device_cap_op_mode;
-static gint ett_device_cap_antennas;
-static gint ett_device_cap_capabilities;
-static gint ett_ndp_control;
-static gint ett_ndpe_tlv;
-static gint ett_availability_ctr;
-static gint ett_availability_entry;
-static gint ett_availability_entry_ctr;
-static gint ett_availability_entry_entries;
-static gint ett_availability_entry_entries_channel;
-static gint ett_ndc_ctr;
-static gint ett_ndc_entries;
-static gint ett_device_ndc_map_id;
-static gint ett_ndl_control;
-static gint ett_ndl_schedule_entries;
-static gint ett_unaligned_sch_ctrl;
-static gint ett_unaligned_sch_ulw_overwrite;
-static gint ett_unaligned_sch_ulw_ctrl;
-static gint ett_ranging_setup_ftm_params;
-static gint ett_ranging_setup_ctrl;
-static gint ett_ranging_setup_schedule_entries;
-static gint ett_ranging_info_location_info_availability;
-static gint ett_p2p_device_role;
-static gint ett_cipher_suite_info_list;
-static gint ett_security_context_identifiers;
-static gint ett_public_availability_sch_entries;
-static gint ett_ie_tree;
-static gint ett_availability_op_class;
-static gint ett_device_capability_extension;
-static gint ett_nan_pairing_bootstrapping_type_status;
-static gint ett_nan_pairing_bootstrapping_method;
+static int ett_nan;
+static int ett_attributes;
+static int ett_map_control;
+static int ett_type_status;
+static int ett_time_bitmap_ctrl;
+static int ett_non_nan_op_channel;
+static int ett_non_nan_beacon;
+static int ett_cluster_anchor_master_info;
+static int ett_sda_service_ctr;
+static int ett_sda_srf_ctr;
+static int ett_sdea_ctr;
+static int ett_sdea_range_limit;
+static int ett_sdea_service_info;
+static int ett_connection_cap_field;
+static int ett_further_av_map_entry_ctrl;
+static int ett_device_cap_map_id;
+static int ett_device_cap_committed_dw;
+static int ett_device_cap_supported_bands;
+static int ett_device_cap_op_mode;
+static int ett_device_cap_antennas;
+static int ett_device_cap_capabilities;
+static int ett_ndp_control;
+static int ett_ndpe_tlv;
+static int ett_availability_ctr;
+static int ett_availability_entry;
+static int ett_availability_entry_ctr;
+static int ett_availability_entry_entries;
+static int ett_availability_entry_entries_channel;
+static int ett_ndc_ctr;
+static int ett_ndc_entries;
+static int ett_device_ndc_map_id;
+static int ett_ndl_control;
+static int ett_ndl_schedule_entries;
+static int ett_unaligned_sch_ctrl;
+static int ett_unaligned_sch_ulw_overwrite;
+static int ett_unaligned_sch_ulw_ctrl;
+static int ett_ranging_setup_ftm_params;
+static int ett_ranging_setup_ctrl;
+static int ett_ranging_setup_schedule_entries;
+static int ett_ranging_info_location_info_availability;
+static int ett_p2p_device_role;
+static int ett_cipher_suite_info_list;
+static int ett_security_context_identifiers;
+static int ett_public_availability_sch_entries;
+static int ett_ie_tree;
+static int ett_availability_op_class;
+static int ett_device_capability_extension;
+static int ett_nan_pairing_bootstrapping_type_status;
+static int ett_nan_pairing_bootstrapping_method;
+static int ett_nan_cipher_suite_capabilities;
 
 static int hf_nan_attribute_type;
 static int hf_nan_attribute_len;
@@ -229,10 +232,13 @@ static int hf_nan_attr_device_cap_supported_bands_24ghz;
 static int hf_nan_attr_device_cap_supported_bands_reserved_36ghz;
 static int hf_nan_attr_device_cap_supported_bands_5ghz;
 static int hf_nan_attr_device_cap_supported_bands_reserved_60ghz;
+static int hf_nan_attr_device_cap_supported_bands_reserved_45ghz;
+static int hf_nan_attr_device_cap_supported_bands_6ghz;
 static int hf_nan_attr_device_cap_op_mode;
-static int hf_nan_attr_device_cap_op_mode_phy;
-static int hf_nan_attr_device_cap_op_mode_vht8080;
-static int hf_nan_attr_device_cap_op_mode_vht160;
+static int hf_nan_attr_device_cap_op_mode_phy_vht;
+static int hf_nan_attr_device_cap_op_mode_phy_he;
+static int hf_nan_attr_device_cap_op_mode_phy_he_vht8080;
+static int hf_nan_attr_device_cap_op_mode_phy_he_vht160;
 static int hf_nan_attr_device_cap_op_mode_reserved_paging_ndl;
 static int hf_nan_attr_device_cap_antennas;
 static int hf_nan_attr_device_cap_antennas_tx;
@@ -243,6 +249,7 @@ static int hf_nan_attr_device_cap_capabilities_dfs_master;
 static int hf_nan_attr_device_cap_capabilities_extended_key_id;
 static int hf_nan_attr_device_cap_capabilities_simul_ndp_reception;
 static int hf_nan_attr_device_cap_capabilities_ndpe_attr_support;
+static int hf_nan_attr_device_cap_capabilities_s3_capable;
 static int hf_nan_attr_ndp_type;
 static int hf_nan_attr_ndp_initiator;
 static int hf_nan_attr_ndp_id;
@@ -251,7 +258,13 @@ static int hf_nan_attr_ndp_ctrl_security_pres;
 static int hf_nan_attr_ndp_ctrl_publish_id_pres;
 static int hf_nan_attr_ndp_ctrl_responder_ndi_pres;
 static int hf_nan_attr_ndp_ctrl_sepcific_info_pres;
+static int hf_nan_attr_ndpe_ctrl_confirm;
+static int hf_nan_attr_ndpe_ctrl_security_pres;
+static int hf_nan_attr_ndpe_ctrl_publish_id_pres;
+static int hf_nan_attr_ndpe_ctrl_responder_ndi_pres;
+static int hf_nan_attr_ndpe_ctrl_gtk_requried;
 static int hf_nan_attr_ndp_control;
+static int hf_nan_attr_ndpe_control;
 static int hf_nan_attr_ndp_responder_ndi;
 static int hf_nan_attr_ndp_specific_info;
 static int hf_nan_attr_ndpe_tlv_type;
@@ -282,6 +295,8 @@ static int hf_nan_attr_availability_entry_entries_channel_bitmap;
 static int hf_nan_attr_availability_entry_entries_primary_channel_bitmap;
 static int hf_nan_attr_availability_entry_entries_aux_channel_bitmap;
 static int hf_nan_attr_availability_entry_entries_channel_set;
+static int hf_nan_attr_availability_entry_entries_start_channel_number;
+static int hf_nan_attr_availability_entry_entries_number_of_ch_included;
 static int hf_nan_attr_availability_entry_entries_start_freq;
 static int hf_nan_attr_availability_entry_entries_bandwidth;
 static int hf_nan_attr_ndc_id;
@@ -333,6 +348,10 @@ static int hf_nan_attr_ranging_setup_ftm_max_burst_duration;
 static int hf_nan_attr_ranging_setup_ftm_format_bw;
 static int hf_nan_attr_ftm_range_report;
 static int hf_nan_attr_cipher_suite_capabilities;
+static int hf_nan_attr_cipher_suite_capabilities_ndtksa_nmtksa_replay_counters;
+static int hf_nan_attr_cipher_suite_capabilities_gtksa_igtksa_bigtksa_support;
+static int hf_nan_attr_cipher_suite_capabilities_gtksa_replay_counters;
+static int hf_nan_attr_cipher_suite_capabilities_igtksa_bigtksa_cipher;
 static int hf_nan_attr_cipher_suite_id;
 static int hf_nan_attr_security_context_identifier;
 static int hf_nan_attr_security_context_identifier_len;
@@ -517,9 +536,14 @@ static const true_false_string device_cap_map_id_apply_to_flags = {
     "All maps"
 };
 
-static const true_false_string device_cap_op_mode_phy_flags = {
+static const true_false_string device_cap_op_mode_phy_flags_vht = {
     "VHT",
-    "HT only"
+    "HT"
+};
+
+static const true_false_string device_cap_op_mode_phy_flags_he = {
+    "HE",
+    "HE Not Supported"
 };
 
 static const true_false_string availability_entry_entries_type_flags = {
@@ -595,7 +619,9 @@ static const range_string availability_entry_entries_band_type[] = {
     { 3, 3, "Reserved (for 3.6 GHz)" },
     { 4, 4, "4.9 and 5 GHz" },
     { 5, 5, "Reserved (for 60 GHz)" },
-    { 6, 255, "Reserved" },
+    { 6, 6, "Reserved (for 45 GHz)" },
+    { 7, 7, "6 Ghz" },
+    { 8, 255, "Reserved" },
     { 0, 0, NULL }
 };
 
@@ -708,7 +734,7 @@ static const value_string unaligned_sch_ulw_type[] = {
 
 static const range_string security_context_iden_type[] = {
     { 0, 0, "Reserved" },
-    { 1, 1, "PMKID" },
+    { 1, 1, "ND-PMKID" },
     { 2, 255, "Reserved" },
     { 0, 0, NULL }
 };
@@ -755,16 +781,44 @@ static const value_string nan_pairing_bootstrapping_pairing_bootstrapping_status
     { 0, NULL } /* Reserved for other value */
 };
 
+static const value_string cipher_suite_capabilities_nd_nm_tksa_replay_counters[] = {
+    { 0, "4 ND-TKSA and NM-TKSA (if applicable) replay counters" },
+    { 1, "16 ND-TKSA and NM-TKSA (if applicable) replay counters" },
+    { 0, NULL }
+};
+
+static const value_string cipher_suite_capabilities_group_and_integrity_sa_support[] = {
+    { 0, "GTKSA, IGTKSA, BIGTKSA are not supported" },
+    { 1, "GTKSA and IGTKSA are supported, and BIGTKSA is not supported" },
+    { 2, "GTKSA, IGTKSA, and BIGTKSA are supported" },
+    { 3, "Reserved" },
+    { 0, NULL }
+};
+
+static const value_string cipher_suite_capabilities_gtksa_replay_counters[] = {
+    { 0, "4 GTKSA replay counters" },
+    { 1, "16 GTKSA replay counters" },
+    { 0, NULL }
+};
+
+static const value_string cipher_suite_capabilities_integrity_sa_ciphers[] = {
+    { 0, "NCS-BIP-128 (BIP-CMAC-128)" },
+    { 1, "NCS-BIP_256 (BIP-GMAC-256)" },
+    { 0, NULL }
+};
+
+#define PACKET_WIFI_NAN_MAX_CHANNEL_SET_LEN (64)
+
 typedef struct _range_channel_set {
-    guint32    value_min;
-    guint32    value_max;
-    const gint channel_set[16];
+    uint32_t   value_min;
+    uint32_t   value_max;
+    const int channel_set[PACKET_WIFI_NAN_MAX_CHANNEL_SET_LEN];
 } range_channel_set;
 
-static const gint *
-rval_to_channel_set(const guint32 val, const range_channel_set* ra)
+static const int *
+rval_to_channel_set(const uint32_t val, const range_channel_set* ra)
 {
-    gint i = 0;
+    int i = 0;
     if (ra)
     {
         while (*ra[i].channel_set) /* no such thing as channel 0 - end of list */
@@ -777,6 +831,19 @@ rval_to_channel_set(const guint32 val, const range_channel_set* ra)
         }
     }
     return NULL;
+}
+
+static unsigned int channel_number_valid(const uint8_t channel_number, const int *const channel_set)
+{
+    for (unsigned int i = 0; i < PACKET_WIFI_NAN_MAX_CHANNEL_SET_LEN; i++)
+    {
+        if (channel_set[i] == channel_number)
+        {
+            return i;
+        }
+    }
+
+    return PACKET_WIFI_NAN_MAX_CHANNEL_SET_LEN;
 }
 
 // TODO: this table corresponds to the 802.11 global operating classes.
@@ -826,7 +893,14 @@ static const range_channel_set op_class_channel[] = {
     {128, 128, {42, 58, 106, 122, 138, 155}},
     {129, 129, {50, 114}},
     {130, 130, {42, 58, 106, 122, 138, 155}},
-    {131, 179, {-1}},
+    {131, 131, {1, 5, 9, 13, 17, 21, 25, 29, 33, 37, 41, 45, 49, 53, 57, 61, 65, 69, 73, 77, 81, 85, 89, 93, 97, 101, 105, 109, 113, 117, 121, 125, 129, 133, 137, 141, 145, 149, 153, 157, 161, 165, 169, 173, 177, 181, 185, 189, 193, 197, 201, 205, 209, 213, 217, 221, 225, 229, 233}},
+    {132, 132, {3, 11, 19, 27, 35, 43, 51, 59, 67, 75, 83, 91, 99, 107, 115, 123, 131, 139, 147, 155, 163, 171, 179, 187, 195, 203, 211, 219, 227}},
+    {133, 133, {7, 23, 39, 55, 71, 87, 103, 119, 135, 151, 167, 183, 199, 215}},
+    {134, 134, {15, 47, 79, 111, 143, 175, 207}},
+    {135, 135, {7, 23, 39, 55, 71, 87, 103, 119, 135, 151, 167, 183, 199, 215}},
+    {137, 137, {31, 63, 95, 127, 159, 191}},
+    {138, 179, {-1}},
+    {137, 179, {-1}},
     {180, 180, {1, 2, 3, 4, 5, 6}},
     {181, 191, {-1}},
     {192, 254, {-2}},
@@ -870,7 +944,14 @@ static const range_string op_channel_spacing[] = {
     {128, 128, "80"},
     {129, 129, "160"},
     {130, 130, "80"},
-    {131, 179, "Reserved"},
+    {131, 131, "20"},
+    {132, 132, "40"},
+    {133, 133, "80"},
+    {134, 134, "160"},
+    {135, 135, "80"},
+    {136, 136, "20"},
+    {137, 137, "320"},
+    {138, 179, "Reserved"},
     {180, 180, "2160"},
     {181, 191, "Reserved"},
     {255, 255, "Reserved"},
@@ -898,7 +979,10 @@ static const range_string op_starting_freq[] = {
     {112, 113, "5"},
     {114, 114, "5.0025"},
     {115, 130, "5"},
-    {131, 179, "Reserved"},
+    {131, 135, "5.950"},
+    {136, 136, "5.925"},
+    {137, 137, "5.950"},
+    {138, 179, "Reserved"},
     {180, 180, "56.16"},
     {181, 191, "Reserved"},
     {255, 255, "Reserved"},
@@ -906,7 +990,7 @@ static const range_string op_starting_freq[] = {
 };
 
 static void
-dissect_attr_master_indication(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_master_indication(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_MASTER_IND_LENGTH)
     {
@@ -921,7 +1005,7 @@ dissect_attr_master_indication(proto_tree* attr_tree, tvbuff_t* tvb, gint offset
 }
 
 static void
-dissect_attr_cluster(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_cluster(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_CLUSTER_LENGTH)
     {
@@ -940,7 +1024,7 @@ dissect_attr_cluster(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 
 }
 
 static void
-dissect_attr_service_id_list(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_service_id_list(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len % 6 != 0 || attr_len == 0)
     {
@@ -958,7 +1042,7 @@ dissect_attr_service_id_list(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, 
 }
 
 static void
-dissect_attr_sda(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_sda(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_SDA_MIN_LENGTH)
     {
@@ -987,15 +1071,15 @@ dissect_attr_sda(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
     proto_tree_add_bitmask(attr_tree, tvb, offset, hf_nan_attr_sda_sc,
         ett_sda_service_ctr, service_ctr_fields, ENC_LITTLE_ENDIAN);
 
-    guint8 service_ctr_byte = tvb_get_guint8(tvb, offset);
+    uint8_t service_ctr_byte = tvb_get_uint8(tvb, offset);
     offset += 1;
 
-    const guint8 BITMASK_TYPE_SUBSCRIBE = 0x01;
-    const guint8 BITMASK_TYPE_FOLLOW_UP = 0x02;
-    const guint8 BITMASK_MATCHING_FILTER_PRESENT = 0x04;
-    const guint8 BITMASK_SERVICE_RESPONSE_FILTER_PRESENT = 0x08;
-    const guint8 BITMASK_SERVICE_INFO_PRESENT = 0x10;
-    const guint8 BITMASK_BITMAP_PRESENT = 0x40;
+    const uint8_t BITMASK_TYPE_SUBSCRIBE = 0x01;
+    const uint8_t BITMASK_TYPE_FOLLOW_UP = 0x02;
+    const uint8_t BITMASK_MATCHING_FILTER_PRESENT = 0x04;
+    const uint8_t BITMASK_SERVICE_RESPONSE_FILTER_PRESENT = 0x08;
+    const uint8_t BITMASK_SERVICE_INFO_PRESENT = 0x10;
+    const uint8_t BITMASK_BITMAP_PRESENT = 0x40;
 
     if (service_ctr_byte & BITMASK_TYPE_SUBSCRIBE)
     {
@@ -1021,12 +1105,12 @@ dissect_attr_sda(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
     {
         proto_tree_add_item(attr_tree, hf_nan_attr_sda_matching_filter_len, tvb,
             offset, 1, ENC_LITTLE_ENDIAN);
-        gint mf_len = tvb_get_guint8(tvb, offset);
-        gint dissected_mf_len = 0;
+        int mf_len = tvb_get_uint8(tvb, offset);
+        int dissected_mf_len = 0;
         offset += 1;
         while (dissected_mf_len < mf_len)
         {
-            gint filter_len = tvb_get_guint8(tvb, offset);
+            int filter_len = tvb_get_uint8(tvb, offset);
             proto_tree_add_item(attr_tree, hf_nan_attr_sda_matching_filter_val, tvb,
                 offset + 1, filter_len, ENC_NA);
             offset += filter_len + 1;
@@ -1038,7 +1122,7 @@ dissect_attr_sda(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
     {
         proto_tree_add_item(attr_tree, hf_nan_attr_sda_service_response_filter_len, tvb,
             offset, 1, ENC_LITTLE_ENDIAN);
-        gint srf_len = tvb_get_guint8(tvb, offset);
+        int srf_len = tvb_get_uint8(tvb, offset);
 
         static int* const srf_ctr_fields[] = {
             &hf_nan_attr_sda_srf_ctr_type,
@@ -1056,7 +1140,7 @@ dissect_attr_sda(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
 
     if (service_ctr_byte & BITMASK_SERVICE_INFO_PRESENT)
     {
-        guint32 service_info_len;
+        uint32_t service_info_len;
 
         /* XXX - use FT_UINT_BYTES? */
         proto_tree_add_item_ret_uint(attr_tree, hf_nan_attr_sda_service_info_len, tvb,
@@ -1068,7 +1152,7 @@ dissect_attr_sda(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
 }
 
 static void
-dissect_attr_sdea(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_sdea(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_SDEA_MIN_LENGTH)
     {
@@ -1079,7 +1163,7 @@ dissect_attr_sdea(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
     proto_tree_add_item(attr_tree, hf_nan_instance_id, tvb,
         offset + 3, 1, ENC_LITTLE_ENDIAN);
     offset += 4;
-    guint16 dissected_len = 1;
+    uint16_t dissected_len = 1;
 
     static int* const sdea_ctr_fields[] = {
         &hf_nan_attr_sdea_ctr_fsd,
@@ -1098,7 +1182,7 @@ dissect_attr_sdea(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
     proto_tree_add_bitmask(attr_tree, tvb, offset, hf_nan_attr_sdea_ctr, ett_sdea_ctr,
         sdea_ctr_fields, ENC_LITTLE_ENDIAN);
 
-    guint16 sdea_ctr_byte = tvb_get_letohs(tvb, offset);
+    uint16_t sdea_ctr_byte = tvb_get_letohs(tvb, offset);
     offset += 2;
     dissected_len += 2;
 
@@ -1139,7 +1223,7 @@ dissect_attr_sdea(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
 }
 
 static void
-dissect_attr_connection_capability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_connection_capability(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_CONNECTION_CAP_LENGTH)
     {
@@ -1162,7 +1246,7 @@ dissect_attr_connection_capability(proto_tree* attr_tree, tvbuff_t* tvb, gint of
 }
 
 static void
-dissect_attr_wlan_infra(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_wlan_infra(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_WLAN_INFRA_MIN_LENGTH)
     {
@@ -1170,7 +1254,7 @@ dissect_attr_wlan_infra(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_bss_id, tvb, sub_offset, 6, ENC_LITTLE_ENDIAN);
     sub_offset += 6;
     proto_tree_add_item(attr_tree, hf_nan_mac_address, tvb, sub_offset, 6, ENC_NA);
@@ -1178,14 +1262,14 @@ dissect_attr_wlan_infra(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_map_ctrl_field,
         ett_map_control, map_control_fields, ENC_LITTLE_ENDIAN);
     sub_offset++;
-    gint bitmap_length = attr_len - 14;
+    int bitmap_length = attr_len - 14;
     proto_tree_add_item(attr_tree, hf_nan_availability_intervals_bitmap, tvb, sub_offset, bitmap_length, ENC_NA);
     sub_offset += bitmap_length;
     proto_tree_add_item(attr_tree, hf_nan_attr_wlan_infra_device_role, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
 }
 
 static void
-dissect_attr_p2p_operation(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_p2p_operation(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_P2P_OP_MIN_LENGTH)
     {
@@ -1193,7 +1277,7 @@ dissect_attr_p2p_operation(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     static int* const p2p_bitmap_fields[] = {
         &hf_nan_attr_p2p_device_role_device,
         &hf_nan_attr_p2p_device_role_group_owner,
@@ -1213,7 +1297,7 @@ dissect_attr_p2p_operation(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
 }
 
 static void
-dissect_attr_ibss(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_ibss(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_IBSS_MIN_LENGTH)
     {
@@ -1221,7 +1305,7 @@ dissect_attr_ibss(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_bss_id, tvb, sub_offset, 6, ENC_LITTLE_ENDIAN);
     sub_offset += 6;
     proto_tree_add_item(attr_tree, hf_nan_mac_address, tvb, sub_offset, 6, ENC_NA);
@@ -1233,7 +1317,7 @@ dissect_attr_ibss(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
 }
 
 static void
-dissect_attr_mesh(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_mesh(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_MESH_MIN_LENGTH)
     {
@@ -1241,12 +1325,12 @@ dissect_attr_mesh(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_mac_address, tvb, sub_offset, 6, ENC_NA);
     sub_offset += 6;
 
-    guint8 duration = tvb_get_bits8(tvb, sub_offset * 8 + 5, 2);
-    guint bitmap_length;
+    uint8_t duration = tvb_get_bits8(tvb, sub_offset * 8 + 5, 2);
+    unsigned bitmap_length;
     switch (duration) {
     case 0:
         bitmap_length = 4;
@@ -1270,20 +1354,20 @@ dissect_attr_mesh(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
 }
 
 static void
-dissect_attr_further_service_discovery(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len)
+dissect_attr_further_service_discovery(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len)
 {
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_map_ctrl_field,
         ett_map_control, map_control_fields, ENC_LITTLE_ENDIAN);
     sub_offset++;
-    gint bitmap_length = attr_len - 1;
+    int bitmap_length = attr_len - 1;
     proto_tree_add_item(attr_tree, hf_nan_availability_intervals_bitmap, tvb, sub_offset, bitmap_length, ENC_NA);
 }
 
 static void
-dissect_attr_further_availability_map(proto_tree* attr_tree, tvbuff_t* tvb, gint offset)
+dissect_attr_further_availability_map(proto_tree* attr_tree, tvbuff_t* tvb, int offset)
 {
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_attr_further_av_map_id, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
     sub_offset++;
 
@@ -1303,14 +1387,14 @@ dissect_attr_further_availability_map(proto_tree* attr_tree, tvbuff_t* tvb, gint
 }
 
 static void
-dissect_attr_country_code(proto_tree* attr_tree, tvbuff_t* tvb, gint offset)
+dissect_attr_country_code(proto_tree* attr_tree, tvbuff_t* tvb, int offset)
 {
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_attr_country_code, tvb, sub_offset, 2, ENC_ASCII);
 }
 
 static void
-dissect_attr_ranging(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_ranging(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_RANGING_MIN_LENGTH)
     {
@@ -1318,7 +1402,7 @@ dissect_attr_ranging(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_mac_address, tvb, sub_offset, 6, ENC_NA);
     sub_offset += 6;
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_map_ctrl_field,
@@ -1330,7 +1414,7 @@ dissect_attr_ranging(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 
 }
 
 static void
-dissect_attr_cluter_discovery(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_cluter_discovery(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_CLUSTER_DISC_LENGTH)
     {
@@ -1338,7 +1422,7 @@ dissect_attr_cluter_discovery(proto_tree* attr_tree, tvbuff_t* tvb, gint offset,
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_attr_cluster_disc_id, tvb, sub_offset, 6, ENC_LITTLE_ENDIAN);
     sub_offset += 6;
     proto_tree_add_item(attr_tree, hf_nan_attr_cluster_disc_time_offset, tvb, sub_offset, 8, ENC_LITTLE_ENDIAN);
@@ -1347,7 +1431,7 @@ dissect_attr_cluter_discovery(proto_tree* attr_tree, tvbuff_t* tvb, gint offset,
 }
 
 static void
-dissect_attr_device_capability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_device_capability(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_DEVICE_CAP_LENGTH)
     {
@@ -1374,13 +1458,16 @@ dissect_attr_device_capability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset
         &hf_nan_attr_device_cap_supported_bands_reserved_36ghz,
         &hf_nan_attr_device_cap_supported_bands_5ghz,
         &hf_nan_attr_device_cap_supported_bands_reserved_60ghz,
+        &hf_nan_attr_device_cap_supported_bands_reserved_45ghz,
+        &hf_nan_attr_device_cap_supported_bands_6ghz,
         NULL
     };
     static int* const device_cap_op_mode_fields[] = {
-        &hf_nan_attr_device_cap_op_mode_phy,
-        &hf_nan_attr_device_cap_op_mode_vht8080,
-        &hf_nan_attr_device_cap_op_mode_vht160,
+        &hf_nan_attr_device_cap_op_mode_phy_vht,
+        &hf_nan_attr_device_cap_op_mode_phy_he_vht8080,
+        &hf_nan_attr_device_cap_op_mode_phy_he_vht160,
         &hf_nan_attr_device_cap_op_mode_reserved_paging_ndl,
+        &hf_nan_attr_device_cap_op_mode_phy_he,
         NULL
     };
     static int* const device_cap_antennas_fields[] = {
@@ -1393,6 +1480,7 @@ dissect_attr_device_capability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset
         &hf_nan_attr_device_cap_capabilities_extended_key_id,
         &hf_nan_attr_device_cap_capabilities_simul_ndp_reception,
         &hf_nan_attr_device_cap_capabilities_ndpe_attr_support,
+        &hf_nan_attr_device_cap_capabilities_s3_capable,
         NULL
     };
 
@@ -1413,7 +1501,7 @@ dissect_attr_device_capability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset
 }
 
 static void
-dissect_attr_ndp(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_ndp(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_NDP_MIN_LENGTH)
     {
@@ -1421,7 +1509,7 @@ dissect_attr_ndp(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_dialog_tokens, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
     sub_offset++;
 
@@ -1442,9 +1530,9 @@ dissect_attr_ndp(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_type_status,
         ett_type_status, ndp_type_status_fields, ENC_LITTLE_ENDIAN);
 
-    guint8 bits_type = tvb_get_bits8(tvb, sub_offset * 8 + 4, 4);
-    guint8 bit_offset = (sub_offset * 8) + 4;
-    guint8 bits_status = tvb_get_bits8(tvb, bit_offset, 4);
+    uint8_t bits_type = tvb_get_bits8(tvb, sub_offset * 8 + 4, 4);
+    uint8_t bit_offset = (sub_offset * 8) + 4;
+    uint8_t bits_status = tvb_get_bits8(tvb, bit_offset, 4);
     sub_offset++;
     proto_tree_add_item(attr_tree, hf_nan_reason_code, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
     sub_offset++;
@@ -1455,8 +1543,8 @@ dissect_attr_ndp(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_attr_ndp_control,
         ett_ndp_control, ndp_control_fields, ENC_LITTLE_ENDIAN);
 
-    guint8 bits_ndp_info = tvb_get_bits8(tvb, (sub_offset * 8) + 2, 1);
-    guint8 bits_publish_id = tvb_get_bits8(tvb, (sub_offset * 8) + 4, 1);
+    uint8_t bits_ndp_info = tvb_get_bits8(tvb, (sub_offset * 8) + 2, 1);
+    uint8_t bits_publish_id = tvb_get_bits8(tvb, (sub_offset * 8) + 4, 1);
     sub_offset++;
 
     if (bits_publish_id == 1 && bits_type == 0)
@@ -1476,7 +1564,7 @@ dissect_attr_ndp(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
 }
 
 static void
-dissect_attr_ndpe(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_ndpe(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_NDPE_MIN_LENGTH)
     {
@@ -1489,34 +1577,35 @@ dissect_attr_ndpe(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
         &hf_nan_status_1,
         NULL
     };
-    static int* const ndp_control_fields[] = {
-        &hf_nan_attr_ndp_ctrl_confirm,
-        &hf_nan_attr_ndp_ctrl_security_pres,
-        &hf_nan_attr_ndp_ctrl_publish_id_pres,
-        &hf_nan_attr_ndp_ctrl_responder_ndi_pres,
+    static int* const ndpe_control_fields[] = {
+        &hf_nan_attr_ndpe_ctrl_confirm,
+        &hf_nan_attr_ndpe_ctrl_security_pres,
+        &hf_nan_attr_ndpe_ctrl_publish_id_pres,
+        &hf_nan_attr_ndpe_ctrl_responder_ndi_pres,
+        &hf_nan_attr_ndpe_ctrl_gtk_requried,
         NULL
     };
 
-    gint dissected_len = 0;
+    int dissected_len = 0;
     proto_tree_add_item(attr_tree, hf_nan_dialog_tokens, tvb, offset + 3, 1, ENC_BIG_ENDIAN);
     proto_tree_add_bitmask(attr_tree, tvb, offset + 4, hf_nan_type_status,
         ett_type_status, ndp_type_status_fields, ENC_LITTLE_ENDIAN);
 
     offset += 4;
     dissected_len += 4;
-    guint8 bits_type = tvb_get_bits8(tvb, offset * 8 + 4, 4);
-    guint32 bit_offset = (offset * 8) + 4;
-    guint8 bits_status = tvb_get_bits8(tvb, bit_offset, 4);
+    uint8_t bits_type = tvb_get_bits8(tvb, offset * 8 + 4, 4);
+    uint32_t bit_offset = (offset * 8) + 4;
+    uint8_t bits_status = tvb_get_bits8(tvb, bit_offset, 4);
 
     proto_tree_add_item(attr_tree, hf_nan_reason_code, tvb, offset + 1, 1, ENC_BIG_ENDIAN);
     proto_tree_add_item(attr_tree, hf_nan_attr_ndp_initiator, tvb, offset + 2, 6, ENC_NA);
     proto_tree_add_item(attr_tree, hf_nan_attr_ndp_id, tvb, offset + 8, 1, ENC_BIG_ENDIAN);
-    proto_tree_add_bitmask(attr_tree, tvb, offset + 9, hf_nan_attr_ndp_control,
-        ett_ndp_control, ndp_control_fields, ENC_LITTLE_ENDIAN);
+    proto_tree_add_bitmask(attr_tree, tvb, offset + 9, hf_nan_attr_ndpe_control,
+        ett_ndp_control, ndpe_control_fields, ENC_LITTLE_ENDIAN);
     offset += 9;
     dissected_len += 9;
 
-    guint8 bits_publish_id = tvb_get_bits8(tvb, (offset * 8) + 4, 1);
+    uint8_t bits_publish_id = tvb_get_bits8(tvb, (offset * 8) + 4, 1);
     offset++;
     dissected_len++;
 
@@ -1535,8 +1624,8 @@ dissect_attr_ndpe(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
 
     while (dissected_len < attr_len)
     {
-        guint8 tlv_type = tvb_get_guint8(tvb, offset);
-        guint16 tlv_len = tvb_get_letohs(tvb, offset + 1);
+        uint8_t tlv_type = tvb_get_uint8(tvb, offset);
+        uint16_t tlv_len = tvb_get_letohs(tvb, offset + 1);
         proto_tree* tlv_tree = proto_tree_add_subtree(attr_tree, tvb, offset, tlv_len + 3,
             ett_ndpe_tlv, NULL, "TLV entry");
         proto_tree_add_item(tlv_tree, hf_nan_attr_ndpe_tlv_type, tvb, offset, 1, ENC_BIG_ENDIAN);
@@ -1565,7 +1654,7 @@ dissect_attr_ndpe(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 att
 }
 
 static void
-dissect_attr_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_availability(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_AVAILABILITY_MIN_LENGTH)
     {
@@ -1598,17 +1687,17 @@ dissect_attr_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gui
         ett_device_cap_capabilities, availability_ctr_fields, ENC_LITTLE_ENDIAN);
     offset += 6;
 
-    gint dissected_len = 3;
+    int dissected_len = 3;
     while (dissected_len < attr_len)
     {
-        guint16 entry_len = tvb_get_letohs(tvb, offset);
-        guint8 entry_type = tvb_get_bits8(tvb, offset * 8 + 21, 3);
-        guint8 hdr_len = 2;
-        guint32 time_bitmap_len = 0;
-        guint64 avail_entry;
-        const gchar* entry_type_msg = val_to_str(entry_type, availability_entry_type,
+        uint16_t entry_len = tvb_get_letohs(tvb, offset);
+        uint8_t entry_type = tvb_get_bits8(tvb, offset * 8 + 21, 3);
+        uint8_t hdr_len = 2;
+        uint32_t time_bitmap_len = 0;
+        uint64_t avail_entry;
+        const char* entry_type_msg = val_to_str(entry_type, availability_entry_type,
             "Unknown type (%u)");
-        gchar* info_msg = wmem_strconcat(pinfo->pool, "Availability Type : ", entry_type_msg, NULL);
+        char* info_msg = wmem_strconcat(pinfo->pool, "Availability Type : ", entry_type_msg, NULL);
         proto_tree* entry_tree = proto_tree_add_subtree(attr_tree, tvb, offset, entry_len + 2,
             ett_availability_entry, NULL, info_msg);
         proto_tree_add_item(entry_tree, hf_nan_attr_availability_entry_len, tvb,
@@ -1617,7 +1706,7 @@ dissect_attr_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gui
             ett_availability_entry_ctr, availability_entry_ctr_fields, ENC_LITTLE_ENDIAN, &avail_entry);
         offset += 4;
 
-        gboolean time_bitmap_present = avail_entry & (1 << 12);
+        bool time_bitmap_present = avail_entry & (1 << 12);
         if (time_bitmap_present)
         {
             proto_tree_add_bitmask(entry_tree, tvb, offset,
@@ -1631,11 +1720,11 @@ dissect_attr_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gui
             offset += 3 + time_bitmap_len;
         }
 
-        gint entries_len = entry_len - hdr_len - time_bitmap_len;
+        int entries_len = entry_len - hdr_len - time_bitmap_len;
         proto_tree* entries_tree = proto_tree_add_subtree(entry_tree, tvb, offset, entries_len,
             ett_availability_entry_entries, NULL, "Band/Channel Entries");
 
-        guint64 entries_type, non_contiguous_bw, num_entries;
+        uint64_t entries_type, non_contiguous_bw, num_entries;
         proto_tree_add_bits_ret_val(entries_tree, hf_nan_attr_availability_entry_entries_type, tvb,
             offset * 8, 1, &entries_type, ENC_LITTLE_ENDIAN);
         proto_tree_add_bits_ret_val(entries_tree,
@@ -1645,7 +1734,7 @@ dissect_attr_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gui
             tvb, offset * 8 + 4, 4, &num_entries, ENC_LITTLE_ENDIAN);
 
         offset += 1;
-        for (guint8 i = 0; i < num_entries; i++)
+        for (uint8_t i = 0; i < num_entries; i++)
         {
             switch (entries_type) {
             case 0:
@@ -1660,44 +1749,90 @@ dissect_attr_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gui
                 int channel_entry_len = (non_contiguous_bw == 0) ? 4 : 6;
                 proto_tree* channel_tree = proto_tree_add_subtree(entries_tree, tvb, offset,
                     channel_entry_len, ett_availability_entry_entries_channel, NULL, "Channel Entry");
-                guint8 op_class = tvb_get_guint8(tvb, offset);
-                guint16 bitmap = tvb_get_guint16(tvb, offset + 1, ENC_LITTLE_ENDIAN);
+                uint8_t op_class = tvb_get_uint8(tvb, offset);
+                uint16_t bitmap = tvb_get_uint16(tvb, offset + 1, ENC_LITTLE_ENDIAN);
                 proto_tree* op_class_tree = proto_tree_add_subtree(channel_tree, tvb, offset, 1, ett_availability_op_class, NULL, "Operating Class");
                 proto_tree_add_item(op_class_tree, hf_nan_attr_availability_entry_entries_start_freq, tvb, offset, 1, ENC_LITTLE_ENDIAN);
                 proto_tree_add_item(op_class_tree, hf_nan_attr_availability_entry_entries_bandwidth, tvb, offset, 1, ENC_LITTLE_ENDIAN);
                 wmem_strbuf_t* str;
                 str = wmem_strbuf_new(pinfo->pool, "");
-                for(unsigned i_bitmap = 0; i_bitmap < 16; ++i_bitmap)
+                if (op_class < 131)
                 {
-                    if (bitmap & (1u << i_bitmap))
+                    for(unsigned i_bitmap = 0; i_bitmap < 16; ++i_bitmap)
                     {
-
-                        const gint *channel_set = rval_to_channel_set(op_class, op_class_channel);
-                        if (channel_set == NULL)
+                        if (bitmap & (1u << i_bitmap))
                         {
-                            expert_add_info(pinfo, channel_tree, &ei_nan_unknown_op_class);
-                            break;
-                        }
-                        gint channel = channel_set[i_bitmap];
 
-                        switch (channel)
-                        {
-                        // TODO: replace these magic numbers (or use 802.11 dissector for this)
-                        case -3:
-                            wmem_strbuf_append_printf(str, "%s", "Derived from regulation ");
-                            break;
-                        case -2:
-                            wmem_strbuf_append_printf(str, "%s", "Vendor Specific ");
-                            break;
-                        case -1:
-                            wmem_strbuf_append_printf(str, "%s", "Reserved ");
-                            break;
-                        default:
-                            wmem_strbuf_append_printf(str, "%d ", channel);
+                            const int *channel_set = rval_to_channel_set(op_class, op_class_channel);
+                            if (channel_set == NULL)
+                            {
+                                expert_add_info(pinfo, channel_tree, &ei_nan_unknown_op_class);
+                                break;
+                            }
+                            int channel = channel_set[i_bitmap];
+
+                            switch (channel)
+                            {
+                            // TODO: replace these magic numbers (or use 802.11 dissector for this)
+                            case -3:
+                                wmem_strbuf_append_printf(str, "%s", "Derived from regulation ");
+                                break;
+                            case -2:
+                                wmem_strbuf_append_printf(str, "%s", "Vendor Specific ");
+                                break;
+                            case -1:
+                                wmem_strbuf_append_printf(str, "%s", "Reserved ");
+                                break;
+                            default:
+                                wmem_strbuf_append_printf(str, "%d ", channel);
+                            }
                         }
                     }
+
+                    proto_tree_add_string(channel_tree, hf_nan_attr_availability_entry_entries_channel_set, tvb, offset + 1, 2, wmem_strbuf_finalize(str));
                 }
-                proto_tree_add_string(channel_tree, hf_nan_attr_availability_entry_entries_channel_set, tvb, offset + 1, 2, wmem_strbuf_finalize(str));
+                else
+                {
+                    /* This is the new and standard rules for mapping channels for 6G channels introduced in NAN R4.
+                     * Some vendors may have already implemetned a different approach to support NAN 6G before
+                     * the introduction of standard 6G NAN operation. And hence, in this case, the availability
+                     * may not be correct. */
+                    uint8_t start_ch_number = bitmap & 0xff;
+                    uint8_t number_of_chs = (bitmap & 0xff00) >> 8;
+
+                    const int *channel_set_higher_op_class = rval_to_channel_set(op_class, op_class_channel);
+                    if (channel_set_higher_op_class)
+                    {
+                        unsigned int start_ch_number_idx = channel_number_valid(start_ch_number, channel_set_higher_op_class);
+                        if (start_ch_number_idx == PACKET_WIFI_NAN_MAX_CHANNEL_SET_LEN)
+                        {
+                            /* The given channel number does not belong to this operating class */
+                            expert_add_info(pinfo, channel_tree, &ei_nan_invalid_channel_num_for_op_class);
+                        }
+
+                        if (!number_of_chs || number_of_chs > PACKET_WIFI_NAN_MAX_CHANNEL_SET_LEN)
+                        {
+                            /* Number of channel should at least be one and should not exceed the maximum */
+                            expert_add_info(pinfo, channel_tree, &ei_nan_invalid_channel_count);
+                        }
+
+                        uint8_t number_of_chs_max =
+                            (number_of_chs + start_ch_number_idx < PACKET_WIFI_NAN_MAX_CHANNEL_SET_LEN) ?
+                            (number_of_chs + start_ch_number_idx) : PACKET_WIFI_NAN_MAX_CHANNEL_SET_LEN;
+                        for (uint8_t num_ch = start_ch_number_idx; num_ch < number_of_chs_max; num_ch++)
+                        {
+                            wmem_strbuf_append_printf(str, "%d ", channel_set_higher_op_class[num_ch]);
+                        }
+                    }
+                    else
+                    {
+                        expert_add_info(pinfo, channel_tree, &ei_nan_unknown_op_class);
+                    }
+                    proto_tree_add_item(channel_tree, hf_nan_attr_availability_entry_entries_start_channel_number, tvb, offset + 1, 1, ENC_LITTLE_ENDIAN);
+                    proto_tree_add_item(channel_tree, hf_nan_attr_availability_entry_entries_number_of_ch_included, tvb, offset + 2, 1, ENC_LITTLE_ENDIAN);
+
+                    proto_tree_add_string(channel_tree, hf_nan_attr_availability_entry_entries_channel_set, tvb, offset + 1, 2, wmem_strbuf_finalize(str));
+                }
                 proto_tree_add_item(channel_tree,
                     hf_nan_attr_availability_entry_entries_primary_channel_bitmap, tvb,
                     offset + 3, 1, ENC_LITTLE_ENDIAN);
@@ -1718,7 +1853,7 @@ dissect_attr_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gui
 }
 
 static void
-dissect_attr_ndc(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_ndc(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_NDC_MIN_LENGTH)
     {
@@ -1741,10 +1876,10 @@ dissect_attr_ndc(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
         ett_ndc_ctr, ndc_ctr_fields, ENC_LITTLE_ENDIAN);
 
     offset += 10;
-    gint dissected_len = 7;
+    int dissected_len = 7;
     while (dissected_len < attr_len)
     {
-        guint8 time_bitmap_len = tvb_get_guint8(tvb, offset + 3);
+        uint8_t time_bitmap_len = tvb_get_uint8(tvb, offset + 3);
         proto_tree* entry_tree = proto_tree_add_subtree(attr_tree, tvb, offset,
             time_bitmap_len + 4, ett_ndc_entries, NULL, "Schedule Entry");
         proto_tree_add_bitmask(entry_tree, tvb, offset, hf_nan_map_id,
@@ -1763,7 +1898,7 @@ dissect_attr_ndc(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
 }
 
 static void
-dissect_attr_ndl(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_ndl(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_NDL_MIN_LENGTH)
     {
@@ -1771,8 +1906,8 @@ dissect_attr_ndl(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
         return;
     }
 
-    guint sub_offset = offset + 3;
-    guint dissected_len = 0;
+    unsigned sub_offset = offset + 3;
+    unsigned dissected_len = 0;
     proto_tree_add_item(attr_tree, hf_nan_dialog_tokens, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
     sub_offset++;
 
@@ -1800,9 +1935,9 @@ dissect_attr_ndl(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_attr_ndl_control,
         ett_ndl_control, ndl_control_fields, ENC_LITTLE_ENDIAN);
 
-    guint8 peer_id_pres = tvb_get_bits8(tvb, sub_offset * 8 + 7, 1);
-    guint8 immutable_sched_pres = tvb_get_bits8(tvb, sub_offset * 8 + 6, 1);
-    guint8 idle_per = tvb_get_bits8(tvb, sub_offset * 8 + 3, 1);
+    uint8_t peer_id_pres = tvb_get_bits8(tvb, sub_offset * 8 + 7, 1);
+    uint8_t immutable_sched_pres = tvb_get_bits8(tvb, sub_offset * 8 + 6, 1);
+    uint8_t idle_per = tvb_get_bits8(tvb, sub_offset * 8 + 3, 1);
     sub_offset++;
     dissected_len += 4;
 
@@ -1830,7 +1965,7 @@ dissect_attr_ndl(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
             proto_tree_add_bitmask(sub_attr_tree, tvb, sub_offset, hf_nan_time_bitmap_ctrl, ett_time_bitmap_ctrl,
                 time_bitmap_ctr_fields, ENC_LITTLE_ENDIAN);
             sub_offset += 2;
-            guint field_length = tvb_get_guint8(tvb, sub_offset);
+            unsigned field_length = tvb_get_uint8(tvb, sub_offset);
             proto_tree_add_item(sub_attr_tree, hf_nan_time_bitmap_len, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
             sub_offset++;
             proto_tree_add_item(sub_attr_tree, hf_nan_time_bitmap, tvb, sub_offset, field_length, ENC_NA);
@@ -1841,7 +1976,7 @@ dissect_attr_ndl(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr
 }
 
 static void
-dissect_attr_ndl_qos(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_ndl_qos(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_NDL_QOS_LENGTH)
     {
@@ -1849,14 +1984,14 @@ dissect_attr_ndl_qos(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_attr_ndlqos_min_time_slots, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
     sub_offset++;
     proto_tree_add_item(attr_tree, hf_nan_attr_ndlqos_max_latency, tvb, sub_offset, 2, ENC_LITTLE_ENDIAN);
 }
 
 static void
-dissect_attr_unaligned_schedule(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_unaligned_schedule(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_UNALIGNED_SCH_MIN_LENGTH)
     {
@@ -1864,8 +1999,8 @@ dissect_attr_unaligned_schedule(proto_tree* attr_tree, tvbuff_t* tvb, gint offse
         return;
     }
 
-    guint sub_offset = offset + 3;
-    guint dissected_len = 0;
+    unsigned sub_offset = offset + 3;
+    unsigned dissected_len = 0;
     static int* const control_fields[] = {
         &hf_nan_attr_unaligned_sch_ctrl_schedule_id,
         &hf_nan_attr_unaligned_sch_ctrl_seq_id,
@@ -1907,7 +2042,7 @@ dissect_attr_unaligned_schedule(proto_tree* attr_tree, tvbuff_t* tvb, gint offse
 
         proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_attr_unaligned_sch_ulw_ctrl,
             ett_unaligned_sch_ulw_ctrl, ulw_control_fields, ENC_LITTLE_ENDIAN);
-        guint8 entry_type = tvb_get_bits8(tvb, sub_offset * 8 + 6, 2);
+        uint8_t entry_type = tvb_get_bits8(tvb, sub_offset * 8 + 6, 2);
         sub_offset++;
 
         switch (entry_type)
@@ -1953,9 +2088,9 @@ dissect_attr_unaligned_schedule(proto_tree* attr_tree, tvbuff_t* tvb, gint offse
 }
 
 static void
-dissect_attr_ranging_info(proto_tree* attr_tree, tvbuff_t* tvb, gint offset)
+dissect_attr_ranging_info(proto_tree* attr_tree, tvbuff_t* tvb, int offset)
 {
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     static int* const location_info_availability_fields[] = {
         &hf_nan_attr_ranging_info_location_info_avail_lci,
         &hf_nan_attr_ranging_info_location_info_avail_geospatial,
@@ -1966,7 +2101,7 @@ dissect_attr_ranging_info(proto_tree* attr_tree, tvbuff_t* tvb, gint offset)
 
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_attr_ranging_info_location_info_avail,
         ett_ranging_info_location_info_availability, location_info_availability_fields, ENC_LITTLE_ENDIAN);
-    gboolean loc_exists = tvb_get_bits8(tvb, sub_offset * 8 + 4, 1);
+    bool loc_exists = tvb_get_bits8(tvb, sub_offset * 8 + 4, 1);
     sub_offset++;
     if (loc_exists)
     {
@@ -1975,7 +2110,7 @@ dissect_attr_ranging_info(proto_tree* attr_tree, tvbuff_t* tvb, gint offset)
 }
 
 static void
-dissect_attr_ranging_setup(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_ranging_setup(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_RANGING_SETUP_MIN_LENGTH)
     {
@@ -1983,8 +2118,8 @@ dissect_attr_ranging_setup(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
         return;
     }
 
-    guint sub_offset = offset + 3;
-    guint dissected_len = 0;
+    unsigned sub_offset = offset + 3;
+    unsigned dissected_len = 0;
     proto_tree_add_item(attr_tree, hf_nan_dialog_tokens, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
     sub_offset++;
 
@@ -2007,8 +2142,8 @@ dissect_attr_ranging_setup(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
     sub_offset++;
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_attr_ranging_setup_ctrl,
         ett_ranging_setup_ctrl, ranging_setup_ctrl_fields, ENC_LITTLE_ENDIAN);
-    guint8 ftm_check = tvb_get_bits8(tvb, sub_offset * 8 + 6, 1);
-    guint8 ranging_entry_check = tvb_get_bits8(tvb, sub_offset * 8 + 5, 1);
+    uint8_t ftm_check = tvb_get_bits8(tvb, sub_offset * 8 + 6, 1);
+    uint8_t ranging_entry_check = tvb_get_bits8(tvb, sub_offset * 8 + 5, 1);
     sub_offset++;
     dissected_len += 4;
 
@@ -2040,7 +2175,7 @@ dissect_attr_ranging_setup(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
             proto_tree_add_bitmask(sub_attr_tree, tvb, sub_offset, hf_nan_time_bitmap_ctrl, ett_time_bitmap_ctrl,
                 time_bitmap_ctr_fields, ENC_LITTLE_ENDIAN);
             sub_offset += 2;
-            guint field_length = tvb_get_guint8(tvb, sub_offset);
+            unsigned field_length = tvb_get_uint8(tvb, sub_offset);
             proto_tree_add_item(sub_attr_tree, hf_nan_time_bitmap_len, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
             sub_offset++;
             proto_tree_add_item(sub_attr_tree, hf_nan_time_bitmap, tvb, sub_offset, field_length, ENC_NA);
@@ -2051,16 +2186,16 @@ dissect_attr_ranging_setup(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
 }
 
 static void
-dissect_attr_ftm_report(proto_tree* attr_tree, tvbuff_t* tvb, gint offset)
+dissect_attr_ftm_report(proto_tree* attr_tree, tvbuff_t* tvb, int offset)
 {
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_attr_ftm_range_report, tvb, sub_offset, -1, ENC_NA);
 }
 
 static void
-dissect_attr_element_container(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_element_container(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
 
     // Some header fields and trees are reused.
     static int* const container_map_id_fields[] = {
@@ -2071,12 +2206,12 @@ dissect_attr_element_container(proto_tree* attr_tree, tvbuff_t* tvb, gint offset
     proto_tree_add_bitmask(attr_tree, tvb, sub_offset, hf_nan_map_id,
         ett_device_cap_map_id, container_map_id_fields, ENC_LITTLE_ENDIAN);
     sub_offset += 1;
-    guint dissected_length = 1;
+    unsigned dissected_length = 1;
     proto_tree* sub_tree;
     while (dissected_length < attr_len)
     {
-        guint element_id = tvb_get_guint8(tvb, sub_offset);
-        guint element_len = tvb_get_guint8(tvb, sub_offset + 1);
+        unsigned element_id = tvb_get_uint8(tvb, sub_offset);
+        unsigned element_len = tvb_get_uint8(tvb, sub_offset + 1);
         const char* msg = val_to_str(element_id, ie_tag_num_vals, "Unknown element ID (%u)");
 
         sub_tree = proto_tree_add_subtree(attr_tree, tvb, sub_offset, element_len + 2, ett_ie_tree, NULL, msg);
@@ -2088,14 +2223,14 @@ dissect_attr_element_container(proto_tree* attr_tree, tvbuff_t* tvb, gint offset
         ieee80211_tagged_field_data_t field_data = { 0 };
         tvbuff_t* ie_tvb = tvb_new_subset_length(tvb, sub_offset, element_len);
         field_data.item_tag = sub_tree;
-        dissector_try_uint_new(ie_handle_table, element_id, ie_tvb, pinfo, sub_tree, TRUE, &field_data);
+        dissector_try_uint_new(ie_handle_table, element_id, ie_tvb, pinfo, sub_tree, true, &field_data);
         sub_offset += element_len;
         dissected_length += element_len + 2;
     }
 }
 
 static void
-dissect_attr_extended_wlan_infra(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_extended_wlan_infra(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_EXTENDED_WLAN_INFRA_LENGTH)
     {
@@ -2103,7 +2238,7 @@ dissect_attr_extended_wlan_infra(proto_tree* attr_tree, tvbuff_t* tvb, gint offs
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_bss_id, tvb, sub_offset, 6, ENC_LITTLE_ENDIAN);
     sub_offset += 6;
     proto_tree_add_item(attr_tree, hf_nan_mac_address, tvb, sub_offset, 6, ENC_NA);
@@ -2131,7 +2266,7 @@ dissect_attr_extended_wlan_infra(proto_tree* attr_tree, tvbuff_t* tvb, gint offs
 }
 
 static void
-dissect_attr_extended_p2p_operation(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_extended_p2p_operation(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_EXTENDED_P2P_OP_LENGTH)
     {
@@ -2139,7 +2274,7 @@ dissect_attr_extended_p2p_operation(proto_tree* attr_tree, tvbuff_t* tvb, gint o
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     static int* const ext_p2p_bitmap_fields[] = {
         &hf_nan_attr_p2p_device_role_device,
         &hf_nan_attr_p2p_device_role_group_owner,
@@ -2173,7 +2308,7 @@ dissect_attr_extended_p2p_operation(proto_tree* attr_tree, tvbuff_t* tvb, gint o
 }
 
 static void
-dissect_attr_extended_ibss(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_extended_ibss(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len != NAN_EXTENDED_IBSS_LENGTH)
     {
@@ -2181,7 +2316,7 @@ dissect_attr_extended_ibss(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_bss_id, tvb, sub_offset, 6, ENC_LITTLE_ENDIAN);
     sub_offset += 6;
     proto_tree_add_item(attr_tree, hf_nan_mac_address, tvb, sub_offset, 6, ENC_NA);
@@ -2207,7 +2342,7 @@ dissect_attr_extended_ibss(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
 }
 
 static void
-dissect_attr_extended_mesh(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_extended_mesh(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_EXTENDED_MESH_MIN_LENGTH)
     {
@@ -2215,8 +2350,8 @@ dissect_attr_extended_mesh(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
         return;
     }
 
-    guint sub_offset = offset + 3;
-    guint length = tvb_get_guint16(tvb, sub_offset - 2, ENC_LITTLE_ENDIAN);
+    unsigned sub_offset = offset + 3;
+    unsigned length = tvb_get_uint16(tvb, sub_offset - 2, ENC_LITTLE_ENDIAN);
     proto_tree_add_item(attr_tree, hf_nan_mac_address, tvb, sub_offset, 6, ENC_NA);
     sub_offset += 6;
 
@@ -2242,7 +2377,7 @@ dissect_attr_extended_mesh(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, gu
 }
 
 static void
-dissect_attr_cipher_suite_info(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_cipher_suite_info(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_CIPHER_SUITE_INFO_MIN_LENGTH)
     {
@@ -2250,9 +2385,15 @@ dissect_attr_cipher_suite_info(proto_tree* attr_tree, tvbuff_t* tvb, gint offset
         return;
     }
 
-    guint sub_offset = offset + 3;
-    guint dissected_len = 0;
-    proto_tree_add_item(attr_tree, hf_nan_attr_cipher_suite_capabilities, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
+    unsigned sub_offset = offset + 3;
+    unsigned dissected_len = 0;
+
+    proto_tree* caps_tree = proto_tree_add_subtree(attr_tree, tvb, sub_offset, 1, ett_nan_cipher_suite_capabilities, NULL, "Capabilities");
+    proto_tree_add_item(caps_tree, hf_nan_attr_cipher_suite_capabilities_ndtksa_nmtksa_replay_counters, tvb, sub_offset, 1, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(caps_tree, hf_nan_attr_cipher_suite_capabilities_gtksa_igtksa_bigtksa_support, tvb, sub_offset, 1, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(caps_tree, hf_nan_attr_cipher_suite_capabilities_gtksa_replay_counters, tvb, sub_offset, 1, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(caps_tree, hf_nan_attr_cipher_suite_capabilities_igtksa_bigtksa_cipher, tvb, sub_offset, 1, ENC_LITTLE_ENDIAN);
+
     sub_offset++;
     dissected_len++;
 
@@ -2271,7 +2412,7 @@ dissect_attr_cipher_suite_info(proto_tree* attr_tree, tvbuff_t* tvb, gint offset
 }
 
 static void
-dissect_attr_security_context_info(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_security_context_info(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_CIPHER_SUITE_INFO_MIN_LENGTH)
     {
@@ -2279,12 +2420,12 @@ dissect_attr_security_context_info(proto_tree* attr_tree, tvbuff_t* tvb, gint of
         return;
     }
 
-    guint sub_offset = offset + 3;
-    guint dissected_len = 0;
+    unsigned sub_offset = offset + 3;
+    unsigned dissected_len = 0;
 
     while (dissected_len < attr_len)
     {
-        guint field_length = tvb_get_guint16(tvb, sub_offset, ENC_LITTLE_ENDIAN);
+        unsigned field_length = tvb_get_uint16(tvb, sub_offset, ENC_LITTLE_ENDIAN);
         proto_item* sub_attr_tree = proto_tree_add_subtree(attr_tree, tvb, sub_offset, field_length + 4,
             ett_attributes, NULL, "Security Context Identifier");
         proto_tree_add_item(sub_attr_tree, hf_nan_attr_security_context_identifier_len, tvb, sub_offset, 2, ENC_LITTLE_ENDIAN);
@@ -2300,16 +2441,16 @@ dissect_attr_security_context_info(proto_tree* attr_tree, tvbuff_t* tvb, gint of
 }
 
 static void
-dissect_attr_shared_key_descriptor(proto_tree* attr_tree, tvbuff_t* tvb, gint offset)
+dissect_attr_shared_key_descriptor(proto_tree* attr_tree, tvbuff_t* tvb, int offset)
 {
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     proto_tree_add_item(attr_tree, hf_nan_publish_id, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
     sub_offset += 1;
     proto_tree_add_item(attr_tree, hf_nan_attr_shared_key_rsna_descriptor, tvb, sub_offset, -1, ENC_NA);
 }
 
 static void
-dissect_attr_public_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_public_availability(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_PUBLIC_AVAIL_MIN_LENGTH)
     {
@@ -2317,8 +2458,8 @@ dissect_attr_public_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offs
         return;
     }
 
-    guint sub_offset = offset + 3;
-    guint dissected_len = 0;
+    unsigned sub_offset = offset + 3;
+    unsigned dissected_len = 0;
 
     proto_tree* sub_attr_tree = proto_tree_add_subtree(attr_tree, tvb, sub_offset, attr_len,
         ett_public_availability_sch_entries, NULL, "Public Availability Schedule Entry List");
@@ -2329,7 +2470,7 @@ dissect_attr_public_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offs
         proto_tree_add_bitmask(sub_attr_tree, tvb, sub_offset, hf_nan_time_bitmap_ctrl, ett_time_bitmap_ctrl,
             time_bitmap_ctr_fields, ENC_LITTLE_ENDIAN);
         sub_offset += 2;
-        guint field_length = tvb_get_guint8(tvb, sub_offset);
+        unsigned field_length = tvb_get_uint8(tvb, sub_offset);
         proto_tree_add_item(sub_attr_tree, hf_nan_time_bitmap_len, tvb, sub_offset, 1, ENC_BIG_ENDIAN);
         sub_offset++;
         proto_tree_add_item(sub_attr_tree, hf_nan_time_bitmap, tvb, sub_offset, field_length, ENC_NA);
@@ -2339,7 +2480,7 @@ dissect_attr_public_availability(proto_tree* attr_tree, tvbuff_t* tvb, gint offs
 }
 
 static void
-dissect_attr_vendor_specific(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_vendor_specific(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_VENDOR_SPECIFIC_MIN_LENGTH)
     {
@@ -2347,15 +2488,15 @@ dissect_attr_vendor_specific(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, 
         return;
     }
 
-    guint sub_offset = offset + 3;
+    unsigned sub_offset = offset + 3;
     tvbuff_t* ie_tvb = tvb_new_subset_length(tvb, sub_offset, -1);
     ieee80211_tagged_field_data_t field_data = { 0 };
     field_data.item_tag = attr_tree;
-    dissector_try_uint_new(ie_handle_table, TAG_VENDOR_SPECIFIC_IE, ie_tvb, pinfo, attr_tree, TRUE, &field_data);
+    dissector_try_uint_new(ie_handle_table, TAG_VENDOR_SPECIFIC_IE, ie_tvb, pinfo, attr_tree, true, &field_data);
 }
 
 static void
-dissect_attr_device_capability_extension(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_device_capability_extension(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_DEVICE_CAPABILITY_EXTENSION_MIN_LENGTH)
     {
@@ -2378,7 +2519,7 @@ dissect_attr_device_capability_extension(proto_tree* attr_tree, tvbuff_t* tvb, g
 }
 
 static void
-dissect_attr_nan_identity_resolution(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_nan_identity_resolution(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_IDENTITY_RESOLUTION_MIN_LEN)
     {
@@ -2390,7 +2531,7 @@ dissect_attr_nan_identity_resolution(proto_tree* attr_tree, tvbuff_t* tvb, gint 
     proto_tree_add_item(attr_tree, hf_nan_attr_identity_cipher_version, tvb,
             offset + 3, 1, ENC_LITTLE_ENDIAN);
 
-    guint8 cipher_version = tvb_get_guint8(tvb, offset + 3);
+    uint8_t cipher_version = tvb_get_uint8(tvb, offset + 3);
     switch (cipher_version)
     {
     case 0:
@@ -2406,7 +2547,7 @@ dissect_attr_nan_identity_resolution(proto_tree* attr_tree, tvbuff_t* tvb, gint 
 }
 
 static void
-dissect_attr_nan_pairing_bootstrapping(proto_tree* attr_tree, tvbuff_t* tvb, gint offset, guint16 attr_len, packet_info* pinfo)
+dissect_attr_nan_pairing_bootstrapping(proto_tree* attr_tree, tvbuff_t* tvb, int offset, uint16_t attr_len, packet_info* pinfo)
 {
     if (attr_len < NAN_PAIRING_BOOTSTRAPPING_LEN)
     {
@@ -2414,7 +2555,7 @@ dissect_attr_nan_pairing_bootstrapping(proto_tree* attr_tree, tvbuff_t* tvb, gin
         expert_add_info(pinfo, attr_tree, &ei_nan_elem_len_invalid);
         return;
     }
-    gint npba_local_offset = offset + 3;
+    int npba_local_offset = offset + 3;
 
     /* Dialog Token */
     proto_tree_add_item(attr_tree, hf_nan_attr_pairing_bootstrapping_dialog_token, tvb,
@@ -2422,9 +2563,9 @@ dissect_attr_nan_pairing_bootstrapping(proto_tree* attr_tree, tvbuff_t* tvb, gin
     npba_local_offset += 1;
 
     /* Type and Status */
-    guint8 type_status = tvb_get_guint8(tvb, npba_local_offset);
-    guint8 type = type_status & 0x0f;
-    guint8 status = (type_status & 0xf0) >> 4;
+    uint8_t type_status = tvb_get_uint8(tvb, npba_local_offset);
+    uint8_t type = type_status & 0x0f;
+    uint8_t status = (type_status & 0xf0) >> 4;
 
     static int* const type_and_status_fields[] = {
         &hf_nan_attr_pairing_bootstrapping_type,
@@ -2466,7 +2607,7 @@ dissect_attr_nan_pairing_bootstrapping(proto_tree* attr_tree, tvbuff_t* tvb, gin
 
     if (comeback_presented)
     {
-        guint8 cookie_len = tvb_get_guint8(tvb, npba_local_offset);
+        uint8_t cookie_len = tvb_get_uint8(tvb, npba_local_offset);
         proto_tree_add_item(attr_tree, hf_nan_attr_pairing_bootstrapping_comeback_cookie_len, tvb,
             npba_local_offset, 1, ENC_LITTLE_ENDIAN);
         npba_local_offset += 1;
@@ -2508,7 +2649,7 @@ dissect_attr_nan_pairing_bootstrapping(proto_tree* attr_tree, tvbuff_t* tvb, gin
 }
 
 static void
-find_attribute_field(proto_tree* nan_tree, tvbuff_t* tvb, guint tvb_len, guint* offset, packet_info* pinfo)
+find_attribute_field(proto_tree* nan_tree, tvbuff_t* tvb, unsigned tvb_len, unsigned* offset, packet_info* pinfo)
 {
     if ((tvb_len - *offset) < 3)
     {
@@ -2518,8 +2659,8 @@ find_attribute_field(proto_tree* nan_tree, tvbuff_t* tvb, guint tvb_len, guint* 
         return;
     }
 
-    gint attr_id = tvb_get_guint8(tvb, *offset);
-    guint16 attr_len = tvb_get_letohs(tvb, *offset + 1);
+    int attr_id = tvb_get_uint8(tvb, *offset);
+    uint16_t attr_len = tvb_get_letohs(tvb, *offset + 1);
 
     if ((*offset + 3 + attr_len) > tvb_len)
     {
@@ -2664,7 +2805,7 @@ find_attribute_field(proto_tree* nan_tree, tvbuff_t* tvb, guint tvb_len, guint* 
 static int
 dissect_nan_beacon(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* data _U_)
 {
-    guint offset = 0;
+    unsigned offset = 0;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "NAN");
 
@@ -2686,7 +2827,7 @@ dissect_nan_beacon(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* da
     // beacon, and an interval of 512, meaning .524288 seconds, means
     // it's a Sync beacon.
     //
-    const gchar* info_text = col_get_text(pinfo->cinfo, COL_INFO);
+    const char* info_text = col_get_text(pinfo->cinfo, COL_INFO);
     if (info_text != NULL && g_str_has_suffix(info_text, "100"))
     {
         col_prepend_fstr(pinfo->cinfo, COL_INFO, "Discovery ");
@@ -2704,7 +2845,7 @@ dissect_nan_beacon(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* da
     proto_item* ti = proto_tree_add_item(tree, proto_nan, tvb, 0, -1, ENC_NA);
     proto_tree* nan_tree = proto_item_add_subtree(ti, ett_nan);
 
-    guint tvb_len = tvb_reported_length(tvb);
+    unsigned tvb_len = tvb_reported_length(tvb);
     while (offset < tvb_len)
     {
         find_attribute_field(nan_tree, tvb, tvb_len, &offset, pinfo);
@@ -2715,7 +2856,7 @@ dissect_nan_beacon(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* da
 static int
 dissect_nan_action(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* data _U_)
 {
-    guint offset = 0;
+    unsigned offset = 0;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "NAN");
 
@@ -2723,15 +2864,15 @@ dissect_nan_action(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* da
     proto_item* ti = proto_tree_add_item(upper_tree, proto_nan, tvb, 0, -1, ENC_NA);
     proto_tree* nan_tree = proto_item_add_subtree(ti, ett_nan);
 
-    guint8 subtype = tvb_get_guint8(tvb, offset);
-    const gchar* subtype_text = rval_to_str(subtype, action_frame_type_values, "Unknown type (%u)");
+    uint8_t subtype = tvb_get_uint8(tvb, offset);
+    const char* subtype_text = rval_to_str(subtype, action_frame_type_values, "Unknown type (%u)");
     proto_item_set_text(ti, "%s", subtype_text);
     proto_tree_add_item(nan_tree, hf_nan_action_subtype, tvb, offset, 1, ENC_BIG_ENDIAN);
 
     col_prepend_fstr(pinfo->cinfo, COL_INFO, "%s", subtype_text);
     offset++;
 
-    guint tvb_len = tvb_reported_length(tvb);
+    unsigned tvb_len = tvb_reported_length(tvb);
     while (offset < tvb_len)
     {
         find_attribute_field(nan_tree, tvb, tvb_len, &offset, pinfo);
@@ -2742,12 +2883,12 @@ dissect_nan_action(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* da
 static int
 dissect_nan_service_discovery(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* data _U_)
 {
-    guint offset = 0;
+    unsigned offset = 0;
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "NAN");
     proto_item* ti = proto_tree_add_item(tree, proto_nan, tvb, 0, -1, ENC_NA);
     proto_tree* nan_tree = proto_item_add_subtree(ti, ett_nan);
 
-    guint tvb_len = tvb_reported_length(tvb);
+    unsigned tvb_len = tvb_reported_length(tvb);
     while (offset < tvb_len)
     {
         find_attribute_field(nan_tree, tvb, tvb_len, &offset, pinfo);
@@ -3524,6 +3665,20 @@ proto_register_nan(void)
             FT_BOOLEAN, 8, NULL, 0x20, NULL, HFILL
             }
         },
+        { &hf_nan_attr_device_cap_supported_bands_reserved_45ghz,
+            {
+            "Reserved (for 45 GHz)",
+            "wifi_nan.device_cap.supported_bands.reserved_45ghz",
+            FT_BOOLEAN, 8, NULL, 0x40, NULL, HFILL
+            }
+        },
+        { &hf_nan_attr_device_cap_supported_bands_6ghz,
+            {
+            "6GHz",
+            "wifi_nan.device_cap.supported_bands.6ghz",
+            FT_BOOLEAN, 8, NULL, 0x80, NULL, HFILL
+            }
+        },
         { &hf_nan_attr_device_cap_op_mode,
             {
             "Operation Mode",
@@ -3531,23 +3686,30 @@ proto_register_nan(void)
             FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL
             }
         },
-        { &hf_nan_attr_device_cap_op_mode_phy,
+        { &hf_nan_attr_device_cap_op_mode_phy_vht,
             {
-            "PHY Mode",
-            "wifi_nan.device_cap.op_mode.phy",
-            FT_BOOLEAN, 8, TFS(&device_cap_op_mode_phy_flags), 0x01, NULL, HFILL
+            "PHY Mode (VHT/HT)",
+            "wifi_nan.device_cap.op_mode.phy.vht",
+            FT_BOOLEAN, 8, TFS(&device_cap_op_mode_phy_flags_vht), 0x01, NULL, HFILL
             }
         },
-        { &hf_nan_attr_device_cap_op_mode_vht8080,
+        { &hf_nan_attr_device_cap_op_mode_phy_he,
             {
-            "VHT 80+80",
+            "PHY Mode (HE)",
+            "wifi_nan.device_cap.op_mode.phy.he",
+            FT_BOOLEAN, 8, TFS(&device_cap_op_mode_phy_flags_he), 0x10, NULL, HFILL
+            }
+        },
+        { &hf_nan_attr_device_cap_op_mode_phy_he_vht8080,
+            {
+            "HE/VHT 80+80",
             "wifi_nan.device_cap.op_mode.vht8080",
             FT_BOOLEAN, 8, NULL, 0x02, NULL, HFILL
             }
         },
-        { &hf_nan_attr_device_cap_op_mode_vht160,
+        { &hf_nan_attr_device_cap_op_mode_phy_he_vht160,
             {
-            "VHT 160",
+            "HE/VHT 160",
             "wifi_nan.device_cap.op_mode.vht160",
             FT_BOOLEAN, 8, NULL, 0x04, NULL, HFILL
             }
@@ -3622,6 +3784,13 @@ proto_register_nan(void)
             FT_BOOLEAN, 8, NULL, 0x08, NULL, HFILL
             }
         },
+        { &hf_nan_attr_device_cap_capabilities_s3_capable,
+            {
+            "S3 Capable",
+            "wifi_nan.device_cap.capabilities.s3_capable",
+            FT_BOOLEAN, 8, NULL, 0x10, NULL, HFILL
+            }
+        },
         { &hf_nan_attr_ndp_type,
              {
              "Type",
@@ -3678,10 +3847,52 @@ proto_register_nan(void)
              FT_BOOLEAN, 8, NULL, 0x20, NULL, HFILL
              }
         },
+        { &hf_nan_attr_ndpe_ctrl_confirm,
+             {
+             "Confirm Required",
+             "wifi_nan.ndpe.ctrl.confirm",
+             FT_BOOLEAN, 8, NULL, 0x1, NULL, HFILL
+             }
+        },
+        { &hf_nan_attr_ndpe_ctrl_security_pres,
+             {
+             "Security Present",
+             "wifi_nan.ndpe.ctrl.security_pres",
+             FT_BOOLEAN, 8, NULL, 0x4, NULL, HFILL
+             }
+        },
+        { &hf_nan_attr_ndpe_ctrl_publish_id_pres,
+             {
+             "Publish ID Present",
+             "wifi_nan.ndpe.ctrl.publish_id_pres",
+             FT_BOOLEAN, 8, NULL, 0x8, NULL, HFILL
+             }
+        },
+        { &hf_nan_attr_ndpe_ctrl_responder_ndi_pres,
+             {
+             "Responder NDI Present",
+             "wifi_nan.ndpe.ctrl.responder_ndi_pres",
+             FT_BOOLEAN, 8, NULL, 0x10, NULL, HFILL
+             }
+        },
+        { &hf_nan_attr_ndpe_ctrl_gtk_requried,
+             {
+             "GTK Required",
+             "wifi_nan.ndpe.ctrl.gtk_required",
+             FT_BOOLEAN, 8, NULL, 0x20, NULL, HFILL
+             }
+        },
         { &hf_nan_attr_ndp_control,
              {
              "NDP Control",
              "wifi_nan.ndp.ctrl",
+             FT_UINT8, BASE_HEX_DEC, NULL, 0x0, NULL, HFILL
+             }
+        },
+        { &hf_nan_attr_ndpe_control,
+             {
+             "NDPE Control",
+             "wifi_nan.ndpe.ctrl",
              FT_UINT8, BASE_HEX_DEC, NULL, 0x0, NULL, HFILL
              }
         },
@@ -3893,6 +4104,20 @@ proto_register_nan(void)
             "Channel Bitmap - Channel Set",
             "wifi_nan.ava.chan.set",
             FT_STRING, BASE_NONE, NULL, 0x00, NULL, HFILL
+            }
+        },
+        { &hf_nan_attr_availability_entry_entries_start_channel_number,
+            {
+            "Start Channel Number",
+            "wifi_nan.availability.entry.entries.channel.start_channel_number",
+            FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL
+            }
+        },
+        { &hf_nan_attr_availability_entry_entries_number_of_ch_included,
+            {
+            "Number of Channels Included",
+            "wifi_nan.availability.entry.entries.channel.num_of_channel",
+            FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL
             }
         },
         { &hf_nan_attr_availability_entry_entries_start_freq,
@@ -4252,6 +4477,34 @@ proto_register_nan(void)
             FT_UINT8, BASE_HEX, NULL, 0x0, NULL, HFILL
             }
         },
+        { &hf_nan_attr_cipher_suite_capabilities_ndtksa_nmtksa_replay_counters,
+            {
+            "ND-TKSA and NM-TKSA Replay Counters",
+            "wifi_nan.cipher_suite.capabilities.replay_counters.ndtksa",
+            FT_UINT8, BASE_HEX, VALS(cipher_suite_capabilities_nd_nm_tksa_replay_counters), 0x01, NULL, HFILL
+            }
+        },
+        { &hf_nan_attr_cipher_suite_capabilities_gtksa_igtksa_bigtksa_support,
+            {
+            "GTKSA, IGTKSA, and BIGTKSA Support",
+            "wifi_nan.cipher_suite.capabilities.group_key_support",
+            FT_UINT8, BASE_HEX, VALS(cipher_suite_capabilities_group_and_integrity_sa_support), 0x06, NULL, HFILL
+            }
+        },
+        { &hf_nan_attr_cipher_suite_capabilities_gtksa_replay_counters,
+            {
+            "GTKSA Replay Counters",
+            "wifi_nan.cipher_suite.capabilities.replay_counters.gtksa",
+            FT_UINT8, BASE_HEX, VALS(cipher_suite_capabilities_gtksa_replay_counters), 0x08, NULL, HFILL
+            }
+        },
+        { &hf_nan_attr_cipher_suite_capabilities_igtksa_bigtksa_cipher,
+            {
+            "IGTKSA and BIGTKSA Cipher",
+            "wifi_nan.cipher_suite.capabilities.integrity_key_cipher",
+            FT_UINT8, BASE_HEX, VALS(cipher_suite_capabilities_integrity_sa_ciphers), 0x10, NULL, HFILL
+            }
+        },
         { &hf_nan_attr_cipher_suite_id,
             {
             "Cipher Suite ID",
@@ -4520,7 +4773,7 @@ proto_register_nan(void)
         },
     };
 
-    static gint* ett[] = {
+    static int* ett[] = {
         &ett_nan,
         &ett_attributes,
         &ett_type_status,
@@ -4569,7 +4822,8 @@ proto_register_nan(void)
         &ett_ie_tree,
         &ett_device_capability_extension,
         &ett_nan_pairing_bootstrapping_type_status,
-        &ett_nan_pairing_bootstrapping_method
+        &ett_nan_pairing_bootstrapping_method,
+        &ett_nan_cipher_suite_capabilities
     };
 
     static ei_register_info ei[] = {
@@ -4602,6 +4856,22 @@ proto_register_nan(void)
             "wifi_nan.expert.unknown_beacon_type",
             PI_PROTOCOL, PI_WARN,
             "Unknown beacon type - Beacon type detection error",
+            EXPFILL
+            }
+        },
+        { &ei_nan_invalid_channel_num_for_op_class,
+            {
+            "wifi_nan.expert.invalid_ch_num",
+            PI_PROTOCOL, PI_WARN,
+            "Invalid Channel number for given operation class",
+            EXPFILL
+            }
+        },
+        { &ei_nan_invalid_channel_count,
+            {
+            "wifi_nan.expert.invalid_ch_count",
+            PI_PROTOCOL, PI_WARN,
+            "Invalid Channel count",
             EXPFILL
             }
         },

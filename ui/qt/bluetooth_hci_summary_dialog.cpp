@@ -157,8 +157,8 @@ void BluetoothHciSummaryDialog::captureFileClosing()
 
 void BluetoothHciSummaryDialog::captureFileClosed()
 {
-    ui->interfaceComboBox->setEnabled(FALSE);
-    ui->adapterComboBox->setEnabled(FALSE);
+    ui->interfaceComboBox->setEnabled(false);
+    ui->adapterComboBox->setEnabled(false);
 
     WiresharkDialog::captureFileClosed();
 }
@@ -232,11 +232,11 @@ void BluetoothHciSummaryDialog::on_actionMark_Unmark_Row_triggered()
 {
     QBrush fg;
     QBrush bg;
-    bool   is_marked = TRUE;
+    bool   is_marked = true;
 
     for (int i = 0; i < ui->tableTreeWidget->columnCount(); i += 1) {
         if (ui->tableTreeWidget->currentItem()->background(i) != QBrush(ColorUtils::fromColorT(&prefs.gui_marked_bg)))
-            is_marked = FALSE;
+            is_marked = false;
     }
 
     if (is_marked) {
@@ -360,7 +360,7 @@ tap_packet_status BluetoothHciSummaryDialog::tapPacket(void *tapinfo_ptr, packet
     name = tr("Unknown");
 
     if (pinfo->rec->presence_flags & WTAP_HAS_INTERFACE_ID) {
-        gchar       *interface;
+        char        *interface;
         const char  *interface_name;
 
         unsigned     section_number = pinfo->rec->presence_flags & WTAP_HAS_SECTION_NUMBER ? pinfo->rec->section_number : 0;

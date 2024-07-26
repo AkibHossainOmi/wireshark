@@ -33,15 +33,18 @@
 #include "packet-gtpv2.h"
 #include "packet-gsm_a_common.h"
 #include "packet-json.h"
+#include "packet-http.h"
 #include "packet-http2.h"
 
 void proto_register_json_3gpp(void);
+void proto_reg_handoff_json_3gpp(void);
 
 static int proto_json_3gpp;
+static int proto_http;
 
-static gint ett_json_base64decoded_eps_ie;
-static gint ett_json_base64decoded_nas5g_ie;
-static gint ett_json_3gpp_data;
+static int ett_json_base64decoded_eps_ie;
+static int ett_json_base64decoded_nas5g_ie;
+static int ett_json_3gpp_data;
 
 static expert_field ei_json_3gpp_data_not_decoded;
 static expert_field ei_json_3gpp_encoding_error;
@@ -216,7 +219,7 @@ static int hf_json_3gpp_suppfeat_nsmf_pdusession_21_n9fsc;
 
 /* Functions to sub dissect json content */
 static void
-dissect_base64decoded_eps_ie(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo, int offset, int len, const char* key_str _U_, gboolean use_compact _U_)
+dissect_base64decoded_eps_ie(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo, int offset, int len, const char* key_str _U_, bool use_compact _U_)
 {
 	/* base64-encoded characters, encoding the
 	 * EPS IE specified in 3GPP TS 29.274.
@@ -229,13 +232,13 @@ dissect_base64decoded_eps_ie(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo
 	add_new_data_source(pinfo, bin_tvb, "Base64 decoded");
 	ti = proto_tree_add_item(tree, hf_json_3gpp_binary_data, bin_tvb, 0, bin_tvb_length, ENC_NA);
 	sub_tree = proto_item_add_subtree(ti, ett_json_base64decoded_eps_ie);
-	dissect_gtpv2_ie_common(bin_tvb, pinfo, sub_tree, 0, 0/* Message type 0, Reserved */, NULL);
+	dissect_gtpv2_ie_common(bin_tvb, pinfo, sub_tree, 0, 0/* Message type 0, Reserved */, NULL, 0);
 
 	return;
 }
 
 static void
-dissect_base64decoded_nas5g_ie(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo, int offset, int len, const char* key_str, gboolean use_compact _U_)
+dissect_base64decoded_nas5g_ie(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo, int offset, int len, const char* key_str, bool use_compact _U_)
 {
 	/* base64-encoded characters, encoding the
 	 * NAS-5G IE specified in 3GPP TS 24.501.
@@ -261,16 +264,16 @@ dissect_base64decoded_nas5g_ie(tvbuff_t* tvb, proto_tree* tree, packet_info* pin
 		 * It shall be encoded as the Qos flow descriptions IE specified in clause 9.11.4.12 of 3GPP TS 24.501 (starting from octet 1),
 		 * encoding one single Qos flow description for the QoS flow to be set up.
 		 */
-		elem_telv(bin_tvb, sub_tree, pinfo, (guint8) 0x79, 18 /* NAS_5GS_PDU_TYPE_SM */, 11 /* DE_NAS_5GS_SM_QOS_FLOW_DES */, 0, bin_tvb_length, NULL);
+		elem_telv(bin_tvb, sub_tree, pinfo, (uint8_t) 0x79, 18 /* NAS_5GS_PDU_TYPE_SM */, 11 /* DE_NAS_5GS_SM_QOS_FLOW_DES */, 0, bin_tvb_length, NULL);
 	}
 
 	return;
 }
 
 static void
-dissect_3gpp_supportfeatures(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo, int offset, int len, const char* key_str _U_, gboolean use_compact)
+dissect_3gpp_supportfeatures(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo, int offset, int len, const char* key_str _U_, bool use_compact)
 {
-	const char *path;
+	const char *path = NULL;
 
 	/* TS 29.571 ch5.2.2
 	 * A string used to indicate the features supported by an API that is used as defined in clause 6.6 in 3GPP TS 29.500 [25].
@@ -284,10 +287,21 @@ dissect_3gpp_supportfeatures(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo
 	 * all features that would be represented by characters that are not present in the string are not supported.
 	 */
 
-	/* Exptect to have :path from HTTP2 here, if not return */
-	path = http2_get_header_value(pinfo, HTTP2_HEADER_PATH, FALSE);
-	if (!path) {
-		path = http2_get_header_value(pinfo, HTTP2_HEADER_PATH, TRUE);
+	/* Expect to have :path from HTTP2 here, if not return */
+	if (proto_is_frame_protocol(pinfo->layers, "http2")) {
+		path = http2_get_header_value(pinfo, HTTP2_HEADER_PATH, false);
+		if (!path) {
+			path = http2_get_header_value(pinfo, HTTP2_HEADER_PATH, true);
+		}
+	} else if (proto_is_frame_protocol(pinfo->layers, "http")) {
+		/* 3GPP TS 29.500 says the service based interfaces use HTTP/2,
+		 * but that doesn't stop implementations like OAI from using
+		 * HTTP/1.1 with a 2.0 version string.
+		 */
+		http_req_res_t* curr_req_res = (http_req_res_t*)p_get_proto_data(wmem_file_scope(), pinfo, proto_http, HTTP_PROTO_DATA_REQRES);
+		if (curr_req_res) {
+			path = curr_req_res->request_uri;
+		}
 	}
 	if (!path) {
 		return;
@@ -304,13 +318,16 @@ dissect_3gpp_supportfeatures(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo
 	}
 
 	ti = proto_tree_add_item(tree, hf_json_3gpp_suppfeat, tvb, offset, len, ENC_ASCII);
+	if (len <= 0) {
+		return;
+	}
 	sub_tree = proto_item_add_subtree(ti, ett_json_3gpp_data);
 	suppfeat_tvb = tvb_new_subset_length(tvb, offset, len);
 
 	int offset_reverse = len - 1;
 
 	/* Read in the HEX in ASCII form and validate it's 0-9,A-F */
-	guint8 *hex_ascii = tvb_memdup(pinfo->pool, tvb, offset, len);
+	uint8_t *hex_ascii = tvb_memdup(pinfo->pool, tvb, offset, len);
 	for (int i = 0; i < len; i++) {
 		char c = hex_ascii[i];
 		if (!g_ascii_isxdigit(c)) {
@@ -780,7 +797,7 @@ dissect_3gpp_supportfeatures(tvbuff_t* tvb, proto_tree* tree, packet_info* pinfo
 static void
 register_static_headers(void) {
 
-	gchar* header_name;
+	char* header_name;
 
 	/* Here hf[x].hfinfo.name is a header method which is used as key
 	 * for matching ids while processing HTTP2 packets */
@@ -860,7 +877,7 @@ register_static_headers(void) {
 	};
 
 	/* List of decoding functions the index matches the HF */
-	static void(*json_decode_fn[])(tvbuff_t * tvb, proto_tree * tree, packet_info * pinfo, int offset, int len, const char* key_str, gboolean use_compact) = {
+	static void(*json_decode_fn[])(tvbuff_t * tvb, proto_tree * tree, packet_info * pinfo, int offset, int len, const char* key_str, bool use_compact) = {
 		dissect_base64decoded_eps_ie,   /* ueEpsPdnConnection */
 		dissect_base64decoded_eps_ie,   /* bearerLevelQoS */
 		dissect_base64decoded_eps_ie,   /* epsBearerSetup */
@@ -880,7 +897,7 @@ register_static_headers(void) {
 	};
 
 	/* Hfs with functions */
-	for (guint i = 0; i < G_N_ELEMENTS(hf); ++i) {
+	for (unsigned i = 0; i < G_N_ELEMENTS(hf); ++i) {
 		header_name = g_strdup(hf[i].hfinfo.name);
 		json_data_decoder_t* json_data_decoder_rec = g_new(json_data_decoder_t, 1);
 		json_data_decoder_rec->hf_id = &hf[i].hfinfo.id;
@@ -1499,7 +1516,7 @@ proto_register_json_3gpp(void)
 
 	};
 
-	static gint *ett[] = {
+	static int *ett[] = {
 		&ett_json_base64decoded_eps_ie,
 		&ett_json_base64decoded_nas5g_ie,
 		&ett_json_3gpp_data,
@@ -1521,6 +1538,12 @@ proto_register_json_3gpp(void)
 
 	/* Fill hash table with static headers */
 	register_static_headers();
+}
+
+void
+proto_reg_handoff_json_3gpp(void)
+{
+	proto_http = proto_get_id_by_filter_name("http");
 }
 
 /*

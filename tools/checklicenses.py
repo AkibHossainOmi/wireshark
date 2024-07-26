@@ -72,14 +72,11 @@ PATH_SPECIFIC_ALLOWED_LICENSES = {
     'doc/': [
         'UNKNOWN',
     ],
-    'docbook/custom_layer_chm.xsl': [
+    'doc/custom_layer_chm.xsl': [
         'UNKNOWN',
     ],
-    'docbook/custom_layer_single_html.xsl': [
+    'doc/custom_layer_single_html.xsl': [
         'UNKNOWN',
-    ],
-    'docbook/ws.css' : [
-        'UNKNOWN'
     ],
     'fix': [
         'UNKNOWN',
@@ -121,7 +118,7 @@ PATH_SPECIFIC_ALLOWED_LICENSES = {
     ],
     # Special IDL license that appears to be compatible as far as I (not a
     # lawyer) can tell. See
-    # https://www.wireshark.org/lists/wireshark-dev/201310/msg00234.html
+    # https://lists.wireshark.org/archives/wireshark-dev/201310/msg00234.html
     'epan/dissectors/pidl/idl_types.h': [
         'UNKNOWN',
     ],

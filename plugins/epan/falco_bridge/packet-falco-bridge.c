@@ -18,8 +18,13 @@
 // - Add a configuration preference for individual conversation filters vs ANDing them?
 //   We would need to add deregister_(|log_)conversation_filter before we implement this.
 // - Add syscall IP address conversation support
+// - Add prefs for
+//   - set_snaplen
+//   - set_dopfailed
+//   - set_import_users
 
 #include "config.h"
+#define WS_LOG_DOMAIN "falco-bridge"
 
 #include <stddef.h>
 #include <stdint.h>
@@ -32,16 +37,18 @@
 
 #include <wiretap/wtap.h>
 
+#include <epan/conversation.h>
+#include <epan/conversation_filter.h>
+#include <epan/dfilter/dfilter-translator.h>
+#include <epan/dfilter/sttype-field.h>
+#include <epan/dfilter/sttype-op.h>
 #include <epan/exceptions.h>
 #include <epan/follow.h>
 #include <epan/packet.h>
 #include <epan/prefs.h>
 #include <epan/proto.h>
 #include <epan/proto_data.h>
-#include <epan/conversation.h>
-#include <epan/conversation_filter.h>
 #include <epan/stats_tree.h>
-#include <epan/stats_tree_priv.h>
 #include <epan/stat_tap_ui.h>
 #include <epan/tap.h>
 
@@ -81,7 +88,8 @@ typedef struct bridge_info {
     hf_register_info* hf_v6;
     int *hf_v6_ids;
     int* hf_id_to_addr_id; // Maps an hf offset to an hf_v[46] offset
-    uint32_t visible_fields;
+    unsigned visible_fields;
+    unsigned addr_fields;
     uint32_t* field_flags;
     int* field_ids;
     uint32_t num_conversation_filters;
@@ -120,33 +128,32 @@ static int ett_lineage[N_PROC_LINEAGE_ENTRIES];
 static int ett_sinsp_enriched;
 static int ett_sinsp_span;
 static int ett_address;
+static int ett_json;
 
 static int container_io_tap;
-static const gchar* st_str_container_io = "Container, process, and FD IO";
-static int st_node_container_io = -1;
 
-static gboolean pref_show_internal = false;
+static bool pref_show_internal;
 
 static dissector_table_t ptype_dissector_table;
+static dissector_handle_t json_handle;
 
 static int fd_follow_tap;
 
 static int dissect_sinsp_enriched(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *bi_ptr, sysdig_event_param_data *event_param_data);
 static int dissect_sinsp_plugin(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *bi_ptr);
-static bridge_info* get_bridge_info(guint32 source_id);
+static bridge_info* get_bridge_info(uint32_t source_id);
 const char* get_str_value(sinsp_field_extract_t *sinsp_fields, uint32_t sf_idx);
 
 /*
  * Array of plugin bridges
  */
-bridge_info* bridges = NULL;
-guint nbridges = 0;
-guint n_conv_fields = 0;
+bridge_info* bridges;
+size_t nbridges;
 
 /*
  * sinsp extractor span
  */
-sinsp_span_t *sinsp_span = NULL;
+sinsp_span_t *sinsp_span;
 
 /*
  * Fields
@@ -196,13 +203,13 @@ is_string_address_field(enum ftenum ftype, const char *abbrev) {
     return false;
 }
 
-static gboolean
+static bool
 is_filter_valid(packet_info *pinfo, void *cfi_ptr)
 {
     conv_filter_info *cfi = (conv_filter_info *)cfi_ptr;
 
     if (!cfi->is_present) {
-        return FALSE;
+        return false;
     }
 
     int proto_id = proto_registrar_get_parent(cfi->field_info->hfinfo.id);
@@ -214,16 +221,148 @@ is_filter_valid(packet_info *pinfo, void *cfi_ptr)
     return proto_is_frame_protocol(pinfo->layers, proto_registrar_get_nth(proto_id)->abbrev);
 }
 
-static gchar*
-build_filter(packet_info *pinfo _U_, void *cfi_ptr)
+static char*
+build_conversation_filter(packet_info *pinfo _U_, void *cfi_ptr)
 {
     conv_filter_info *cfi = (conv_filter_info *)cfi_ptr;
 
     if (!cfi->is_present) {
-        return FALSE;
+        return NULL;
     }
 
     return ws_strdup_printf("%s eq %s", cfi->field_info->hfinfo.abbrev, cfi->strbuf->str);
+}
+
+// Falco rule translation
+
+const char *
+stnode_op_to_string(stnode_op_t op) {
+    switch (op) {
+    case STNODE_OP_NOT:         return "!";
+    case STNODE_OP_AND:         return "and";
+    case STNODE_OP_OR:          return "or";
+    case STNODE_OP_ANY_EQ:      return "=";
+    case STNODE_OP_ALL_NE:      return "!=";
+    case STNODE_OP_GT:          return ">";
+    case STNODE_OP_GE:          return ">=";
+    case STNODE_OP_LT:          return "<";
+    case STNODE_OP_LE:          return "<=";
+    case STNODE_OP_CONTAINS:    return "icontains";
+    case STNODE_OP_UNARY_MINUS: return "-";
+    case STNODE_OP_IN:
+    case STNODE_OP_NOT_IN:
+    default:
+        break;
+    }
+    return NULL;
+}
+
+char *hfinfo_to_filtercheck(header_field_info *hfinfo) {
+    if (!hfinfo) {
+        return NULL;
+    }
+
+    const char *filtercheck = NULL;
+    for (size_t br_idx = 0; br_idx < nbridges && !filtercheck; br_idx++) {
+        bridge_info *bridge = &bridges[br_idx];
+        unsigned hf_idx;
+        for (hf_idx = 0; hf_idx < bridge->visible_fields; hf_idx++) {
+            if (hfinfo->id == bridge->hf_ids[hf_idx]) {
+                ptrdiff_t pfx_off = 0;
+                if (g_str_has_prefix(hfinfo->abbrev, FALCO_FIELD_NAME_PREFIX)) {
+                    pfx_off = strlen(FALCO_FIELD_NAME_PREFIX);
+                }
+                return g_strdup(hfinfo->abbrev + pfx_off);
+            }
+        }
+        for (hf_idx = 0; hf_idx < bridge->addr_fields; hf_idx++) {
+            if (hfinfo->id == bridge->hf_v4_ids[hf_idx] || hfinfo->id == bridge->hf_v6_ids[hf_idx]) {
+                size_t fc_len = strlen(hfinfo->abbrev) - strlen(".v?");
+                return g_strndup(hfinfo->abbrev, fc_len);
+            }
+        }
+    }
+    return NULL;
+}
+
+// Falco rule syntax is specified at
+// https://github.com/falcosecurity/libs/blob/master/userspace/libsinsp/filter/parser.h
+
+// NOLINTNEXTLINE(misc-no-recursion)
+bool visit_dfilter_node(stnode_t *node, stnode_op_t parent_bool_op, GString *falco_rule)
+{
+    stnode_t *left, *right;
+
+    if (stnode_type_id(node) == STTYPE_TEST) {
+        stnode_op_t op = STNODE_OP_UNINITIALIZED;
+        sttype_oper_get(node, &op, &left, &right);
+
+        const char *op_str = stnode_op_to_string(op);
+        if (!op_str) {
+            return false;
+        }
+
+        if (left && right) {
+            if ((op == STNODE_OP_ANY_EQ || op == STNODE_OP_ALL_NE) && stnode_type_id(right) != STTYPE_FVALUE) {
+                // XXX Not yet supported; need to add a version check.
+                return false;
+            }
+            bool add_parens = (op == STNODE_OP_AND || op == STNODE_OP_OR) && op != parent_bool_op && parent_bool_op != STNODE_OP_UNINITIALIZED;
+            if (add_parens) {
+                g_string_append_c(falco_rule, '(');
+            }
+            if (!visit_dfilter_node(left, op, falco_rule)) {
+                return false;
+            }
+            g_string_append_printf(falco_rule, " %s ", op_str);
+            if (!visit_dfilter_node(right, op, falco_rule)) {
+                return false;
+            }
+            if (add_parens) {
+                g_string_append_c(falco_rule, ')');
+            }
+        }
+        else if (left) {
+            op = op == STNODE_OP_NOT ? op : parent_bool_op;
+            if (falco_rule->len > 0) {
+                g_string_append_c(falco_rule, ' ');
+            }
+            g_string_append_printf(falco_rule, "%s ", op_str);
+            if (!visit_dfilter_node(left, op, falco_rule)) {
+                return false;
+            }
+        }
+        else if (right) {
+            ws_assert_not_reached();
+        }
+    }
+    else if (stnode_type_id(node) == STTYPE_SET) {
+        return false;
+    }
+    else if (stnode_type_id(node) == STTYPE_FUNCTION) {
+        return false;
+    }
+    else if (stnode_type_id(node) == STTYPE_FIELD) {
+        header_field_info *hfinfo = sttype_field_hfinfo(node);
+        char *filtercheck = hfinfo_to_filtercheck(hfinfo);
+        if (!filtercheck) {
+            return false;
+        }
+        g_string_append_printf(falco_rule, "%s", filtercheck);
+        g_free(filtercheck);
+    }
+    else if (stnode_type_id(node) == STTYPE_FVALUE) {
+        g_string_append_printf(falco_rule, "%s", stnode_tostr(node, true));
+    }
+    else {
+        g_string_append_printf(falco_rule, "%s", stnode_type_name(node));
+    }
+
+    return true;
+}
+
+bool dfilter_to_falco_rule(stnode_t *root_node, GString *falco_rule) {
+    return visit_dfilter_node(root_node, STNODE_OP_UNINITIALIZED, falco_rule);
 }
 
 static void
@@ -236,7 +375,7 @@ create_source_hfids(bridge_info* bi)
 
     size_t tot_fields = get_sinsp_source_nfields(bi->ssi);
     bi->visible_fields = 0;
-    uint32_t addr_fields = 0;
+    bi->addr_fields = 0;
     sinsp_field_info_t sfi;
     bi->num_conversation_filters = 0;
 
@@ -250,7 +389,7 @@ create_source_hfids(bridge_info* bi)
             continue;
         }
         if (sfi.is_numeric_address || is_string_address_field(sfi.type, sfi.abbrev)) {
-            addr_fields++;
+            bi->addr_fields++;
         }
         bi->visible_fields++;
 
@@ -263,14 +402,14 @@ create_source_hfids(bridge_info* bi)
         bi->hf = (hf_register_info*)wmem_alloc(wmem_epan_scope(), bi->visible_fields * sizeof(hf_register_info));
         bi->hf_ids = (int*)wmem_alloc0(wmem_epan_scope(), bi->visible_fields * sizeof(int));
         bi->field_ids = (int*)wmem_alloc(wmem_epan_scope(), bi->visible_fields * sizeof(int));
-        bi->field_flags = (guint32*)wmem_alloc(wmem_epan_scope(), bi->visible_fields * sizeof(guint32));
+        bi->field_flags = (uint32_t*)wmem_alloc(wmem_epan_scope(), bi->visible_fields * sizeof(uint32_t));
 
-        if (addr_fields) {
+        if (bi->addr_fields) {
             bi->hf_id_to_addr_id = (int *)wmem_alloc(wmem_epan_scope(), bi->visible_fields * sizeof(int));
-            bi->hf_v4 = (hf_register_info*)wmem_alloc(wmem_epan_scope(), addr_fields * sizeof(hf_register_info));
-            bi->hf_v4_ids = (int*)wmem_alloc0(wmem_epan_scope(), addr_fields * sizeof(int));
-            bi->hf_v6 = (hf_register_info*)wmem_alloc(wmem_epan_scope(), addr_fields * sizeof(hf_register_info));
-            bi->hf_v6_ids = (int*)wmem_alloc0(wmem_epan_scope(), addr_fields * sizeof(int));
+            bi->hf_v4 = (hf_register_info*)wmem_alloc(wmem_epan_scope(), bi->addr_fields * sizeof(hf_register_info));
+            bi->hf_v4_ids = (int*)wmem_alloc0(wmem_epan_scope(), bi->addr_fields * sizeof(int));
+            bi->hf_v6 = (hf_register_info*)wmem_alloc(wmem_epan_scope(), bi->addr_fields * sizeof(hf_register_info));
+            bi->hf_v6_ids = (int*)wmem_alloc0(wmem_epan_scope(), bi->addr_fields * sizeof(int));
         }
 
         if (bi->num_conversation_filters) {
@@ -330,7 +469,7 @@ create_source_hfids(bridge_info* bi)
                     fdisplay = BASE_OCT;
                     break;
                 default:
-                    THROW_FORMATTED(DissectorError, "error in source %s: format %d for field %s is not supported",
+                    THROW_FORMATTED(DissectorError, "error in Falco bridge plugin %s: format %d for field %s is not supported",
                         get_sinsp_source_name(bi->ssi), sfi.display_format, sfi.abbrev);
                 }
                 break;
@@ -339,6 +478,11 @@ create_source_hfids(bridge_info* bi)
                 ws_warning("plugin %s: type of field %s (%d) is not supported",
                     get_sinsp_source_name(bi->ssi),
                     sfi.abbrev, sfi.type);
+            }
+
+            if(strlen(sfi.display) == 0) {
+                THROW_FORMATTED(DissectorError, "error in Falco bridge plugin %s: field %s is missing display name",
+                   get_sinsp_source_name(bi->ssi), sfi.abbrev);
             }
 
             hf_register_info finfo = {
@@ -360,7 +504,7 @@ create_source_hfids(bridge_info* bi)
 
                 const char *source_name = get_sinsp_source_name(bi->ssi);
                 const char *conv_filter_name = wmem_strdup_printf(wmem_epan_scope(), "%s %s", source_name, bi->hf[fld_cnt].hfinfo.name);
-                register_log_conversation_filter(source_name, conv_filter_name, is_filter_valid, build_filter, &bi->conversation_filters[conv_fld_cnt]);
+                register_log_conversation_filter(source_name, conv_filter_name, is_filter_valid, build_conversation_filter, &bi->conversation_filters[conv_fld_cnt]);
                 if (conv_fld_cnt == 0) {
                     add_conversation_filter_protocol(source_name);
                 }
@@ -372,7 +516,7 @@ create_source_hfids(bridge_info* bi)
             }
 
             if (sfi.is_numeric_address || is_string_address_field(sfi.type, sfi.abbrev)) {
-                ws_assert(addr_fld_cnt < addr_fields);
+                ws_assert(addr_fld_cnt < bi->addr_fields);
                 bi->hf_id_to_addr_id[fld_cnt] = addr_fld_cnt;
 
                 hf_register_info finfo_v4 = {
@@ -430,7 +574,7 @@ import_plugin(char* fname)
     create_source_hfids(bi);
 
     const char *source_name = get_sinsp_source_name(bi->ssi);
-    const char *plugin_name = g_strdup_printf("%s Plugin", source_name);
+    const char *plugin_name = g_strdup_printf("%s Falco Bridge Plugin", source_name);
     bi->proto = proto_register_protocol(plugin_name, source_name, source_name);
 
     static dissector_handle_t ct_handle;
@@ -446,7 +590,7 @@ on_wireshark_exit(void)
     sinsp_span = NULL;
 }
 
-static gboolean
+static bool
 extract_syscall_conversation_fields (packet_info *pinfo, falco_conv_filter_fields* args) {
     args->container_id = NULL;
     args->pid = -1;
@@ -507,7 +651,7 @@ extract_syscall_conversation_fields (packet_info *pinfo, falco_conv_filter_field
     return true;
 }
 
-static gboolean sysdig_syscall_filter_valid(packet_info *pinfo, void *user_data _U_) {
+static bool sysdig_syscall_filter_valid(packet_info *pinfo, void *user_data _U_) {
     if (!proto_is_frame_protocol(pinfo->layers, "sysdig")) {
         return false;
     }
@@ -520,7 +664,7 @@ static gboolean sysdig_syscall_filter_valid(packet_info *pinfo, void *user_data 
     return true;
 }
 
-static gboolean sysdig_syscall_container_filter_valid(packet_info *pinfo, void *user_data) {
+static bool sysdig_syscall_container_filter_valid(packet_info *pinfo, void *user_data) {
     if (!sysdig_syscall_filter_valid(pinfo, user_data)) {
         return false;
     }
@@ -533,7 +677,7 @@ static gboolean sysdig_syscall_container_filter_valid(packet_info *pinfo, void *
     return cff.container_id != NULL;
 }
 
-static gboolean sysdig_syscall_fd_filter_valid(packet_info *pinfo, void *user_data) {
+static bool sysdig_syscall_fd_filter_valid(packet_info *pinfo, void *user_data) {
     if (!sysdig_syscall_filter_valid(pinfo, user_data)) {
         return false;
     }
@@ -542,13 +686,13 @@ static gboolean sysdig_syscall_fd_filter_valid(packet_info *pinfo, void *user_da
     return extract_syscall_conversation_fields(pinfo, &cff);
 }
 
-static gchar* sysdig_container_build_filter(packet_info *pinfo, void *user_data _U_) {
+static char* sysdig_container_build_filter(packet_info *pinfo, void *user_data _U_) {
     falco_conv_filter_fields cff;
     extract_syscall_conversation_fields(pinfo, &cff);
     return ws_strdup_printf("container.id==\"%s\"", cff.container_id);
 }
 
-static gchar* sysdig_proc_build_filter(packet_info *pinfo, void *user_data _U_) {
+static char* sysdig_proc_build_filter(packet_info *pinfo, void *user_data _U_) {
     falco_conv_filter_fields cff;
     extract_syscall_conversation_fields(pinfo, &cff);
     if (cff.container_id) {
@@ -558,7 +702,7 @@ static gchar* sysdig_proc_build_filter(packet_info *pinfo, void *user_data _U_) 
     }
 }
 
-static gchar* sysdig_procdescendants_build_filter(packet_info *pinfo, void *user_data _U_) {
+static char* sysdig_procdescendants_build_filter(packet_info *pinfo, void *user_data _U_) {
     falco_conv_filter_fields cff;
     extract_syscall_conversation_fields(pinfo, &cff);
 
@@ -580,7 +724,7 @@ static gchar* sysdig_procdescendants_build_filter(packet_info *pinfo, void *user
     }
 }
 
-static gchar* sysdig_thread_build_filter(packet_info *pinfo, void *user_data _U_) {
+static char* sysdig_thread_build_filter(packet_info *pinfo, void *user_data _U_) {
     falco_conv_filter_fields cff;
     extract_syscall_conversation_fields(pinfo, &cff);
     if (cff.container_id) {
@@ -590,7 +734,7 @@ static gchar* sysdig_thread_build_filter(packet_info *pinfo, void *user_data _U_
     }
 }
 
-static gchar* sysdig_fd_build_filter(packet_info *pinfo, void *user_data _U_) {
+static char* sysdig_fd_build_filter(packet_info *pinfo, void *user_data _U_) {
     falco_conv_filter_fields cff;
     extract_syscall_conversation_fields(pinfo, &cff);
     if (cff.container_id) {
@@ -603,23 +747,28 @@ static gchar* sysdig_fd_build_filter(packet_info *pinfo, void *user_data _U_) {
     }
 }
 
-static gchar *fd_follow_conv_filter(epan_dissect_t *edt _U_, packet_info *pinfo _U_, guint *stream _U_, guint *sub_stream _U_)
+static char *fd_follow_conv_filter(epan_dissect_t *edt _U_, packet_info *pinfo _U_, unsigned *stream _U_, unsigned *sub_stream _U_)
 {
+    // This only supports the syscall source.
+    if (pinfo->rec->rec_header.syscall_header.event_type == FALCO_PPME_PLUGINEVENT_E) {
+        return NULL;
+    }
+
     return sysdig_fd_build_filter(pinfo, NULL);
 }
 
-static gchar *fd_follow_index_filter(guint stream _U_, guint sub_stream _U_)
+static char *fd_follow_index_filter(unsigned stream _U_, unsigned sub_stream _U_)
 {
     return NULL;
 }
 
-static gchar *fd_follow_address_filter(address *src_addr _U_, address *dst_addr _U_, int src_port _U_, int dst_port _U_)
+static char *fd_follow_address_filter(address *src_addr _U_, address *dst_addr _U_, int src_port _U_, int dst_port _U_)
 {
     return NULL;
 }
 
-gchar *
-fd_port_to_display(wmem_allocator_t *allocator _U_, guint port _U_)
+char *
+fd_port_to_display(wmem_allocator_t *allocator _U_, unsigned port _U_)
 {
     return NULL;
 }
@@ -631,7 +780,7 @@ fd_tap_listener(void *tapdata, packet_info *pinfo,
     follow_record_t *follow_record;
     follow_info_t *follow_info = (follow_info_t *)tapdata;
     fd_follow_tap_info *tap_info = (fd_follow_tap_info *)data;
-    gboolean is_server;
+    bool is_server;
 
     is_server = tap_info->is_write;
 
@@ -649,7 +798,7 @@ fd_tap_listener(void *tapdata, packet_info *pinfo,
     return TAP_PACKET_DONT_REDRAW;
 }
 
-guint32 get_fd_stream_count(void)
+uint32_t get_fd_stream_count(void)
 {
     // This effectively disables the "streams" dropdown, which is we don't really care about for the moment in logray.
     return 1;
@@ -658,7 +807,7 @@ guint32 get_fd_stream_count(void)
 
 
 static bridge_info*
-get_bridge_info(guint32 source_id)
+get_bridge_info(uint32_t source_id)
 {
     if (source_id == 0) {
         return &bridges[0];
@@ -684,9 +833,9 @@ dissect_falco_bridge(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *
 
     // https://github.com/falcosecurity/libs/blob/9c942f27/userspace/libscap/scap.c#L1900
 
-    guint32 source_id = 0;
+    uint32_t source_id = 0;
     if (pinfo->rec->rec_header.syscall_header.event_type == FALCO_PPME_PLUGINEVENT_E) {
-        source_id = tvb_get_guint32(tvb, 8, encoding);
+        source_id = tvb_get_uint32(tvb, 8, encoding);
     }
 
     bridge_info* bi = get_bridge_info(source_id);
@@ -782,7 +931,7 @@ dissect_sinsp_enriched(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void
     const char* io_buffer = NULL;
     uint32_t io_buffer_len = 0;
 
-    const char *container_id = "<host>";
+    const char *container_id = "host";
     const char *proc_name = NULL;
     const char *fd_name = NULL;
 
@@ -993,7 +1142,7 @@ static int
 dissect_sinsp_plugin(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* bi_ptr)
 {
     bridge_info* bi = (bridge_info *) bi_ptr;
-    guint payload_len = tvb_captured_length(tvb);
+    unsigned payload_len = tvb_captured_length(tvb);
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "oops");
     /* Clear out stuff in the info column */
@@ -1002,7 +1151,7 @@ dissect_sinsp_plugin(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* 
     proto_item *ti = tree;
     proto_tree* fb_tree = proto_item_add_subtree(ti, ett_sinsp_span);
 
-    guint8* payload = (guint8*)tvb_get_ptr(tvb, 0, payload_len);
+    uint8_t* payload = (uint8_t*)tvb_get_ptr(tvb, 0, payload_len);
 
     plugin_field_extract_t *sinsp_fields = (plugin_field_extract_t*) wmem_alloc(pinfo->pool, sizeof(plugin_field_extract_t) * bi->visible_fields);
     for (uint32_t fld_idx = 0; fld_idx < bi->visible_fields; fld_idx++) {
@@ -1062,6 +1211,19 @@ dissect_sinsp_plugin(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* 
                 proto_item_set_hidden(pi);
             }
 
+            if ((strcmp(hfinfo->abbrev, "ct.response") == 0 ||
+                    strcmp(hfinfo->abbrev, "ct.request") == 0 ||
+                    strcmp(hfinfo->abbrev, "ct.resources") == 0 ) &&
+                    strcmp(sfe->res.str, "null") != 0) {
+               tvbuff_t *json_tvb = tvb_new_child_real_data(tvb, sfe->res.str, (unsigned)strlen(sfe->res.str), (unsigned)strlen(sfe->res.str));
+               add_new_data_source(pinfo, json_tvb, "JSON Object");
+               proto_tree *json_tree = proto_item_add_subtree(pi, ett_json);
+               char *col_info_text = wmem_strdup(pinfo->pool, col_get_text(pinfo->cinfo, COL_INFO));
+               call_dissector(json_handle, json_tvb, pinfo, json_tree);
+
+               /* Restore Protocol and Info columns */
+               col_set_str(pinfo->cinfo, COL_INFO, col_info_text);
+            }
             int addr_fld_idx = bi->hf_id_to_addr_id[fld_idx];
             if (addr_fld_idx >= 0) {
                 ws_in4_addr v4_addr;
@@ -1139,23 +1301,27 @@ dissect_sinsp_plugin(tvbuff_t* tvb, packet_info* pinfo, proto_tree* tree, void* 
     return payload_len;
 }
 
-static void container_io_stats_tree_init(stats_tree* st)
+const char *st_str_container_total_io = "Total";
+
+static void container_io_stats_tree_init(stats_tree* st _U_)
 {
-    st_node_container_io = stats_tree_create_node(st, st_str_container_io, 0, STAT_DT_INT, TRUE);
+    stats_tree_create_node(st, st_str_container_total_io, 0, STAT_DT_INT, true);
+    stat_node_set_flags(st, st_str_container_total_io, 0, false, ST_FLG_SORT_TOP);
+
 }
 
 static tap_packet_status container_io_stats_tree_event(stats_tree* st, packet_info* pinfo _U_, epan_dissect_t* edt _U_, const void* tap_info_p, tap_flags_t flags _U_)
 {
     const container_io_tap_info* tap_info = (const container_io_tap_info*) tap_info_p;
 
-    increase_stat_node(st, st_str_container_io, 0, FALSE, tap_info->io_bytes);
-    int container_id_node = increase_stat_node(st, tap_info->container_id, st_node_container_io, TRUE, tap_info->io_bytes);
-    int proc_name_node = increase_stat_node(st, tap_info->proc_name, container_id_node, TRUE, tap_info->io_bytes);
-    int fd_name_node = increase_stat_node(st, tap_info->fd_name, proc_name_node, TRUE, tap_info->io_bytes);
+    increase_stat_node(st, st_str_container_total_io, 0, false, tap_info->io_bytes);
+    int container_id_node = increase_stat_node(st, tap_info->container_id, 0, true, tap_info->io_bytes);
+    int proc_name_node = increase_stat_node(st, tap_info->proc_name, container_id_node, true, tap_info->io_bytes);
+    int fd_name_node = increase_stat_node(st, tap_info->fd_name, proc_name_node, true, tap_info->io_bytes);
     if (tap_info->is_write) {
-        increase_stat_node(st, "write", fd_name_node, TRUE, tap_info->io_bytes);
+        increase_stat_node(st, "write", fd_name_node, true, tap_info->io_bytes);
     } else {
-        increase_stat_node(st, "read", fd_name_node, TRUE, tap_info->io_bytes);
+        increase_stat_node(st, "read", fd_name_node, true, tap_info->io_bytes);
     }
 
     return TAP_PACKET_REDRAW;
@@ -1165,9 +1331,11 @@ void
 proto_reg_handoff_falcoplugin(void)
 {
     // Register statistics trees
-    stats_tree_register_with_group("container_io", "container_io", "Container IO", 0, container_io_stats_tree_event, container_io_stats_tree_init, NULL, REGISTER_LOG_STAT_GROUP_UNSORTED);
-    stats_tree_cfg *cfg = stats_tree_get_cfg_by_abbr("container_io");
-    cfg->plugin = TRUE;
+    stats_tree_cfg *st_config = stats_tree_register_plugin("container_io", "container_io", "Container I/O", 0, container_io_stats_tree_event, container_io_stats_tree_init, NULL);
+    stats_tree_set_group(st_config, REGISTER_LOG_STAT_GROUP_UNSORTED);
+    stats_tree_set_first_column_name(st_config, "Container, process, and FD I/O");
+
+    json_handle = find_dissector("json");
 }
 
 void
@@ -1234,6 +1402,8 @@ proto_register_falcoplugin(void)
     WS_DIR *dir;
     WS_DIRENT *file;
     char *filename;
+    // XXX Falco plugins should probably be installed in a path that reflects
+    // the Falco version or its plugin API version.
     char *spdname = g_build_filename(get_plugins_dir(), "falco", NULL);
     char *ppdname = g_build_filename(get_plugins_pers_dir(), "falco", NULL);
 
@@ -1305,6 +1475,7 @@ proto_register_falcoplugin(void)
         &ett_sinsp_enriched,
         &ett_sinsp_span,
         &ett_address,
+        &ett_json,
     };
 
     /*
@@ -1332,6 +1503,8 @@ proto_register_falcoplugin(void)
     proto_register_field_array(proto_falco_bridge, hf, array_length(hf));
     proto_register_subtree_array(ett, array_length(ett));
     proto_register_subtree_array(ett_lin, array_length(ett_lin));
+
+    register_dfilter_translator("Falco rule", dfilter_to_falco_rule);
 
     register_shutdown_routine(on_wireshark_exit);
 }

@@ -123,9 +123,9 @@ static int * const hfx_le_multi_advertising_channel_map[] = {
     NULL
 };
 
-static gint ett_broadcom;
-static gint ett_broadcom_opcode;
-static gint ett_broadcom_channel_map;
+static int ett_broadcom;
+static int ett_broadcom_opcode;
+static int ett_broadcom_channel_map;
 
 static expert_field ei_broadcom_undecoded;
 static expert_field ei_broadcom_unexpected_parameter;
@@ -255,9 +255,9 @@ static const value_string broadcom_sco_pcm_interface_frame_type_vals[] = {
     { 0, NULL }
 };
 
-static const value_string broadcom_mode_slave_master_vals[] = {
-    { 0x00,  "Slave" },
-    { 0x01,  "Master" },
+static const value_string broadcom_mode_peripheral_central_vals[] = {
+    { 0x00,  "Peripheral" },
+    { 0x01,  "Central" },
     { 0, NULL }
 };
 
@@ -364,7 +364,7 @@ static const value_string broadcom_target_id_vals[] = {
 void proto_register_bthci_vendor_broadcom(void);
 void proto_reg_handoff_bthci_vendor_broadcom(void);
 
-static gint
+static int
 dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     proto_item        *main_item;
@@ -373,18 +373,18 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
     proto_tree        *opcode_tree;
     proto_item        *sub_item;
     bluetooth_data_t  *bluetooth_data;
-    gint               offset = 0;
-    guint16            opcode;
-    guint16            ocf;
-    const gchar       *description;
-    guint8             length;
-    guint8             event_code;
-    guint8             bd_addr[6];
-    guint8             status;
-    guint8             subcode;
-    guint8             condition;
-    guint32            interface_id;
-    guint32            adapter_id;
+    int                offset = 0;
+    uint16_t           opcode;
+    uint16_t           ocf;
+    const char        *description;
+    uint8_t            length;
+    uint8_t            event_code;
+    uint8_t            bd_addr[6];
+    uint8_t            status;
+    uint8_t            subcode;
+    uint8_t            condition;
+    uint32_t           interface_id;
+    uint32_t           adapter_id;
 
     bluetooth_data = (bluetooth_data_t *) data;
     if (bluetooth_data) {
@@ -437,18 +437,18 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
         }
 
         proto_tree_add_item(main_tree, hf_broadcom_parameter_length, tvb, offset, 1, ENC_NA);
-        length = tvb_get_guint8(tvb, offset);
+        length = tvb_get_uint8(tvb, offset);
         offset += 1;
 
         switch(ocf) {
         case 0x0001: /* Write BDADDR */
-            offset = dissect_bd_addr(hf_broadcom_bd_addr, pinfo, main_tree, tvb, offset, TRUE, interface_id, adapter_id, bd_addr);
+            offset = dissect_bd_addr(hf_broadcom_bd_addr, pinfo, main_tree, tvb, offset, true, interface_id, adapter_id, bd_addr);
 
 /* TODO: This is command, but in respose (event Command Complete) there is a status for that,
          so write bdaddr can fail, but we store bdaddr as valid for now... */
             if (!pinfo->fd->visited && bluetooth_data) {
                 wmem_tree_key_t            key[4];
-                guint32                    frame_number;
+                uint32_t                   frame_number;
                 localhost_bdaddr_entry_t   *localhost_bdaddr_entry;
 
                 frame_number = pinfo->num;
@@ -608,7 +608,7 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
             break;
         case 0x007E: /* Enable WBS */
             proto_tree_add_item(main_tree, hf_broadcom_codec_state, tvb, offset, 1, ENC_NA);
-            status = tvb_get_guint8(tvb, offset);
+            status = tvb_get_uint8(tvb, offset);
             offset += 1;
 
             if (status == 0x01) { /* Enable */
@@ -618,7 +618,7 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
             break;
         case 0x0154: /* LE Multi Advertising */
             proto_tree_add_item(main_tree, hf_broadcom_le_multi_advertising_subcode, tvb, offset, 1, ENC_NA);
-            subcode = tvb_get_guint8(tvb, offset);
+            subcode = tvb_get_uint8(tvb, offset);
             offset += 1;
 
             switch (subcode) {
@@ -635,12 +635,12 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
                 proto_tree_add_item(main_tree, hf_broadcom_le_multi_advertising_address_type, tvb, offset, 1, ENC_NA);
                 offset += 1;
 
-                offset = dissect_bd_addr(hf_broadcom_bd_addr, pinfo, main_tree, tvb, offset, FALSE, interface_id, adapter_id, NULL);
+                offset = dissect_bd_addr(hf_broadcom_bd_addr, pinfo, main_tree, tvb, offset, false, interface_id, adapter_id, NULL);
 
                 proto_tree_add_item(main_tree, hf_broadcom_le_multi_advertising_address_type, tvb, offset, 1, ENC_NA);
                 offset += 1;
 
-                offset = dissect_bd_addr(hf_broadcom_bd_addr, pinfo, main_tree, tvb, offset, FALSE, interface_id, adapter_id, NULL);
+                offset = dissect_bd_addr(hf_broadcom_bd_addr, pinfo, main_tree, tvb, offset, false, interface_id, adapter_id, NULL);
 
                 proto_tree_add_bitmask(main_tree, tvb, offset, hf_broadcom_le_multi_advertising_channel_map, ett_broadcom_channel_map,  hfx_le_multi_advertising_channel_map, ENC_NA);
                 offset += 1;
@@ -666,7 +666,7 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
 
                 break;
             case 0x04: /* Set Random Address */
-                offset = dissect_bd_addr(hf_broadcom_bd_addr, pinfo, main_tree, tvb, offset, FALSE, interface_id, adapter_id, NULL);
+                offset = dissect_bd_addr(hf_broadcom_bd_addr, pinfo, main_tree, tvb, offset, false, interface_id, adapter_id, NULL);
 
                 proto_tree_add_item(main_tree, hf_broadcom_le_multi_advertising_instance_id, tvb, offset, 1, ENC_NA);
                 offset += 1;
@@ -685,7 +685,7 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
             break;
         case 0x0156: /* LE Batch Scan */
             proto_tree_add_item(main_tree, hf_broadcom_le_batch_scan_subcode, tvb, offset, 1, ENC_NA);
-            subcode = tvb_get_guint8(tvb, offset);
+            subcode = tvb_get_uint8(tvb, offset);
             offset += 1;
 
             switch (subcode) {
@@ -732,11 +732,11 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
             break;
         case 0x0157: /* LE Advertising Filter */
             proto_tree_add_item(main_tree, hf_broadcom_le_advertising_filter_subcode, tvb, offset, 1, ENC_NA);
-            subcode = tvb_get_guint8(tvb, offset);
+            subcode = tvb_get_uint8(tvb, offset);
             offset += 1;
 
             proto_tree_add_item(main_tree, hf_broadcom_le_scan_condition, tvb, offset, 1, ENC_NA);
-            condition = tvb_get_guint8(tvb, offset);
+            condition = tvb_get_uint8(tvb, offset);
             offset += 1;
 
             proto_tree_add_item(main_tree, hf_broadcom_le_filter_index, tvb, offset, 1, ENC_NA);
@@ -802,7 +802,7 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "HCI_EVT_BROADCOM");
         col_add_fstr(pinfo->cinfo, COL_INFO, "Rcvd Broadcom ");
 
-        event_code = tvb_get_guint8(tvb, offset);
+        event_code = tvb_get_uint8(tvb, offset);
         description = val_to_str_ext(event_code, &bthci_evt_evt_code_vals_ext, "Unknown 0x%08x");
         col_append_str(pinfo->cinfo, COL_INFO, description);
         proto_tree_add_item(main_tree, hf_broadcom_event_code, tvb, offset, 1, ENC_NA);
@@ -825,7 +825,7 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
         }
 
         proto_tree_add_item(main_tree, hf_broadcom_parameter_length, tvb, offset, 1, ENC_NA);
-        length = tvb_get_guint8(tvb, offset);
+        length = tvb_get_uint8(tvb, offset);
         offset += 1;
 
         switch (event_code) {
@@ -866,7 +866,7 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
             }
 
             proto_tree_add_item(main_tree, hf_broadcom_status, tvb, offset, 1, ENC_NA);
-            status = tvb_get_guint8(tvb, offset);
+            status = tvb_get_uint8(tvb, offset);
             offset += 1;
 
             switch (ocf) {
@@ -930,7 +930,7 @@ dissect_bthci_vendor_broadcom(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tre
                 break;
             case 0x0156: /* LE Batch Scan */
                 proto_tree_add_item(main_tree, hf_broadcom_le_batch_scan_subcode, tvb, offset, 1, ENC_NA);
-                subcode = tvb_get_guint8(tvb, offset);
+                subcode = tvb_get_uint8(tvb, offset);
                 offset += 1;
 
                 if (subcode == 0x04 && status == STATUS_SUCCESS) { /* Read Results*/
@@ -1267,12 +1267,12 @@ proto_register_bthci_vendor_broadcom(void)
         },
         { &hf_broadcom_sco_pcm_interface_sync_mode,
             { "SCO PCM Interface Sync Mode",               "bthci_vendor.broadcom.sco.interface.sync_mode",
-            FT_UINT8, BASE_HEX, VALS(broadcom_mode_slave_master_vals), 0x0,
+            FT_UINT8, BASE_HEX, VALS(broadcom_mode_peripheral_central_vals), 0x0,
             NULL, HFILL }
         },
         { &hf_broadcom_sco_pcm_interface_clock_mode,
             { "SCO PCM Interface Clock Mode",              "bthci_vendor.broadcom.sco.interface.clock_mode",
-            FT_UINT8, BASE_HEX, VALS(broadcom_mode_slave_master_vals), 0x0,
+            FT_UINT8, BASE_HEX, VALS(broadcom_mode_peripheral_central_vals), 0x0,
             NULL, HFILL }
         },
         { &hf_broadcom_pcm_shift_mode,
@@ -1307,7 +1307,7 @@ proto_register_bthci_vendor_broadcom(void)
         },
         { &hf_broadcom_sco_i2s_pcm_interface_role,
             { "SCO I2S PCM Interface Role",                "bthci_vendor.broadcom.pcm.i2s_pcm_interface.role",
-            FT_UINT8, BASE_HEX, VALS(broadcom_mode_slave_master_vals), 0x0,
+            FT_UINT8, BASE_HEX, VALS(broadcom_mode_peripheral_central_vals), 0x0,
             NULL, HFILL }
         },
         { &hf_broadcom_sco_i2s_pcm_interface_sample_rate,
@@ -1512,7 +1512,7 @@ proto_register_bthci_vendor_broadcom(void)
         },
     };
 
-    static gint *ett[] = {
+    static int *ett[] = {
         &ett_broadcom,
         &ett_broadcom_opcode,
         &ett_broadcom_channel_map
@@ -1652,10 +1652,10 @@ static dissector_handle_t bthci_vendor_intel_handle;
 static dissector_handle_t btlmp_handle;
 static dissector_handle_t btle_handle;
 
-static gint ett_intel;
-static gint ett_intel_opcode;
-static gint ett_intel_scan_status;
-static gint ett_intel_set_event_mask;
+static int ett_intel;
+static int ett_intel_opcode;
+static int ett_intel_scan_status;
+static int ett_intel_set_event_mask;
 
 static expert_field ei_intel_undecoded;
 static expert_field ei_intel_unexpected_parameter;
@@ -1874,7 +1874,7 @@ static const value_string intel_mem_mode_vals[] = {
 void proto_register_bthci_vendor_intel(void);
 void proto_reg_handoff_bthci_vendor_intel(void);
 
-static gint
+static int
 dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data)
 {
     proto_item        *main_item;
@@ -1883,17 +1883,17 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
     proto_tree        *opcode_tree;
     proto_item        *sub_item;
     bluetooth_data_t  *bluetooth_data;
-    gint               offset = 0;
-    gint               offset_parameters;
-    guint16            opcode;
-    guint16            ocf;
-    const gchar       *description;
-    guint8             length;
-    guint8             event_code;
-    guint8             status;
-    guint8             type;
-    guint32            interface_id;
-    guint32            adapter_id;
+    int                offset = 0;
+    int                offset_parameters;
+    uint16_t           opcode;
+    uint16_t           ocf;
+    const char        *description;
+    uint8_t            length;
+    uint8_t            event_code;
+    uint8_t            status;
+    uint8_t            type;
+    uint32_t           interface_id;
+    uint32_t           adapter_id;
 
     bluetooth_data = (bluetooth_data_t *) data;
     if (bluetooth_data) {
@@ -1946,7 +1946,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
         }
 
         proto_tree_add_item(main_tree, hf_intel_parameter_length, tvb, offset, 1, ENC_NA);
-        length = tvb_get_guint8(tvb, offset);
+        length = tvb_get_uint8(tvb, offset);
         offset += 1;
 
         offset_parameters = offset;
@@ -2022,7 +2022,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
 
             break;
         case 0x002F: /* Write BD Data */
-            offset = dissect_bd_addr(hf_intel_bd_addr, pinfo, main_tree, tvb, offset, FALSE, interface_id, adapter_id, NULL);
+            offset = dissect_bd_addr(hf_intel_bd_addr, pinfo, main_tree, tvb, offset, false, interface_id, adapter_id, NULL);
 
             sub_item = proto_tree_add_item(main_tree, hf_intel_data, tvb, offset, 6, ENC_NA);
             expert_add_info(pinfo, sub_item, &ei_intel_undecoded);
@@ -2044,7 +2044,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
 
             break;
         case 0x0031: /* Write BD Address */
-            offset = dissect_bd_addr(hf_intel_bd_addr, pinfo, main_tree, tvb, offset, FALSE, interface_id, adapter_id, NULL);
+            offset = dissect_bd_addr(hf_intel_bd_addr, pinfo, main_tree, tvb, offset, false, interface_id, adapter_id, NULL);
 
             break;
         case 0x0043: /* Activate/Deactivate Traces */
@@ -2070,10 +2070,10 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
             break;
         case 0x008B: /* DDC Config Write */
             while (length > 0) {
-                guint8  ddc_config_length;
+                uint8_t ddc_config_length;
 
                 proto_tree_add_item(main_tree, hf_intel_ddc_config_length, tvb, offset, 1, ENC_NA);
-                ddc_config_length = tvb_get_guint8(tvb, offset);
+                ddc_config_length = tvb_get_uint8(tvb, offset);
                 offset += 1;
 
                 proto_tree_add_item(main_tree, hf_intel_identifier, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -2096,8 +2096,8 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
             proto_tree_add_item(main_tree, hf_intel_mem_length, tvb, offset, 1, ENC_NA);
             offset += 1;
 
-            proto_tree_add_item(main_tree, hf_intel_data, tvb, offset, tvb_get_guint8(tvb, offset - 1), ENC_NA);
-            offset += tvb_get_guint8(tvb, offset - 1);
+            proto_tree_add_item(main_tree, hf_intel_data, tvb, offset, tvb_get_uint8(tvb, offset - 1), ENC_NA);
+            offset += tvb_get_uint8(tvb, offset - 1);
 
             break;
         default:
@@ -2119,7 +2119,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
         col_set_str(pinfo->cinfo, COL_PROTOCOL, "HCI_EVT_INTEL");
         col_add_fstr(pinfo->cinfo, COL_INFO, "Rcvd Intel ");
 
-        event_code = tvb_get_guint8(tvb, offset);
+        event_code = tvb_get_uint8(tvb, offset);
 
         if (try_val_to_str(event_code, intel_event_code_vals))
             description = val_to_str(event_code, intel_event_code_vals, "Unknown 0x%08x");
@@ -2146,7 +2146,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
         }
 
         proto_tree_add_item(main_tree, hf_intel_parameter_length, tvb, offset, 1, ENC_NA);
-        length = tvb_get_guint8(tvb, offset);
+        length = tvb_get_uint8(tvb, offset);
         offset += 1;
 
         offset_parameters = offset;
@@ -2189,7 +2189,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
             }
 
             proto_tree_add_item(main_tree, hf_intel_status, tvb, offset, 1, ENC_NA);
-            status = tvb_get_guint8(tvb, offset);
+            status = tvb_get_uint8(tvb, offset);
             offset += 1;
 
             switch (ocf) {
@@ -2268,7 +2268,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
 
                 break;
             case 0x0030: /* Read BD Data */
-                offset = dissect_bd_addr(hf_intel_bd_addr, pinfo, main_tree, tvb, offset, FALSE, interface_id, adapter_id, NULL);
+                offset = dissect_bd_addr(hf_intel_bd_addr, pinfo, main_tree, tvb, offset, false, interface_id, adapter_id, NULL);
 
                 break;
             case 0x008B: /* DDC Config Write */
@@ -2371,7 +2371,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
             break;
         case 0x17: /* Link PDU Trace */
             proto_tree_add_item(main_tree, hf_intel_link_pdu_trace_type, tvb, offset, 1, ENC_NA);
-            type = tvb_get_guint8(tvb, offset);
+            type = tvb_get_uint8(tvb, offset);
             offset += 1;
 
             proto_tree_add_item(main_tree, hf_intel_handle, tvb, offset, 2, ENC_LITTLE_ENDIAN);
@@ -2446,7 +2446,7 @@ dissect_bthci_vendor_intel(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, 
 
             break;
         case 0x25: /* SCO Rejected via LMP */
-            offset = dissect_bd_addr(hf_intel_bd_addr, pinfo, main_tree, tvb, offset, FALSE, interface_id, adapter_id, NULL);
+            offset = dissect_bd_addr(hf_intel_bd_addr, pinfo, main_tree, tvb, offset, false, interface_id, adapter_id, NULL);
 
             proto_tree_add_item(main_tree, hf_intel_reason, tvb, offset, 1, ENC_NA);
             offset += 1;
@@ -2811,7 +2811,7 @@ proto_register_bthci_vendor_intel(void)
         },
         { &hf_intel_set_event_mask_reserved_15_63,
           { "Reserved",                                    "bthci_vendor.intel.event_mask.reserved.15_63",
-            FT_UINT64, BASE_HEX, NULL, G_GUINT64_CONSTANT(0xFFFFFFFFFFFF8000),
+            FT_UINT64, BASE_HEX, NULL, UINT64_C(0xFFFFFFFFFFFF8000),
             NULL, HFILL }
         },
         { &hf_intel_set_event_mask_firmware_trace_string,
@@ -2881,7 +2881,7 @@ proto_register_bthci_vendor_intel(void)
         },
     };
 
-    static gint *ett[] = {
+    static int *ett[] = {
         &ett_intel,
         &ett_intel_opcode,
         &ett_intel_scan_status,

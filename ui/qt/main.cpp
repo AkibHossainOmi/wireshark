@@ -10,8 +10,6 @@
 #include <config.h>
 #define WS_LOG_DOMAIN  LOG_DOMAIN_MAIN
 
-#include <glib.h>
-
 #include <locale.h>
 
 #ifdef _WIN32
@@ -31,7 +29,9 @@
 #include <wsutil/privileges.h>
 #include <wsutil/socket.h>
 #include <wsutil/wslog.h>
+#ifdef HAVE_PLUGINS
 #include <wsutil/plugins.h>
+#endif
 #include <wsutil/report_message.h>
 #include <wsutil/please_report_bug.h>
 #include <wsutil/unicode-utils.h>
@@ -51,7 +51,7 @@
 #include <epan/dissectors/packet-kerberos.h>
 #endif
 
-#include <wsutil/codecs_priv.h>
+#include <wsutil/codecs.h>
 
 #include <extcap.h>
 
@@ -75,6 +75,7 @@
 #include "ui/preference_utils.h"
 #include "ui/software_update.h"
 #include "ui/taps.h"
+#include "ui/profile.h"
 
 #include "ui/qt/conversation_dialog.h"
 #include "ui/qt/utils/color_utils.h"
@@ -207,11 +208,27 @@ gather_wireshark_qt_compiled_info(feature_list l)
 #endif
     gather_caplibs_compile_info(l);
     epan_gather_compile_info(l);
+#ifdef HAVE_MINIZIPNG
+    with_feature(l, "Minizip-ng %s", MINIZIPNG_VERSION);
+#else
+#ifdef HAVE_MINIZIP
+    with_feature(l, "Minizip %s", MINIZIP_VERSION);
+#else
+    without_feature(l, "Minizip");
+#endif
+#endif /* HAVE_MINIZIPNG */
 #ifdef QT_MULTIMEDIA_LIB
     with_feature(l, "QtMultimedia");
 #else
     without_feature(l, "QtMultimedia");
 #endif
+#if !defined(Q_OS_WIN) && !defined(Q_OS_MAC)
+#ifdef QT_DBUS_LIB
+    with_feature(l, "QtDBus");
+#else
+    without_feature(l, "QtDBus");
+#endif
+#endif /* !Q_OS_WIN && !Q_OS_MAC */
 
     const char *update_info = software_update_info();
     if (update_info) {
@@ -226,12 +243,6 @@ gather_wireshark_qt_compiled_info(feature_list l)
     without_feature(l, "AirPcap");
 #endif
 #endif /* _WIN32 */
-
-#ifdef HAVE_MINIZIP
-    with_feature(l, "Minizip");
-#else
-    without_feature(l, "Minizip");
-#endif
 }
 
 void
@@ -337,7 +348,7 @@ qt_log_message_handler(QtMsgType type, const QMessageLogContext &context, const 
 static void
 check_and_warn_user_startup()
 {
-    gchar               *cur_user, *cur_group;
+    char                *cur_user, *cur_group;
 
     /* Tell the user not to run as root. */
     if (running_with_special_privs() && recent.privs_warn_if_elevated) {
@@ -472,15 +483,15 @@ int main(int argc, char *qt_argv[])
     char                *rf_path;
     int                  rf_open_errno;
 #ifdef HAVE_LIBPCAP
-    gchar               *err_str, *err_str_secondary;;
+    char                *err_str, *err_str_secondary;;
 #else
 #ifdef _WIN32
 #ifdef HAVE_AIRPCAP
-    gchar               *err_str;
+    char                *err_str;
 #endif
 #endif
 #endif
-    gchar               *err_msg = NULL;
+    char                *err_msg = NULL;
     df_error_t          *df_err = NULL;
 
     QString              dfilter, read_filter;
@@ -488,7 +499,7 @@ int main(int argc, char *qt_argv[])
     int                  caps_queries = 0;
 #endif
     /* Start time in microseconds */
-    guint64 start_time = g_get_monotonic_time();
+    uint64_t start_time = g_get_monotonic_time();
     static const struct report_message_routines wireshark_report_routines = {
         vfailure_alert_box,
         vwarning_alert_box,
@@ -539,7 +550,7 @@ int main(int argc, char *qt_argv[])
     /* Initialize log handler early so we can have proper logging during startup. */
     ws_log_init("wireshark", vcmdarg_err);
     /* For backward compatibility with GLib logging and Wireshark 3.4. */
-    ws_log_console_writer_set_use_stdout(TRUE);
+    ws_log_console_writer_set_use_stdout(true);
 
     qInstallMessageHandler(qt_log_message_handler);
 
@@ -672,7 +683,7 @@ int main(int argc, char *qt_argv[])
         g_free (rf_path);
     }
 
-    profile_store_persconffiles(TRUE);
+    profile_store_persconffiles(true);
     recent_init();
 
     /* Read the profile independent recent file.  We have to do this here so we can */
@@ -701,7 +712,7 @@ int main(int argc, char *qt_argv[])
     // https://bugreports.qt.io/browse/QTBUG-53022 - The device pixel ratio is pretty much bogus on Windows.
     // https://bugreports.qt.io/browse/QTBUG-55510 - Windows have wrong size
     //
-    // Deprecated in Qt6.
+    // Deprecated in Qt6, which is Per-Monitor DPI Aware V2 by default.
     //    warning: 'Qt::AA_EnableHighDpiScaling' is deprecated: High-DPI scaling is always enabled.
     //    This attribute no longer has any effect.
 #if defined(Q_OS_WIN) && QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
@@ -759,8 +770,10 @@ int main(int argc, char *qt_argv[])
     GLibMainloopOnQEventLoop::setup(main_w);
     // We may not need a queued connection here but it would seem to make sense
     // to force the issue.
-    main_w->connect(&ws_app, SIGNAL(openCaptureFile(QString,QString,unsigned int)),
-            main_w, SLOT(openCaptureFile(QString,QString,unsigned int)));
+    main_w->connect(&ws_app, &WiresharkApplication::openCaptureFile,
+                    main_w, [&](QString cf_path, QString display_filter, unsigned int type) {
+                        main_w->openCaptureFile(cf_path, display_filter, type);
+                    });
     main_w->connect(&ws_app, &WiresharkApplication::openCaptureOptions,
             main_w, &WiresharkMainWindow::showCaptureOptionsDialog);
 
@@ -790,7 +803,7 @@ int main(int argc, char *qt_argv[])
      * dissection-time handlers for file-type-dependent blocks can
      * register using the file type/subtype value for the file type.
      */
-    wtap_init(TRUE);
+    wtap_init(true);
 
     splash_update(RA_DISSECTORS, NULL, NULL);
 #ifdef DEBUG_STARTUP_TIME
@@ -800,7 +813,7 @@ int main(int argc, char *qt_argv[])
        "-G" flag, as the "-G" flag dumps information registered by the
        dissectors, and we must do it before we read the preferences, in
        case any dissectors register preferences. */
-    if (!epan_init(splash_update, NULL, TRUE)) {
+    if (!epan_init(splash_update, NULL, true)) {
         SimpleDialog::displayQueuedMessages(main_w);
         ret_val = WS_EXIT_INIT_FAILED;
         goto clean_exit;
@@ -844,11 +857,6 @@ int main(int argc, char *qt_argv[])
         in_file_type = open_info_name_to_type(ex_opt_get_next("read_format"));
     }
 
-#ifdef DEBUG_STARTUP_TIME
-    ws_log(LOG_DOMAIN_MAIN, LOG_LEVEL_INFO, "Calling extcap_register_preferences, elapsed time %" PRIu64 " us \n", g_get_monotonic_time() - start_time);
-#endif
-    splash_update(RA_EXTCAP, NULL, NULL);
-    extcap_register_preferences();
     splash_update(RA_PREFERENCES, NULL, NULL);
 #ifdef DEBUG_STARTUP_TIME
     ws_log(LOG_DOMAIN_MAIN, LOG_LEVEL_INFO, "Calling module preferences, elapsed time %" PRIu64 " us \n", g_get_monotonic_time() - start_time);
@@ -861,7 +869,17 @@ int main(int argc, char *qt_argv[])
      * line, and store them. We have to do this before applying the
      * preferences to the capture options.
      */
-    commandline_override_prefs(argc, argv, TRUE);
+    commandline_override_prefs(argc, argv, true);
+
+    /* Register the extcap preferences. We do this after seeing if the
+     * capture_no_extcap preference is set in the configuration file
+     * or command line. This will re-read the extcap specific preferences.
+     */
+#ifdef DEBUG_STARTUP_TIME
+    ws_log(LOG_DOMAIN_MAIN, LOG_LEVEL_INFO, "Calling extcap_register_preferences, elapsed time %" PRIu64 " us \n", g_get_monotonic_time() - start_time);
+#endif
+    splash_update(RA_EXTCAP, NULL, NULL);
+    extcap_register_preferences();
 
     /* Some of the preferences affect the capture options. Apply those
      * before getting the other command line arguments, which can also
@@ -886,7 +904,7 @@ int main(int argc, char *qt_argv[])
      * to do it if we don't need to.
      */
 
-    commandline_other_options(argc, argv, TRUE);
+    commandline_other_options(argc, argv, true);
 
     /* Convert some command-line parameters to QStrings */
     if (global_commandline_info.cf_name != NULL)
@@ -922,7 +940,7 @@ int main(int argc, char *qt_argv[])
      * and exit.
      */
     if (caps_queries) {
-        guint i;
+        unsigned i;
 
 #ifdef _WIN32
         create_console();
@@ -998,17 +1016,18 @@ int main(int argc, char *qt_argv[])
 #endif
     splash_update(RA_PREFERENCES_APPLY, NULL, NULL);
     prefs_apply_all();
+    wsApp->emitAppSignal(WiresharkApplication::ColorsChanged);
     wsApp->emitAppSignal(WiresharkApplication::PreferencesChanged);
 
 #ifdef HAVE_LIBPCAP
     if ((global_capture_opts.num_selected == 0) &&
             (prefs.capture_device != NULL)) {
-        guint i;
+        unsigned i;
         interface_t *device;
         for (i = 0; i < global_capture_opts.all_ifaces->len; i++) {
             device = &g_array_index(global_capture_opts.all_ifaces, interface_t, i);
             if (!device->hidden && strcmp(device->display_name, prefs.capture_device) == 0) {
-                device->selected = TRUE;
+                device->selected = true;
                 global_capture_opts.num_selected++;
                 break;
             }
@@ -1025,7 +1044,7 @@ int main(int argc, char *qt_argv[])
         goto clean_exit;
     }
 
-    build_column_format_array(&CaptureFile::globalCapFile()->cinfo, global_commandline_info.prefs_p->num_cols, TRUE);
+    build_column_format_array(&CaptureFile::globalCapFile()->cinfo, global_commandline_info.prefs_p->num_cols, true);
     wsApp->emitAppSignal(WiresharkApplication::ColumnsChanged); // We read "recent" widths above.
     wsApp->emitAppSignal(WiresharkApplication::RecentPreferencesRead); // Must be emitted after PreferencesChanged.
 
@@ -1069,7 +1088,7 @@ int main(int argc, char *qt_argv[])
             if (global_commandline_info.go_to_packet != 0) {
                 /* Jump to the specified frame number, kept for backward
                    compatibility. */
-                cf_goto_frame(CaptureFile::globalCapFile(), global_commandline_info.go_to_packet);
+                cf_goto_frame(CaptureFile::globalCapFile(), global_commandline_info.go_to_packet, false);
             } else if (global_commandline_info.jfilter != NULL) {
                 dfilter_t *jump_to_filter = NULL;
                 /* try to compile given filter */
@@ -1095,7 +1114,7 @@ int main(int argc, char *qt_argv[])
             if (global_capture_opts.save_file != NULL) {
                 /* Save the directory name for future file dialogs. */
                 /* (get_dirname overwrites filename) */
-                gchar *s = g_strdup(global_capture_opts.save_file);
+                char *s = g_strdup(global_capture_opts.save_file);
                 set_last_open_dir(get_dirname(s));
                 g_free(s);
             }
@@ -1137,7 +1156,8 @@ int main(int argc, char *qt_argv[])
     profile_register_persconffile("import_hexdump.json");
     profile_register_persconffile("remote_hosts.json");
 
-    profile_store_persconffiles(FALSE);
+    profile_store_persconffiles(false);
+    init_profile_list();
 
     // If the wsApp->exec() event loop exits cleanly, we call
     // WiresharkApplication::cleanup().

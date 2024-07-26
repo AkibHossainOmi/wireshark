@@ -10,6 +10,7 @@
 package Parse::Pidl::IDL;
 use vars qw ( @ISA );
 use strict;
+use warnings;
 
 @ISA= qw ( Parse::Yapp::Driver );
 use Parse::Yapp::Driver;
@@ -2651,7 +2652,19 @@ sub parse_file($$)
 			$cpp = "$ENV{CC}";
 			$options = "-E";
 		} else {
-			$cpp = "cpp";
+			#
+			# If cc is Clang-based don't use cpp, as
+			# at least some versions of Clang, cpp
+			# doesn't strip // comments, but cc -E
+			# does.
+			#
+			my $cc_version = `cc --version`;
+			if ($cc_version =~ /clang/) {
+				$cpp = "cc";
+				$options = "-E"
+			} else {
+				$cpp = "cpp";
+			}
 		}
 	}
 	my $includes = join('',map { " -I$_" } @$incdirs);

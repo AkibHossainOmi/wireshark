@@ -256,7 +256,7 @@ Dot11DecryptFtDerivePtk(
  * @param action [IN] Tdls Action code (response or confirm)
  *
  * @return
- *  DOT11DECRYPT_RET_SUCCESS if Key has been sucessfully derived (and MIC verified)
+ *  DOT11DECRYPT_RET_SUCCESS if Key has been successfully derived (and MIC verified)
  *  DOT11DECRYPT_RET_UNSUCCESS otherwise
  */
 static int
@@ -503,7 +503,7 @@ Dot11DecryptDecryptKeyData(PDOT11DECRYPT_CONTEXT ctx,
         memcpy(decrypted_data, data, key_bytes_len);
         g_free(data);
     } else {
-        /* Ideally AKM from EAPOL message 2 of 4 should be used to determine Key-wrap algoritm to use */
+        /* Ideally AKM from EAPOL message 2 of 4 should be used to determine Key-wrap algorithm to use */
         /* Though fortunately IEEE802.11-2016 Table 12-8 state that all AKMs use "NIST AES Key Wrap"  */
         /* algorithm so no AKM lookup is needed. */
 
@@ -1148,7 +1148,7 @@ int Dot11DecryptSetLastSSID(
 }
 
 static unsigned
-Dot11DecryptSaHash(gconstpointer key)
+Dot11DecryptSaHash(const void *key)
 {
     GBytes *bytes = g_bytes_new_static(key, sizeof(DOT11DECRYPT_SEC_ASSOCIATION_ID));
     unsigned hash = g_bytes_hash(bytes);
@@ -1157,7 +1157,7 @@ Dot11DecryptSaHash(gconstpointer key)
 }
 
 static gboolean
-Dot11DecryptIsSaIdEqual(gconstpointer key1, gconstpointer key2)
+Dot11DecryptIsSaIdEqual(const void *key1, const void *key2)
 {
     return memcmp(key1, key2, sizeof(DOT11DECRYPT_SEC_ASSOCIATION_ID)) == 0;
 }
@@ -1403,7 +1403,7 @@ Dot11DecryptWepMng(
             memset(wep_key, 0, sizeof(wep_key));
             memcpy(try_data, decrypt_data, *decrypt_len);
 
-            /* Costruct the WEP seed: copy the IV in first 3 bytes and then the WEP key (refer to 802-11i-2004, 8.2.1.4.3, pag. 36) */
+            /* Construct the WEP seed: copy the IV in first 3 bytes and then the WEP key (refer to 802-11i-2004, 8.2.1.4.3, pag. 36) */
             memcpy(wep_key, try_data+mac_header_len, DOT11DECRYPT_WEP_IVLEN);
             keylen=tmp_key->KeyData.Wep.WepKeyLen;
             memcpy(wep_key+DOT11DECRYPT_WEP_IVLEN, tmp_key->KeyData.Wep.WepKey, keylen);
@@ -1592,7 +1592,7 @@ Dot11DecryptRsna4WHandshake(
 
     /* TODO consider key-index */
 
-    /* TODO considera Deauthentications */
+    /* TODO consider Deauthentications */
 
     ws_debug("4-way handshake...");
 
@@ -2043,7 +2043,7 @@ Dot11DecryptRsnaMicCheck(
         algo = GCRY_MD_SHA1;
         hmac = true;
     } else {
-        /* Mic check algoritm determined by AKM type */
+        /* Mic check algorithm determined by AKM type */
         if (Dot11DecryptGetIntegrityAlgoFromAkm(akm, &algo, &hmac)) {
             ws_warning("Unknown Mic check algo");
             return DOT11DECRYPT_RET_UNSUCCESS;
@@ -2587,11 +2587,11 @@ Dot11DecryptFtDerivePtk(
     int hash_algo = Dot11DecryptGetHashAlgoFromAkm(akm);
     uint8_t pmk_r0[DOT11DECRYPT_WPA_PMK_MAX_LEN];
     uint8_t pmk_r1[DOT11DECRYPT_WPA_PMK_MAX_LEN];
-    uint8_t pmk_r0_name[16];
-    uint8_t pmk_r1_name[16];
+    uint8_t pmk_r0_name[16] = {0};
+    uint8_t pmk_r1_name[16] = {0};
     uint8_t ptk_name[16];
-    size_t pmk_r0_len;
-    size_t pmk_r1_len;
+    size_t pmk_r0_len = 0;
+    size_t pmk_r1_len = 0;
     const uint8_t *xxkey = NULL;
     size_t xxkey_len;
     int ptk_len_bits;
@@ -2621,25 +2621,32 @@ Dot11DecryptFtDerivePtk(
         ws_debug("no xxkey. Skipping");
         return DOT11DECRYPT_RET_NO_VALID_HANDSHAKE;
     }
-    dot11decrypt_derive_pmk_r0(xxkey, xxkey_len,
+    if (!dot11decrypt_derive_pmk_r0(xxkey, xxkey_len,
                                ctx->pkt_ssid, ctx->pkt_ssid_len,
                                mdid,
                                r0kh_id, r0kh_id_len,
                                sa->saId.sta, hash_algo,
-                               pmk_r0, &pmk_r0_len, pmk_r0_name);
+                               pmk_r0, &pmk_r0_len, pmk_r0_name)) {
+        /* This can fail for bad size or a bad SHA256 sum. */
+        return DOT11DECRYPT_RET_UNSUCCESS;
+    }
     DEBUG_DUMP("PMK-R0", pmk_r0, pmk_r0_len, LOG_LEVEL_DEBUG);
     DEBUG_DUMP("PMKR0Name", pmk_r0_name, 16, LOG_LEVEL_DEBUG);
 
-    dot11decrypt_derive_pmk_r1(pmk_r0, pmk_r0_len, pmk_r0_name,
+    if (!dot11decrypt_derive_pmk_r1(pmk_r0, pmk_r0_len, pmk_r0_name,
                                r1kh_id, sa->saId.sta, hash_algo,
-                               pmk_r1, &pmk_r1_len, pmk_r1_name);
+                               pmk_r1, &pmk_r1_len, pmk_r1_name)) {
+        return DOT11DECRYPT_RET_UNSUCCESS;
+    }
     DEBUG_DUMP("PMK-R1", pmk_r1, pmk_r1_len, LOG_LEVEL_DEBUG);
     DEBUG_DUMP("PMKR1Name", pmk_r1_name, 16, LOG_LEVEL_DEBUG);
 
-    dot11decrypt_derive_ft_ptk(pmk_r1, pmk_r1_len, pmk_r1_name,
+    if (!dot11decrypt_derive_ft_ptk(pmk_r1, pmk_r1_len, pmk_r1_name,
                                snonce, sa->wpa.nonce,
                                sa->saId.bssid, sa->saId.sta, hash_algo,
-                               ptk, *ptk_len, ptk_name);
+                               ptk, *ptk_len, ptk_name)) {
+        return DOT11DECRYPT_RET_UNSUCCESS;
+    }
     DEBUG_DUMP("PTK", ptk, *ptk_len, LOG_LEVEL_DEBUG);
     return DOT11DECRYPT_RET_SUCCESS;
 }
@@ -2943,7 +2950,7 @@ parse_key_string(char* input_string, uint8_t key_type, char** error)
                         g_string_append_printf(err_string, "%u, ", allowed_key_lengths[i]);
                     }
                     g_string_append_printf(err_string, "or %u bytes.", allowed_key_lengths[i]);
-                    *error = g_string_free(err_string, false);
+                    *error = g_string_free(err_string, FALSE);
                 }
                 g_byte_array_free(key_ba, true);
                 return NULL;
@@ -3027,7 +3034,9 @@ Dot11DecryptTDLSDeriveKey(
     anonce = &data[offset_fte + 20];
     snonce = &data[offset_fte + 52];
 
-    gcry_md_open (&sha256_handle, GCRY_MD_SHA256, 0);
+    if (gcry_md_open (&sha256_handle, GCRY_MD_SHA256, 0)) {
+        return DOT11DECRYPT_RET_UNSUCCESS;
+    }
     if (memcmp(anonce, snonce, DOT11DECRYPT_WPA_NONCE_LEN) < 0) {
         gcry_md_write(sha256_handle, anonce, DOT11DECRYPT_WPA_NONCE_LEN);
         gcry_md_write(sha256_handle, snonce, DOT11DECRYPT_WPA_NONCE_LEN);

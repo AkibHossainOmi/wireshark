@@ -305,6 +305,15 @@ static const value_string UBX_CFG_GNSS_GLO_SIGCFGMASK[] = {
     {0, NULL}
 };
 
+/* UBX-RXM-MEASX Multipath index */
+static const value_string UBX_RXM_MEASX_MULTIPATH_INDEX[] = {
+    {0x0, "not measured"},
+    {0x1, "low"},
+    {0x2, "medium"},
+    {0x3, "high"},
+    {0, NULL}
+};
+
 /* SBAS mode */
 static const value_string UBX_SBAS_MODE[] = {
     {0, "Disabled"},
@@ -334,7 +343,7 @@ static const value_string UBX_SBAS_TESTBED[] = {
 /* UTC standard identifier */
 static const value_string UBX_UTC_STD_ID[] = {
     {0, "Information not available"},
-    {1, "Communications Research Labratory (CRL), Tokyo, Japan"},
+    {1, "Communications Research Laboratory (CRL), Tokyo, Japan"},
     {2, "National Institute of Standards and Technology (NIST)"},
     {3, "U.S. Naval Observatory (USNO)"},
     {4, "International Bureau of Weights and Measures (BIPM)"},
@@ -662,6 +671,35 @@ static int hf_ubx_nav_velecef_ecefvy;
 static int hf_ubx_nav_velecef_ecefvz;
 static int hf_ubx_nav_velecef_sacc;
 
+static int hf_ubx_rxm_measx;
+static int hf_ubx_rxm_measx_version;
+static int hf_ubx_rxm_measx_reserved1;
+static int hf_ubx_rxm_measx_gpstow;
+static int hf_ubx_rxm_measx_glotow;
+static int hf_ubx_rxm_measx_bdstow;
+static int hf_ubx_rxm_measx_reserved2;
+static int hf_ubx_rxm_measx_qzsstow;
+static int hf_ubx_rxm_measx_gpstowacc;
+static int hf_ubx_rxm_measx_glotowacc;
+static int hf_ubx_rxm_measx_bdstowacc;
+static int hf_ubx_rxm_measx_reserved3;
+static int hf_ubx_rxm_measx_qzsstowacc;
+static int hf_ubx_rxm_measx_numsv;
+static int hf_ubx_rxm_measx_flags_towset;
+static int hf_ubx_rxm_measx_reserved4;
+static int hf_ubx_rxm_measx_gnssid;
+static int hf_ubx_rxm_measx_svid;
+static int hf_ubx_rxm_measx_cn0;
+static int hf_ubx_rxm_measx_mpathindic;
+static int hf_ubx_rxm_measx_dopplerms;
+static int hf_ubx_rxm_measx_dopplerhz;
+static int hf_ubx_rxm_measx_wholechips;
+static int hf_ubx_rxm_measx_fracchips;
+static int hf_ubx_rxm_measx_codephase;
+static int hf_ubx_rxm_measx_intcodephase;
+static int hf_ubx_rxm_measx_pseurangermserr;
+static int hf_ubx_rxm_measx_reserved5;
+
 static int hf_ubx_rxm_rawx;
 static int hf_ubx_rxm_rawx_rcvtow;
 static int hf_ubx_rxm_rawx_week;
@@ -752,6 +790,8 @@ static int ett_ubx_nav_timegps_valid;
 static int ett_ubx_nav_timeutc;
 static int ett_ubx_nav_timeutc_valid;
 static int ett_ubx_nav_velecef;
+static int ett_ubx_rxm_measx;
+static int ett_ubx_rxm_measx_meas[255];
 static int ett_ubx_rxm_rawx;
 static int ett_ubx_rxm_rawx_recstat;
 static int ett_ubx_rxm_rawx_trkstat;
@@ -761,9 +801,9 @@ static int ett_ubx_rxm_sfrbx;
 static dissector_handle_t ubx_handle;
 
 /* compute the checksum for a UBX message (Fletcher 8-bit by RFC 1145 */
-static guint16 chksum_fletcher_8(const guint8 *data, const gint len) {
-    guint8 ck_a = 0, ck_b = 0;
-    gint i;
+static uint16_t chksum_fletcher_8(const uint8_t *data, const int len) {
+    uint8_t ck_a = 0, ck_b = 0;
+    int i;
 
     for (i = 0; i < len; i++) {
         ck_a += data[i];
@@ -773,13 +813,18 @@ static guint16 chksum_fletcher_8(const guint8 *data, const gint len) {
     return (ck_b << 8) | ck_a;
 }
 
+/* Format code phase */
+static void fmt_codephase(char *label, uint32_t p) {
+    snprintf(label, ITEM_LABEL_LENGTH, "%d * 2^-21 ms", p);
+}
+
 /* Format carrier phase standard deviation */
-static void fmt_cpstdev(gchar *label, guint32 p) {
+static void fmt_cpstdev(char *label, uint32_t p) {
     snprintf(label, ITEM_LABEL_LENGTH, "%d.%03d cycles", (p * 4) / 1000, (p * 4) % 1000);
 }
 
 /* Format magnetic declination */
-static void fmt_decl(gchar *label, gint32 d) {
+static void fmt_decl(char *label, int32_t d) {
     if (d >= 0) {
         snprintf(label, ITEM_LABEL_LENGTH, "%d.%02d%s", d / 100, d % 100,
                 UTF8_DEGREE_SIGN);
@@ -791,23 +836,43 @@ static void fmt_decl(gchar *label, gint32 d) {
 }
 
 /* Format magnetic declination accuracy */
-static void fmt_decl_acc(gchar *label, guint32 a) {
+static void fmt_decl_acc(char *label, uint32_t a) {
     snprintf(label, ITEM_LABEL_LENGTH, "%d.%02d%s", a / 100,
             a % 100, UTF8_DEGREE_SIGN);
 }
 
-/* Format Dillution of Precision */
-static void fmt_dop(gchar *label, guint32 dop) {
+/* Format Dilution of Precision */
+static void fmt_dop(char *label, uint32_t dop) {
     snprintf(label, ITEM_LABEL_LENGTH, "%i.%02i", dop / 100, dop % 100);
 }
 
+/* Format Doppler measurement in m/s */
+static void fmt_dopplerms(char *label, int32_t d) {
+    if (d >= 0) {
+        snprintf(label, ITEM_LABEL_LENGTH, "%d.%02d m/s", d * 4 / 100, (d * 4) % 100);
+    }
+    else {
+        snprintf(label, ITEM_LABEL_LENGTH, "-%d.%02d m/s", -d * 4 / 100, (-d * 4) % 100);
+    }
+}
+
+/* Format Doppler measurement in Hz */
+static void fmt_dopplerhz(char *label, int32_t d) {
+    if (d >= 0) {
+        snprintf(label, ITEM_LABEL_LENGTH, "%d.%01d Hz", d * 2 / 10, (d * 2) % 10);
+    }
+    else {
+        snprintf(label, ITEM_LABEL_LENGTH, "-%d.%01d Hz", -d * 2 / 10, (-d * 2) % 10);
+    }
+}
+
 /* Format Doppler standard deviation */
-static void fmt_dostdev(gchar *label, guint32 p) {
+static void fmt_dostdev(char *label, uint32_t p) {
     snprintf(label, ITEM_LABEL_LENGTH, "%d.%03d Hz", (1 << p) * 2 / 1000, ((1 << p) * 2) % 1000);
 }
 
 /* Format heading */
-static void fmt_heading(gchar *label, gint32 h) {
+static void fmt_heading(char *label, int32_t h) {
     if (h >= 0) {
         snprintf(label, ITEM_LABEL_LENGTH, "%d.%05d%s", h / 100000, h % 100000,
                 UTF8_DEGREE_SIGN);
@@ -819,13 +884,13 @@ static void fmt_heading(gchar *label, gint32 h) {
 }
 
 /* Format heading accuracy */
-static void fmt_heading_acc(gchar *label, guint32 a) {
+static void fmt_heading_acc(char *label, uint32_t a) {
     snprintf(label, ITEM_LABEL_LENGTH, "%d.%05d%s", a / 100000,
             a % 100000, UTF8_DEGREE_SIGN);
 }
 
 /* Format latitude or longitude */
-static void fmt_lat_lon(gchar *label, gint32 l) {
+static void fmt_lat_lon(char *label, int32_t l) {
     if (l >= 0) {
         snprintf(label, ITEM_LABEL_LENGTH, "%d.%07d%s", l / 10000000,
                 l % 10000000, UTF8_DEGREE_SIGN);
@@ -837,7 +902,7 @@ static void fmt_lat_lon(gchar *label, gint32 l) {
 }
 
 /* Format pseudo-range residuals */
-static void fmt_pr_res(gchar *label, gint32 p) {
+static void fmt_pr_res(char *label, int32_t p) {
     if (p >= 0) {
         snprintf(label, ITEM_LABEL_LENGTH, "%d.%01dm", p / 10, p % 10);
     }
@@ -847,19 +912,24 @@ static void fmt_pr_res(gchar *label, gint32 p) {
 }
 
 /* Format pseudo-range standard deviation */
-static void fmt_prstdev(gchar *label, guint32 p) {
+static void fmt_prstdev(char *label, uint32_t p) {
     snprintf(label, ITEM_LABEL_LENGTH, "%d.%02dm", (1 << p) / 100, (1 << p) % 100);
+}
+
+/* Format measurement reference time accuracy */
+static void fmt_towacc(char *label, uint32_t p) {
+    snprintf(label, ITEM_LABEL_LENGTH, "%d.%04dms", p / 16, (p * 10000 / 16) % 10000);
 }
 
 /* Dissect UBX message */
 static int dissect_ubx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
     tvbuff_t *next_tvb;
-    guint32 msg_class_id, payload_len, cmp_chksum;
+    uint32_t msg_class_id, payload_len, cmp_chksum;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "UBX");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    payload_len = tvb_get_guint16(tvb, 4, ENC_LITTLE_ENDIAN);
+    payload_len = tvb_get_uint16(tvb, 4, ENC_LITTLE_ENDIAN);
 
     proto_item *ti = proto_tree_add_item(tree, proto_ubx, tvb, 0,
             UBX_HEADER_SIZE + payload_len + UBX_CHKSUM_SIZE, ENC_NA);
@@ -875,7 +945,7 @@ static int dissect_ubx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void
 
     // checksum
     cmp_chksum = chksum_fletcher_8(
-            (guint8 *)tvb_memdup(pinfo->pool, tvb, 2, UBX_HEADER_SIZE + payload_len - 2),
+            (uint8_t *)tvb_memdup(pinfo->pool, tvb, 2, UBX_HEADER_SIZE + payload_len - 2),
             UBX_HEADER_SIZE + payload_len - 2);
     proto_tree_add_checksum(ubx_tree,
             tvb, UBX_HEADER_SIZE + payload_len,
@@ -924,12 +994,12 @@ static int dissect_ubx_ack_nak(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
 /* Dissect UBX-CFG-SBAS message */
 static int dissect_ubx_cfg_gnss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
-    guint8 i, num_config_blocks;
+    uint8_t i, num_config_blocks;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "UBX-CFG-GNSS");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    num_config_blocks = tvb_get_guint8(tvb, 3);
+    num_config_blocks = tvb_get_uint8(tvb, 3);
 
     proto_item *ti = proto_tree_add_item(tree, hf_ubx_cfg_gnss,
             tvb, 0, 4 + 8 * num_config_blocks, ENC_NA);
@@ -946,9 +1016,9 @@ static int dissect_ubx_cfg_gnss(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
             tvb, 3, 1, ENC_NA);
 
     for (i = 0; i < num_config_blocks; i++) {
-        const guint8 gnss_id = tvb_get_guint8(tvb, 4 + 8 * i);
-        const guint8 res_trk_ch = tvb_get_guint8(tvb, 5 + 8 * i);
-        const guint8 max_trk_ch = tvb_get_guint8(tvb, 6 + 8 * i);
+        const uint8_t gnss_id = tvb_get_uint8(tvb, 4 + 8 * i);
+        const uint8_t res_trk_ch = tvb_get_uint8(tvb, 5 + 8 * i);
+        const uint8_t max_trk_ch = tvb_get_uint8(tvb, 6 + 8 * i);
 
         proto_tree *gnss_blk_tree = proto_tree_add_subtree_format(ubx_cfg_gnss_tree,
                 tvb, 4 + 8 * i, 8, ett_ubx_cfg_gnss_block[i], NULL,
@@ -1208,12 +1278,12 @@ static int dissect_ubx_nav_pvt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
             tvb, 0, 4, ENC_LITTLE_ENDIAN);
 
     // dissect date & time
-    guint16 year = tvb_get_gint16(tvb, 4, ENC_LITTLE_ENDIAN);
-    guint8 month = tvb_get_gint8(tvb, 6);
-    guint8 day = tvb_get_gint8(tvb, 7);
-    guint8 hour = tvb_get_gint8(tvb, 8);
-    guint8 min = tvb_get_gint8(tvb, 9);
-    guint8 sec = tvb_get_gint8(tvb, 10);
+    uint16_t year = tvb_get_int16(tvb, 4, ENC_LITTLE_ENDIAN);
+    uint8_t month = tvb_get_int8(tvb, 6);
+    uint8_t day = tvb_get_int8(tvb, 7);
+    uint8_t hour = tvb_get_int8(tvb, 8);
+    uint8_t min = tvb_get_int8(tvb, 9);
+    uint8_t sec = tvb_get_int8(tvb, 10);
     proto_tree *datetime_tree = proto_tree_add_subtree_format(ubx_nav_pvt_tree,
             tvb, 4, 7, ett_ubx_nav_pvt_datetime, NULL,
             "Date/time: %04d-%02d-%02d %02d:%02d:%02d",
@@ -1291,13 +1361,13 @@ static int dissect_ubx_nav_pvt(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
 /* Dissect UBX-NAV-SAT message */
 static int dissect_ubx_nav_sat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
-    guint16 i;
-    guint32 num_svs;
+    uint16_t i;
+    uint32_t num_svs;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "UBX-NAV-SAT");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    num_svs = tvb_get_guint8(tvb, 5);
+    num_svs = tvb_get_uint8(tvb, 5);
 
     proto_item *ti = proto_tree_add_item(tree, hf_ubx_nav_sat,
             tvb, 0, 8 + 12 * num_svs, ENC_NA);
@@ -1314,9 +1384,9 @@ static int dissect_ubx_nav_sat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
             tvb, 6, 2, ENC_NA);
 
     for (i = 0; i < num_svs; i++) {
-        const guint8 gnss_id = tvb_get_guint8(tvb, 8 + 12 * i);
-        const guint8 sv_id = tvb_get_guint8(tvb, 9 + 12 * i);
-        const guint32 used = (tvb_get_guint32(tvb, 16 + 12 * i, ENC_LITTLE_ENDIAN) & 0x0008) >> 3;
+        const uint8_t gnss_id = tvb_get_uint8(tvb, 8 + 12 * i);
+        const uint8_t sv_id = tvb_get_uint8(tvb, 9 + 12 * i);
+        const uint32_t used = (tvb_get_uint32(tvb, 16 + 12 * i, ENC_LITTLE_ENDIAN) & 0x0008) >> 3;
 
         proto_tree *sv_info_tree = proto_tree_add_subtree_format(ubx_nav_sat_tree,
                 tvb, 8 + 12 * i, 12, ett_ubx_nav_sat_sv_info[i], NULL,
@@ -1346,13 +1416,13 @@ static int dissect_ubx_nav_sat(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tr
 
 /* Dissect UBX-NAV-SBAS message */
 static int dissect_ubx_nav_sbas(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
-    guint16 i;
-    guint32 num_svs;
+    uint16_t i;
+    uint32_t num_svs;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "UBX-NAV-SBAS");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    num_svs = tvb_get_guint8(tvb, 8);
+    num_svs = tvb_get_uint8(tvb, 8);
 
     proto_item *ti = proto_tree_add_item(tree, hf_ubx_nav_sbas,
             tvb, 0, 12 + 12 * num_svs, ENC_NA);
@@ -1374,7 +1444,7 @@ static int dissect_ubx_nav_sbas(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
             tvb, 9, 3, ENC_LITTLE_ENDIAN);
 
     for (i = 0; i < num_svs; i++) {
-        const guint8 sv_id = tvb_get_guint8(tvb, 12 + 12 * i);
+        const uint8_t sv_id = tvb_get_uint8(tvb, 12 + 12 * i);
 
         proto_tree *sv_info_tree = proto_tree_add_subtree_format(ubx_nav_sbas_tree,
                 tvb, 12 + 12 * i, 12, ett_ubx_nav_sbas_sv_info[i], NULL,
@@ -1405,8 +1475,8 @@ static int dissect_ubx_nav_sbas(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 
 /* Dissect UBX-NAV-TIMEGPS message */
 static int dissect_ubx_nav_timegps(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
-    guint32 itow;
-    gint32 ftow;
+    uint32_t itow;
+    int32_t ftow;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "UBX-NAV-TIMEGPS");
     col_clear(pinfo->cinfo, COL_INFO);
@@ -1416,8 +1486,8 @@ static int dissect_ubx_nav_timegps(tvbuff_t *tvb, packet_info *pinfo, proto_tree
     proto_tree *ubx_nav_timegps_tree = proto_item_add_subtree(ti, ett_ubx_nav_timegps);
 
     // dissect the registered fields
-    itow = tvb_get_guint32(tvb, 0, ENC_LITTLE_ENDIAN);
-    ftow = tvb_get_gint32(tvb, 4, ENC_LITTLE_ENDIAN);
+    itow = tvb_get_uint32(tvb, 0, ENC_LITTLE_ENDIAN);
+    ftow = tvb_get_int32(tvb, 4, ENC_LITTLE_ENDIAN);
     ftow = (itow % 1000) * 1000000 + ftow;
     itow = itow / 1000;
     if (ftow < 0) {
@@ -1502,14 +1572,98 @@ static int dissect_ubx_nav_velecef(tvbuff_t *tvb, packet_info *pinfo, proto_tree
     return tvb_captured_length(tvb);
 }
 
+/* Dissect UBX-RXM-MEASX message */
+static int dissect_ubx_rxm_measx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
+    uint32_t i, numsv;
+
+    col_set_str(pinfo->cinfo, COL_PROTOCOL, "UBX-RXM-MEASX");
+    col_clear(pinfo->cinfo, COL_INFO);
+
+    numsv = tvb_get_uint8(tvb, 34);
+
+    proto_item *ti = proto_tree_add_item(tree, hf_ubx_rxm_measx,
+            tvb, 0, 44 + numsv * 24, ENC_NA);
+    proto_tree *ubx_rxm_measx_tree = proto_item_add_subtree(ti, ett_ubx_rxm_measx);
+
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_version,
+            tvb, 0, 1, ENC_NA);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_reserved1,
+            tvb, 1, 3, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_gpstow,
+            tvb, 4, 4, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_glotow,
+            tvb, 8, 4, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_bdstow,
+            tvb, 12, 4, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_reserved2,
+            tvb, 16, 4, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_qzsstow,
+            tvb, 20, 4, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_gpstowacc,
+            tvb, 24, 2, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_glotowacc,
+            tvb, 26, 2, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_bdstowacc,
+            tvb, 28, 2, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_reserved3,
+            tvb, 30, 2, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_qzsstowacc,
+            tvb, 32, 2, ENC_LITTLE_ENDIAN);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_numsv,
+            tvb, 34, 1, ENC_NA);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_flags_towset,
+            tvb, 35, 1, ENC_NA);
+    proto_tree_add_item(ubx_rxm_measx_tree, hf_ubx_rxm_measx_reserved4,
+            tvb, 36, 8, ENC_LITTLE_ENDIAN);
+
+    for (i = 0; i < numsv; i++) {
+        const uint8_t gnss_id = tvb_get_uint8(tvb, 44 + 24 * i);
+        const uint8_t sv_id = tvb_get_uint8(tvb, 45 + 24 * i);
+        const uint8_t cn0 = tvb_get_uint8(tvb, 46 + 24 * i);
+
+        proto_tree *meas_tree = proto_tree_add_subtree_format(ubx_rxm_measx_tree,
+                tvb, 44 + 24 * i, 24, ett_ubx_rxm_measx_meas[i], NULL,
+                "%-7s / SV ID %3d / C/N0 %d dB-Hz",
+                val_to_str_const(gnss_id, UBX_GNSS_ID, "Unknown GNSS ID"),
+                sv_id, cn0);
+
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_gnssid,
+                tvb, 44 + 24 * i, 1, ENC_NA);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_svid,
+                tvb, 45 + 24 * i, 1, ENC_NA);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_cn0,
+                tvb, 46 + 24 * i, 1, ENC_NA);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_mpathindic,
+                tvb, 47 + 24 * i, 1, ENC_NA);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_dopplerms,
+                tvb, 48 + 24 * i, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_dopplerhz,
+                tvb, 52 + 24 * i, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_wholechips,
+                tvb, 56 + 24 * i, 2, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_fracchips,
+                tvb, 58 + 24 * i, 2, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_codephase,
+                tvb, 60 + 24 * i, 4, ENC_LITTLE_ENDIAN);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_intcodephase,
+                tvb, 64 + 24 * i, 1, ENC_NA);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_pseurangermserr,
+                tvb, 65 + 24 * i, 1, ENC_NA);
+        proto_tree_add_item(meas_tree, hf_ubx_rxm_measx_reserved5,
+                tvb, 66 + 24 * i, 2, ENC_LITTLE_ENDIAN);
+    }
+
+    return tvb_captured_length(tvb);
+}
+
 /* Dissect UBX-RXM-RAWX message */
 static int dissect_ubx_rxm_rawx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
-    guint32 i, nummeas;
+    uint32_t i, nummeas;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "UBX-RXM-RAWX");
     col_clear(pinfo->cinfo, COL_INFO);
 
-    nummeas = tvb_get_guint8(tvb, 11);
+    nummeas = tvb_get_uint8(tvb, 11);
 
     proto_item *ti = proto_tree_add_item(tree, hf_ubx_rxm_rawx,
             tvb, 0, 16 + nummeas * 32, ENC_NA);
@@ -1532,9 +1686,9 @@ static int dissect_ubx_rxm_rawx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
             tvb, 14, 2, ENC_LITTLE_ENDIAN);
 
     for (i = 0; i < nummeas; i++) {
-        const guint8 gnss_id = tvb_get_guint8(tvb, 36 + 32 * i);
-        const guint8 sv_id = tvb_get_guint8(tvb, 37 + 32 * i);
-        const guint8 cn0 = tvb_get_guint8(tvb, 42 + 32 * i);
+        const uint8_t gnss_id = tvb_get_uint8(tvb, 36 + 32 * i);
+        const uint8_t sv_id = tvb_get_uint8(tvb, 37 + 32 * i);
+        const uint8_t cn0 = tvb_get_uint8(tvb, 42 + 32 * i);
 
         proto_tree *meas_tree = proto_tree_add_subtree_format(ubx_rxm_rawx_tree,
                 tvb, 16 + 32 * i, 32, ett_ubx_rxm_rawx_meas[i], NULL,
@@ -1579,16 +1733,16 @@ static int dissect_ubx_rxm_rawx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *t
 /* Dissect UBX-RXM-SFRBX message */
 static int dissect_ubx_rxm_sfrbx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *tree, void *data _U_) {
     tvbuff_t *next_tvb;
-    guint8 *buf;
-    guint8 i;
-    guint32 gnssid, numwords, version;
+    uint8_t *buf;
+    uint8_t i;
+    uint32_t gnssid, numwords, version;
 
     col_set_str(pinfo->cinfo, COL_PROTOCOL, "UBX-RXM-SFRBX");
     col_clear(pinfo->cinfo, COL_INFO);
 
     // get length of the payload and protocol version
-    numwords = tvb_get_guint8(tvb, 4);
-    version = tvb_get_guint8(tvb, 6);
+    numwords = tvb_get_uint8(tvb, 4);
+    version = tvb_get_uint8(tvb, 6);
 
     proto_item *ti = proto_tree_add_item(tree, hf_ubx_rxm_sfrbx,
             tvb, 0, 8 + numwords * 4, ENC_NA);
@@ -1640,9 +1794,9 @@ static int dissect_ubx_rxm_sfrbx(tvbuff_t *tvb, packet_info *pinfo, proto_tree *
         // convenient for dissection, map to big endian and add as new data source.
         buf = wmem_alloc(pinfo->pool, numwords * 4);
         for (i = 0; i < numwords; i++) {
-            phton32(buf + 4 * i, tvb_get_guint32(tvb, 8 + i * 4, ENC_LITTLE_ENDIAN));
+            phton32(buf + 4 * i, tvb_get_uint32(tvb, 8 + i * 4, ENC_LITTLE_ENDIAN));
         }
-        next_tvb = tvb_new_child_real_data(tvb, (guint8 *)buf, numwords * 4, numwords * 4);
+        next_tvb = tvb_new_child_real_data(tvb, (uint8_t *)buf, numwords * 4, numwords * 4);
         add_new_data_source(pinfo, next_tvb, "GNSS navigation message");
     }
 
@@ -2360,6 +2514,92 @@ void proto_register_ubx(void) {
             {"Speed accuracy estimate", "ubx.nav.velecef.sacc",
                 FT_UINT32, BASE_DEC|BASE_UNIT_STRING, &units_cm_s, 0x0, NULL, HFILL}},
 
+        // RXM-MEASX
+        {&hf_ubx_rxm_measx,
+            {"UBX-RXM-MEASX", "ubx.rxm.measx",
+                FT_NONE, BASE_NONE, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_version,
+            {"Message version", "ubx.rxm.measx.version",
+                FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_reserved1,
+            {"Reserved", "ubx.rxm.measx.reserved1",
+                FT_UINT24, BASE_HEX, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_gpstow,
+            {"GPS measurement reference time", "ubx.rxm.measx.gpstow",
+                FT_UINT32, BASE_DEC|BASE_UNIT_STRING, &units_milliseconds, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_glotow,
+            {"GLONASS measurement reference time", "ubx.rxm.measx.glotow",
+                FT_UINT32, BASE_DEC|BASE_UNIT_STRING, &units_milliseconds, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_bdstow,
+            {"BeiDou measurement reference time", "ubx.rxm.measx.bdstow",
+                FT_UINT32, BASE_DEC|BASE_UNIT_STRING, &units_milliseconds, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_reserved2,
+            {"Reserved", "ubx.rxm.measx.reserved2",
+                FT_UINT32, BASE_HEX, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_qzsstow,
+            {"QZSS measurement reference time", "ubx.rxm.measx.qzsstow",
+                FT_UINT32, BASE_DEC|BASE_UNIT_STRING, &units_milliseconds, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_gpstowacc,
+            {"GPS measurement reference time accuracy", "ubx.rxm.measx.gpstowacc",
+                FT_UINT16, BASE_CUSTOM, CF_FUNC(&fmt_towacc), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_glotowacc,
+            {"GLONASS measurement reference time accuracy", "ubx.rxm.measx.glotowacc",
+                FT_UINT16, BASE_CUSTOM, CF_FUNC(&fmt_towacc), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_bdstowacc,
+            {"BeiDou measurement reference time accuracy", "ubx.rxm.measx.bdstowacc",
+                FT_UINT16, BASE_CUSTOM, CF_FUNC(&fmt_towacc), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_reserved3,
+            {"Reserved", "ubx.rxm.measx.reserved3",
+                FT_UINT16, BASE_HEX, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_qzsstowacc,
+            {"QZSS measurement reference time accuracy", "ubx.rxm.measx.qzsstowacc",
+                FT_UINT16, BASE_CUSTOM, CF_FUNC(&fmt_towacc), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_numsv,
+            {"Number of satellites in repeated block", "ubx.rxm.measx.numsv",
+                FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_flags_towset,
+            {"TOW set", "ubx.rxm.measx.flags.towset",
+                FT_BOOLEAN, 8, NULL, 0x03, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_reserved4,
+            {"Reserved", "ubx.rxm.measx.reserved4",
+                FT_UINT64, BASE_HEX, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_gnssid,
+            {"GNSS ID", "ubx.rxm.measx.gnssid",
+                FT_UINT8, BASE_DEC, VALS(UBX_GNSS_ID), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_svid,
+            {"Satellite ID", "ubx.rxm.measx.svid",
+                FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_cn0,
+            {"C/N0", "ubx.rxm.measx.cn0",
+                FT_UINT8, BASE_DEC|BASE_UNIT_STRING, &units_dbhz, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_mpathindic,
+            {"multipath index", "ubx.rxm.measx.mpathindic",
+                FT_UINT8, BASE_DEC, VALS(UBX_RXM_MEASX_MULTIPATH_INDEX), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_dopplerms,
+            {"Doppler measurement", "ubx.rxm.measx.dopplerms",
+                FT_INT32, BASE_CUSTOM, CF_FUNC(&fmt_dopplerms), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_dopplerhz,
+            {"Doppler measurement", "ubx.rxm.measx.dopplerhz",
+                FT_INT32, BASE_CUSTOM, CF_FUNC(&fmt_dopplerhz), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_wholechips,
+            {"whole value of the code phase measurement", "ubx.rxm.measx.wholechips",
+                FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_fracchips,
+            {"fractional value of the code phase measurement", "ubx.rxm.measx.fracchips",
+                FT_UINT16, BASE_DEC, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_codephase,
+            {"Code phase", "ubx.rxm.measx.codephase",
+                FT_UINT32, BASE_CUSTOM, CF_FUNC(&fmt_codephase), 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_intcodephase,
+            {"integer (part of) the code phase", "ubx.rxm.measx.intcodephase",
+                FT_UINT8, BASE_DEC|BASE_UNIT_STRING, &units_milliseconds, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_pseurangermserr,
+            {"pseudorange RMS error index", "ubx.rxm.measx.pseurangermserr",
+                FT_UINT8, BASE_DEC, NULL, 0x0, NULL, HFILL}},
+        {&hf_ubx_rxm_measx_reserved5,
+            {"Reserved", "ubx.rxm.measx.reserved5",
+                FT_UINT16, BASE_HEX, NULL, 0x0, NULL, HFILL}},
+
         // RXM-RAWX
         {&hf_ubx_rxm_rawx,
             {"UBX-RXM-RAWX", "ubx.rxm.rawx",
@@ -2491,7 +2731,7 @@ void proto_register_ubx(void) {
         {&ei_ubx_chksum, {"ubx.chksum", PI_CHECKSUM, PI_WARN, "Chksum", EXPFILL}},
     };
 
-    static gint *ett_part[] = {
+    static int *ett_part[] = {
         &ett_ubx,
         &ett_ubx_ack_ack,
         &ett_ubx_ack_nak,
@@ -2518,22 +2758,27 @@ void proto_register_ubx(void) {
         &ett_ubx_nav_timeutc,
         &ett_ubx_nav_timeutc_valid,
         &ett_ubx_nav_velecef,
+        &ett_ubx_rxm_measx,
         &ett_ubx_rxm_rawx,
         &ett_ubx_rxm_rawx_recstat,
         &ett_ubx_rxm_rawx_trkstat,
         &ett_ubx_rxm_sfrbx,
     };
 
-    static gint *ett[array_length(ett_part)
+    static int *ett[array_length(ett_part)
         + array_length(ett_ubx_nav_sat_sv_info)
         + array_length(ett_ubx_cfg_gnss_block)
         + array_length(ett_ubx_nav_sbas_sv_info)
-        + array_length(ett_ubx_rxm_rawx_meas)];
+        + array_length(ett_ubx_rxm_rawx_meas)
+        + array_length(ett_ubx_rxm_measx_meas)];
 
     // fill ett with elements from ett_part,
-    // pointers to ett_ubx_nav_sat_sv_info elements, and
-    // pointers to ett_ubx_cfg_gnss_block elements
-    guint16 i;
+    // pointers to ett_ubx_nav_sat_sv_info elements,
+    // pointers to ett_ubx_cfg_gnss_block elements,
+    // pointers to ett_ubx_nav_sbas_sv_info elements,
+    // pointers to ett_ubx_rxm_rawx_meas elements, and
+    // pointers to ett_ubx_rxm_measx_meas elements
+    uint16_t i;
     for (i = 0; i < array_length(ett_part); i++) {
         ett[i] = ett_part[i];
     }
@@ -2554,6 +2799,13 @@ void proto_register_ubx(void) {
             + array_length(ett_ubx_cfg_gnss_block)
             + array_length(ett_ubx_nav_sbas_sv_info)]
             = &ett_ubx_rxm_rawx_meas[i];
+    }
+    for (i = 0; i < array_length(ett_ubx_rxm_measx_meas); i++) {
+        ett[i + array_length(ett_part) + array_length(ett_ubx_nav_sat_sv_info)
+            + array_length(ett_ubx_cfg_gnss_block)
+            + array_length(ett_ubx_nav_sbas_sv_info)
+            + array_length(ett_ubx_rxm_rawx_meas)]
+            = &ett_ubx_rxm_measx_meas[i];
     }
 
     proto_ubx = proto_register_protocol("UBX Protocol", "UBX", "ubx");
@@ -2588,6 +2840,7 @@ void proto_reg_handoff_ubx(void) {
     UBX_REGISTER_DISSECTOR(dissect_ubx_nav_timegps, UBX_NAV_TIMEGPS);
     UBX_REGISTER_DISSECTOR(dissect_ubx_nav_timeutc, UBX_NAV_TIMEUTC);
     UBX_REGISTER_DISSECTOR(dissect_ubx_nav_velecef, UBX_NAV_VELECEF);
+    UBX_REGISTER_DISSECTOR(dissect_ubx_rxm_measx,   UBX_RXM_MEASX);
     UBX_REGISTER_DISSECTOR(dissect_ubx_rxm_rawx,    UBX_RXM_RAWX);
     UBX_REGISTER_DISSECTOR(dissect_ubx_rxm_sfrbx,   UBX_RXM_SFRBX);
 }

@@ -13,9 +13,7 @@ The Bluetooth SIG Repository: https://bitbucket.org/bluetooth-SIG/public/src/mai
 and processes the YAML into human-readable strings to go into packet-bluetooth.c.
 '''
 
-import re
 import sys
-import string
 import urllib.request, urllib.error, urllib.parse
 import yaml
 
@@ -43,6 +41,7 @@ uuids_sources = [
     "yaml": "protocol_identifiers.yaml",
     "description": "Protocol Identifiers",
     "unCamelCase": True,
+    "unlist": [],
     "list": [
         { "uuid": 0x001D, "name": "UDI C-Plane" },
     ]
@@ -51,6 +50,7 @@ uuids_sources = [
     "yaml": "service_class.yaml",
     "description": "Service Class",
     "unCamelCase": True,
+    "unlist": [],
     "list": [
         # Then we have this weird one stuck in between "Service Class"
         # from browse_group_identifiers.yaml
@@ -66,36 +66,42 @@ uuids_sources = [
     "yaml": "mesh_profile_uuids.yaml",
     "description": "Mesh Profile",
     "unCamelCase": False,
+    "unlist": [],
     "list": []
 },
 {   # 0x1800
     "yaml": "service_uuids.yaml",
     "description": "Service",
     "unCamelCase": False,
+    "unlist": [],
     "list": []
 },
 {   # 0x2700
     "yaml": "units.yaml",
     "description": "Units",
     "unCamelCase": False,
+    "unlist": [],
     "list": []
 },
 {   # 0x2800
     "yaml": "declarations.yaml",
     "description": "Declarations",
     "unCamelCase": False,
+    "unlist": [],
     "list": []
 },
 {   # 0x2900
     "yaml": "descriptors.yaml",
     "description": "Descriptors",
     "unCamelCase": False,
+    "unlist": [],
     "list": []
 },
 {   # 0x2a00
     "yaml": "characteristic_uuids.yaml",
     "description": "Characteristics",
     "unCamelCase": False,
+    "unlist": [],
     "list": [
         # Then we have these weird ones stuck in between "Characteristics"
         # from object_types.yaml
@@ -121,18 +127,30 @@ uuids_sources = [
         { "uuid": 0x2A58, "name": "Analog" },
         { "uuid": 0x2A59, "name": "Analog Output" },
         { "uuid": 0x2A62, "name": "Pulse Oximetry Control Point" },
+        # These have somehow disappeared. We keep them for if they were used.
+        { "uuid": 0x2BA9, "name": "Media Player Icon Object Type" },
+        { "uuid": 0x2BAA, "name": "Track Segments Object Type" },
+        { "uuid": 0x2BAB, "name": "Track Object Type" },
+        { "uuid": 0x2BAC, "name": "Group Object Type" },
     ]
 },
 {   # 0xfxxx
     "yaml": "member_uuids.yaml",
     "description": "Members",
     "unCamelCase": False,
-    "list": []
+    "unlist": [],
+    "list": [
+        # This they really screwed up. The UUID was moved to sdo_uuids,
+        # thereby breaking the range and ordering completely.
+        { "uuid": 0xFCCC, "name": "Wi-Fi Easy Connect Specification" },
+    ]
 },
-{   # 0xfff2
+{   # 0xffef (and 0xfccc)
     "yaml": "sdo_uuids.yaml",
     "description": "SDO",
     "unCamelCase": False,
+    "unlist": [ 0xFCCC,
+    ],
     "list": []
 }]
 
@@ -150,7 +168,9 @@ for uuids in uuids_sources:
         sys.exit(1)
 
     uuids_dir = yaml.safe_load(lines)
-    uuids["list"].extend(uuids_dir["uuids"])
+    for uuid in uuids_dir["uuids"]:
+        if uuid["uuid"] not in uuids["unlist"]:
+            uuids["list"].append(uuid)
 
 '''
 Go through the lists and perform general and specific transforms.
@@ -200,7 +220,7 @@ for uuids in uuids_sources:
             # if not a few exceptional cases (see above)
             if uuid["uuid"] not in [0x001E, 0x001F, 0x1102, 0x1104, 0x1105, 0x1106, 0x1107, 0x1200, 0x2B8C]:
                 # Parse through the names and look for capital letters; when
-                # not preceeded by another capital letter or one of break_chars, insert a space
+                # not preceded by another capital letter or one of break_chars, insert a space
                 break_chars = [" ", "-", "+", "/", "(", ".", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
                 was_break = True # fake space at beginning of string
                 was_upper = False
@@ -223,7 +243,7 @@ for uuids in uuids_sources:
 
 '''
 Do a check on duplicate entries.
-While at it, do a count of the number of UUIDs retreived.
+While at it, do a count of the number of UUIDs retrieved.
 '''
 prev_uuid = 0
 uuid_count = 0

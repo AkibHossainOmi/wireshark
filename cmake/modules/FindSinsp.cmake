@@ -22,7 +22,7 @@
 #  SINSP_DLL            - (Windows) Name of the libsinsp and libscap DLLs
 
 include( FindWSWinLibs )
-FindWSWinLibs( "libfalcosecurity-.*" SINSP_HINTS )
+FindWSWinLibs( "falcosecurity-libs-.*" SINSP_HINTS )
 
 include(CMakeDependentOption)
 
@@ -37,7 +37,7 @@ if(NOT SINSP_FOUND)
   find_path(_sinsp_include_dirs NO_CACHE
     NAMES libsinsp/sinsp.h
     HINTS "${SINSP_INCLUDEDIR}" "${SINSP_HINTS}/include"
-    PATH_SUFFIXES falcosecurity/userspace
+    PATH_SUFFIXES falcosecurity
     /usr/include
     /usr/local/include
   )
@@ -48,7 +48,7 @@ if(NOT SINSP_FOUND)
   find_path(_scap_include_dir NO_CACHE
     NAMES scap.h
     HINTS "${SINSP_INCLUDEDIR}" "${SINSP_HINTS}/include"
-    PATH_SUFFIXES falcosecurity/userspace/libscap
+    PATH_SUFFIXES falcosecurity/libscap
     /usr/include
     /usr/local/include
   )
@@ -168,7 +168,7 @@ if(NOT SINSP_FOUND)
   endif()
 
   find_library(_zlib_lib NO_CACHE
-    NAMES zlib
+    NAMES zlibstatic
     HINTS "${SINSP_LIBDIR}" "${SINSP_HINTS}/lib" "${SINSP_HINTS}/lib/falcosecurity"
     PATHS
     /usr/lib
@@ -222,6 +222,23 @@ else()
   set(SINSP_LINK_LIBRARIES)
 endif()
 
-cmake_dependent_option(FALCO_PLUGINS "Paths to Falco plugins. Semicolon-separated" "" SINSP_FOUND "")
-
 mark_as_advanced(SINSP_INCLUDE_DIRS SINSP_LINK_LIBRARIES)
+
+# Windows plugins
+
+set(_falco_plugins)
+if(WIN32 AND SINSP_FOUND AND NOT FALCO_PLUGINS)
+  FindWSWinLibs( "falcosecurity-plugins-.*" _falco_plugin_dir)
+  if(_falco_plugin_dir)
+    file( GLOB _falco_plugins LIST_DIRECTORIES false "${_falco_plugin_dir}/*.dll" )
+    unset(_falco_plugin_dir)
+  endif()
+endif()
+
+# XXX It looks like we can either autodiscover this value or provide an option but not both.
+if(_falco_plugins)
+  set(FALCO_PLUGINS ${_falco_plugins} CACHE FILEPATH "Paths to Falco plugins. Semicolon-separated")
+  unset(_falco_plugins)
+else()
+  cmake_dependent_option(FALCO_PLUGINS "Paths to Falco plugins. Semicolon-separated" "" "SINSP_FOUND" "")
+endif()

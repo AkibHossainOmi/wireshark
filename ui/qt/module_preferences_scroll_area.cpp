@@ -57,8 +57,8 @@ extern "C" {
 // Callbacks prefs routines
 
 /* Add a single preference to the QVBoxLayout of a preference page */
-static guint
-pref_show(pref_t *pref, gpointer user_data)
+static unsigned
+pref_show(pref_t *pref, void *user_data)
 {
     prefSearchData * data = static_cast<prefSearchData *>(user_data);
 
@@ -74,7 +74,6 @@ pref_show(pref_t *pref, gpointer user_data)
 
     switch (prefs_get_type(pref)) {
     case PREF_UINT:
-    case PREF_DECODE_AS_UINT:
     {
         QHBoxLayout *hb = new QHBoxLayout();
         QLabel *label = new QLabel(prefs_get_title(pref));
@@ -321,7 +320,7 @@ ModulePreferencesScrollArea::ModulePreferencesScrollArea(module_t *module, QWidg
 
     /* Show the preference's description at the top of the page */
     QFont font;
-    font.setBold(TRUE);
+    font.setBold(true);
     QLabel *label = new QLabel(module->description);
     label->setFont(font);
     ui->verticalLayout->addWidget(label);
@@ -338,9 +337,6 @@ ModulePreferencesScrollArea::ModulePreferencesScrollArea(module_t *module, QWidg
         if (!pref) continue;
 
         switch (prefs_get_type(pref)) {
-        case PREF_DECODE_AS_UINT:
-            connect(le, &QLineEdit::textEdited, this, &ModulePreferencesScrollArea::uintLineEditTextEdited);
-            break;
         case PREF_UINT:
             connect(le, &QLineEdit::textEdited, this, &ModulePreferencesScrollArea::uintLineEditTextEdited);
             break;

@@ -12,8 +12,6 @@
 
 #include "config.h"
 
-#include <glib.h>
-
 #include <ui/qt/models/atap_data_model.h>
 #include <ui/qt/filter_action.h>
 #include <ui/qt/widgets/traffic_tree.h>
@@ -95,7 +93,7 @@ public:
      *
      * @see ATapModelCallback
      */
-    void setProtocolInfo(QString tableName, TrafficTypesList * trafficList, GList ** recentColumnList, ATapModelCallback createModel);
+    void setProtocolInfo(QString tableName, TrafficTypesList * trafficList, GList ** recentList, GList ** recentColumnList, ATapModelCallback createModel);
 
     /**
      * @brief Set the Delegate object for the tab. It will apply for all
@@ -222,6 +220,7 @@ private:
     QMap<int, int> _tabs;
     ATapModelCallback _createModel;
     ATapCreateDelegate _createDelegate;
+    GList ** _recentList;
     GList ** _recentColumnList;
 
     bool _disableTaps;

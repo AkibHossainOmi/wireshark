@@ -9,8 +9,6 @@
 
 #include "config.h"
 
-#include <glib.h>
-
 #include "file.h"
 
 #include <epan/expert.h>
@@ -47,13 +45,13 @@ Q_DECLARE_METATYPE(ProfileDialog::ProfileAction)
 
 // If we ever add support for multiple windows this will need to be replaced.
 // See also: main_window.cpp
-static MainStatusBar *cur_main_status_bar_ = NULL;
+static MainStatusBar *cur_main_status_bar_;
 
 /*
  * Push a formatted temporary message onto the statusbar.
  */
 void
-statusbar_push_temporary_msg(const gchar *msg_format, ...)
+statusbar_push_temporary_msg(const char *msg_format, ...)
 {
     va_list ap;
     QString push_msg;
@@ -133,8 +131,8 @@ MainStatusBar::MainStatusBar(QWidget *parent) :
 
     comment_button_->setToolTip(tr("Open the Capture File Properties dialog"));
     comment_button_->setEnabled(false);
-    connect(expert_button_, SIGNAL(clicked(bool)), this, SIGNAL(showExpertInfo()));
-    connect(comment_button_, SIGNAL(clicked(bool)), this, SIGNAL(editCaptureComment()));
+    connect(expert_button_, &QToolButton::clicked, this, &MainStatusBar::showExpertInfo);
+    connect(comment_button_, &QToolButton::clicked, this, &MainStatusBar::editCaptureComment);
 
     info_progress_hb->setContentsMargins(icon_size / 2, 0, 0, 0);
 
@@ -292,7 +290,12 @@ void MainStatusBar::selectedFieldChanged(FieldInformation * finfo)
 
         finfo_length = finfo->position().length + finfo->appendix().length;
         if (finfo_length > 0) {
-            item_info.append(", " + tr("%Ln byte(s)", "", finfo_length));
+            int finfo_bits = FI_GET_BITS_SIZE(finfo->fieldInfo());
+            if (finfo_bits % 8 == 0) {
+                item_info.append(", " + tr("%Ln byte(s)", "", finfo_length));
+            } else {
+                item_info.append(", " + tr("%Ln bit(s)", "", finfo_bits));
+            }
         }
     }
 
@@ -329,9 +332,7 @@ void MainStatusBar::pushGenericStatus(StatusContext status, const QString &messa
     if (message.isEmpty() && status != STATUS_CTX_FILE  && status != STATUS_CTX_TEMPORARY && status != STATUS_CTX_PROGRESS)
         popGenericStatus(status);
     else
-        stack->pushText(message, status);
-
-    stack->setToolTip(messagetip);
+        stack->pushText(message, status, messagetip);
 
     if (status == STATUS_CTX_FILTER || status == STATUS_CTX_FILE)
         expertUpdate();
@@ -344,8 +345,6 @@ void MainStatusBar::popGenericStatus(StatusContext status)
     if (status == STATUS_CTX_MAIN)
         stack = &packet_status_;
 
-    stack->setToolTip(QString());
-
     stack->popText(status);
 }
 
@@ -357,7 +356,7 @@ void MainStatusBar::setProfileName()
 void MainStatusBar::appInitialized()
 {
     setProfileName();
-    connect(mainApp->mainWindow(), SIGNAL(framesSelected(QList<int>)), this, SLOT(selectedFrameChanged(QList<int>)));
+    connect(qobject_cast<MainWindow *>(mainApp->mainWindow()), &MainWindow::framesSelected, this, &MainStatusBar::selectedFrameChanged);
 }
 
 void MainStatusBar::selectedFrameChanged(QList<int>)
@@ -436,7 +435,7 @@ void MainStatusBar::showCaptureStatistics()
             }
             if (prefs.gui_show_file_load_time && !cap_file_->is_tempfile) {
                 /* Loading an existing file */
-                gulong computed_elapsed = cf_get_computed_elapsed(cap_file_);
+                unsigned long computed_elapsed = cf_get_computed_elapsed(cap_file_);
                 packets_str.append(tr(" %1  Load time: %2:%3.%4")
                                    .arg(UTF8_MIDDLE_DOT)
                                    .arg(computed_elapsed/60000, 2, 10, QLatin1Char('0'))
@@ -600,7 +599,7 @@ void MainStatusBar::showProfileMenu(const QPoint &global_pos, Qt::MouseButton bu
         action->setEnabled(enable_edit);
         ctx_menu_->addSeparator();
 
-#ifdef HAVE_MINIZIP
+#if defined(HAVE_MINIZIP) || defined(HAVE_MINIZIPNG)
         QMenu * importMenu = new QMenu(tr("Import"), ctx_menu_);
         action = importMenu->addAction(tr("From Zip File..."), this, SLOT(manageProfile()));
         action->setProperty("dialog_action_", (int)ProfileDialog::ImportZipProfile);

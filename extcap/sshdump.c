@@ -65,7 +65,7 @@ enum {
 	OPT_REMOTE_NOPROM
 };
 
-static struct ws_option longopts[] = {
+static const struct ws_option longopts[] = {
 	EXTCAP_BASE_OPTIONS,
 	{ "help", ws_no_argument, NULL, OPT_HELP},
 	{ "version", ws_no_argument, NULL, OPT_VERSION},
@@ -196,7 +196,7 @@ static ssh_channel run_ssh_command(ssh_session sshs, const char* capture_command
 				g_string_append_printf(ifaces_string, "-i %s ", quoted_iface);
 				ifaces_array_num++;
 			}
-			ifaces = g_string_free(ifaces_string, false);
+			ifaces = g_string_free(ifaces_string, FALSE);
 		}
 		quoted_filter = g_shell_quote(cfilter ? cfilter : "");
 		if (count > 0)
@@ -306,7 +306,7 @@ static char* interfaces_list_to_filter(GSList* interfaces, unsigned int remote_p
 		}
 		g_string_append_printf(filter, ") and port %u)", remote_port);
 	}
-	return g_string_free(filter, false);
+	return g_string_free(filter, FALSE);
 }
 
 static int list_config(char *interface, unsigned int remote_port)
@@ -659,7 +659,7 @@ int main(int argc, char *argv[])
 		// given is always using the default SSH port since there's no remote SSH port
 		// given on the command line to get the extcap arguments.
 		// However the remote SSH port used here is the one given on the command line
-		// when the capture us started, which is the indended one.
+		// when the capture us started, which is the intended one.
 		// And this is only happening when no remote filter is specified on the command
 		// line to start the capture.
 		if (remote_filter == NULL)

@@ -20,6 +20,8 @@ SPDX-License-Identifier: ISC
 #include <glib.h>
 #include <glib/gstdio.h>
 
+#include <wsutil/array.h>
+
 #if defined(HAVE_LIBNL) && defined(HAVE_NL80211)
 #include <string.h>
 #include <errno.h>
@@ -1157,7 +1159,7 @@ int ws80211_set_fcs_validation(const char *name, enum ws80211_fcs_validation fcs
 	return ret_val;
 }
 
-static char *airpcap_conf_path = NULL;
+static char *airpcap_conf_path;
 const char *ws80211_get_helper_path(void)
 {
 	HKEY h_key = NULL;
@@ -1165,7 +1167,7 @@ const char *ws80211_get_helper_path(void)
 	if (!airpcap_conf_path && RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SOFTWARE\\AirPcap"), 0, KEY_QUERY_VALUE|KEY_WOW64_32KEY, &h_key) == ERROR_SUCCESS) {
 		DWORD reg_ret;
 		TCHAR airpcap_dir_utf16[MAX_PATH];
-		DWORD ad_size = sizeof(airpcap_dir_utf16)/sizeof(TCHAR);
+		DWORD ad_size = array_length(airpcap_dir_utf16);
 
 		reg_ret = RegQueryValueEx(h_key, NULL, NULL, NULL,
 				(LPBYTE) &airpcap_dir_utf16, &ad_size);

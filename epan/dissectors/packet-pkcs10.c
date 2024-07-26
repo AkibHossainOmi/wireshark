@@ -1,7 +1,7 @@
 /* Do not modify this file. Changes will be overwritten.                      */
 /* Generated automatically by the ASN.1 to Wireshark dissector compiler       */
 /* packet-pkcs10.c                                                            */
-/* asn2wrs.py -b -L -p pkcs10 -c ./pkcs10.cnf -s ./packet-pkcs10-template -D . -O ../.. PKCS10.asn */
+/* asn2wrs.py -b -q -L -p pkcs10 -c ./pkcs10.cnf -s ./packet-pkcs10-template -D . -O ../.. PKCS10.asn */
 
 /* packet-p10.c
  *
@@ -64,11 +64,11 @@ static int hf_pkcs10_signatureAlgorithm;          /* AlgorithmIdentifier */
 static int hf_pkcs10_signature;                   /* BIT_STRING */
 
 /* Initialize the subtree pointers */
-static gint ett_pkcs10_CertificationRequestInfo;
-static gint ett_pkcs10_Attributes;
-static gint ett_pkcs10_Attribute;
-static gint ett_pkcs10_T_values;
-static gint ett_pkcs10_CertificationRequest;
+static int ett_pkcs10_CertificationRequestInfo;
+static int ett_pkcs10_Attributes;
+static int ett_pkcs10_Attribute;
+static int ett_pkcs10_T_values;
+static int ett_pkcs10_CertificationRequest;
 
 static const value_string pkcs10_T_version_vals[] = {
   {   0, "v1" },
@@ -193,15 +193,15 @@ dissect_pkcs10_CertificationRequest(bool implicit_tag _U_, tvbuff_t *tvb _U_, in
 static int dissect_Attributes_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
   int offset = 0;
   asn1_ctx_t asn1_ctx;
-  asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
-  offset = dissect_pkcs10_Attributes(FALSE, tvb, offset, &asn1_ctx, tree, hf_pkcs10_Attributes_PDU);
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, true, pinfo);
+  offset = dissect_pkcs10_Attributes(false, tvb, offset, &asn1_ctx, tree, hf_pkcs10_Attributes_PDU);
   return offset;
 }
 static int dissect_CertificationRequest_PDU(tvbuff_t *tvb _U_, packet_info *pinfo _U_, proto_tree *tree _U_, void *data _U_) {
   int offset = 0;
   asn1_ctx_t asn1_ctx;
-  asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, TRUE, pinfo);
-  offset = dissect_pkcs10_CertificationRequest(FALSE, tvb, offset, &asn1_ctx, tree, hf_pkcs10_CertificationRequest_PDU);
+  asn1_ctx_init(&asn1_ctx, ASN1_ENC_BER, true, pinfo);
+  offset = dissect_pkcs10_CertificationRequest(false, tvb, offset, &asn1_ctx, tree, hf_pkcs10_CertificationRequest_PDU);
   return offset;
 }
 
@@ -266,7 +266,7 @@ void proto_register_pkcs10(void) {
 	};
 
 	/* List of subtrees */
-	static gint *ett[] = {
+	static int *ett[] = {
     &ett_pkcs10_CertificationRequestInfo,
     &ett_pkcs10_Attributes,
     &ett_pkcs10_Attribute,

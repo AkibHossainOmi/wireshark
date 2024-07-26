@@ -27,7 +27,7 @@ void proto_register_lix2(void);
 
 /* Initialize the protocol and registered fields */
 static int proto_lix2;
-static dissector_handle_t lix2_handle = NULL;
+static dissector_handle_t lix2_handle;
 
 
 #include "packet-lix2-hf.c"
@@ -45,7 +45,7 @@ void proto_register_lix2(void) {
   };
 
   /* List of subtrees */
-  static gint *ett[] = {
+  static int *ett[] = {
 #include "packet-lix2-ettarr.c"
   };
 

@@ -13,7 +13,6 @@
 #include <ui/qt/widgets/syntax_line_edit.h>
 #include <ui/qt/utils/wireshark_mime_data.h>
 
-#include <glib.h>
 #include <epan/column.h>
 #include <epan/prefs.h>
 #include <epan/proto.h>
@@ -336,7 +335,7 @@ void ColumnListModel::populate()
 
 QVariant ColumnListModel::data(const QModelIndex &index, int role) const
 {
-    if (! index.isValid() || index.column() >= store_.count())
+    if (! index.isValid() || index.row() >= store_.count())
         return QVariant();
 
     ListElement ne = store_.at(index.row());
@@ -547,7 +546,7 @@ void ColumnListModel::saveColumns()
         cfmt->title = qstring_strdup(elem.title);
         cfmt->visible = elem.displayed;
         cfmt->fmt = elem.type;
-        cfmt->resolved = TRUE;
+        cfmt->resolved = true;
         if (cfmt->fmt == COL_CUSTOM)
         {
             cfmt->custom_fields = qstring_strdup(elem.customFields);
